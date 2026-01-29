@@ -1,3 +1,4 @@
+import React from "react";
 import { useAuth } from './contexts/AuthContext';
 import { Landing } from './components/Landing';
 import { Layout } from './components/Layout';
@@ -19,7 +20,11 @@ function App() {
   }
 
   if (!user || !profile) {
-    return <Landing />;
+    return (
+      <div>
+        <Landing />
+      </div>
+    );
   }
 
   return (

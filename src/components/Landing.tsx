@@ -118,6 +118,7 @@ function FAQItem({
 export function Landing() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authMode, setAuthMode] = useState<"owner" | "contractor">("owner");
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const [projectType, setProjectType] = useState("");
   const [budget, setBudget] = useState("");
@@ -256,6 +257,7 @@ export function Landing() {
       <nav className="border-b border-slate-100 bg-white/70 backdrop-blur-xl sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="h-16 flex items-center justify-between">
+            {/* logo */}
             <div className="flex items-center gap-3">
               <div className="relative w-10 h-10 rounded-xl overflow-hidden">
                 <div className="absolute inset-0 bg-gradient-to-br from-orange-500 via-blue-600 to-indigo-500" />
@@ -270,6 +272,7 @@ export function Landing() {
               </div>
             </div>
 
+            {/* desktop links */}
             <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-700">
               <a href="#home" className="hover:text-slate-900 transition-colors">
                 Home
@@ -285,19 +288,58 @@ export function Landing() {
               </a>
             </div>
 
+            {/* actions + mobile toggle */}
             <div className="flex items-center gap-2">
+              <div className="hidden md:flex items-center gap-2">
+                <button
+                  onClick={() => openAuth("owner")}
+                  className="px-4 py-2 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-900 text-sm font-semibold transition-all"
+                >
+                  Log In
+                </button>
+                <button
+                  onClick={() => openAuth("owner")}
+                  className="px-4 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-all shadow-sm hover:shadow-md"
+                >
+                  Sign Up
+                </button>
+              </div>
+
+              {/* mobile hamburger */}
               <button
-                onClick={() => openAuth("owner")}
-                className="px-4 py-2 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-900 text-sm font-semibold transition-all"
+                onClick={() => setMobileOpen((s) => !s)}
+                className="md:hidden p-2 rounded-lg hover:bg-slate-100"
+                aria-label="Toggle menu"
+                aria-expanded={mobileOpen}
               >
-                Log In
+                {/* simple hamburger icon */}
+                <svg className="w-6 h-6 text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={mobileOpen ? "M6 18L18 6M6 6l12 12" : "M4 6h16M4 12h16M4 18h16"} />
+                </svg>
               </button>
-              <button
-                onClick={() => openAuth("owner")}
-                className="px-4 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-all shadow-sm hover:shadow-md"
-              >
-                Sign Up
-              </button>
+            </div>
+          </div>
+          {/* mobile menu panel */}
+          <div className={cn("md:hidden", mobileOpen ? "block" : "hidden")}>
+            <div className="px-4 pb-4 space-y-3">
+              <a onClick={() => setMobileOpen(false)} href="#home" className="block text-slate-700 py-2">Home</a>
+              <a onClick={() => setMobileOpen(false)} href="#how" className="block text-slate-700 py-2">How it Works</a>
+              <a onClick={() => setMobileOpen(false)} href="#contractors" className="block text-slate-700 py-2">Find Contractors</a>
+              <a onClick={() => setMobileOpen(false)} href="#support" className="block text-slate-700 py-2">Contact & Support</a>
+              <div className="pt-2 border-t border-slate-100 mt-2 flex flex-col gap-2">
+                <button
+                  onClick={() => { setMobileOpen(false); openAuth("owner"); }}
+                  className="w-full px-4 py-2 rounded-full border border-slate-200 bg-white text-slate-900 text-sm font-semibold"
+                >
+                  Log In
+                </button>
+                <button
+                  onClick={() => { setMobileOpen(false); openAuth("owner"); }}
+                  className="w-full px-4 py-2 rounded-full bg-blue-600 text-white text-sm font-semibold"
+                >
+                  Sign Up
+                </button>
+              </div>
             </div>
           </div>
         </div>
