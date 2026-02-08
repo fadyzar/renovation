@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Briefcase, TrendingUp, Star, DollarSign, Search, MapPin, Calendar } from 'lucide-react';
+import { Briefcase, TrendingUp, Star, DollarSign, Search, MapPin, Calendar, Filter, Clock, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -32,6 +32,8 @@ export function ContractorDashboard() {
   const [myQuotes, setMyQuotes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [filterUrgency, setFilterUrgency] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<string>('recent');
 
   useEffect(() => {
     loadData();
@@ -69,12 +71,23 @@ export function ContractorDashboard() {
     }
   }
 
-  const filteredProjects = projects.filter(project =>
-    searchQuery === '' ||
+  let filteredProjects = projects.filter(project =>
+    (searchQuery === '' ||
     project.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
     project.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    project.work_types.some(type => type.toLowerCase().includes(searchQuery.toLowerCase()))
+    project.work_types.some(type => type.toLowerCase().includes(searchQuery.toLowerCase()))) &&
+    (filterUrgency === 'all' || project.urgency === filterUrgency)
   );
+
+  if (sortBy === 'recent') {
+    filteredProjects = filteredProjects.sort((a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  } else if (sortBy === 'budget-high') {
+    filteredProjects = filteredProjects.sort((a, b) => b.budget_max - a.budget_max);
+  } else if (sortBy === 'budget-low') {
+    filteredProjects = filteredProjects.sort((a, b) => a.budget_min - b.budget_min);
+  }
 
   const stats = {
     totalQuotes: myQuotes.length,
@@ -142,7 +155,7 @@ export function ContractorDashboard() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-gray-100 mb-6 p-4">
+      <div className="bg-white rounded-xl border border-gray-100 mb-6 p-4 space-y-4">
         <div className="relative">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
           <input
@@ -152,6 +165,35 @@ export function ContractorDashboard() {
             placeholder="Search projects by title, description, or work type..."
             className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
           />
+        </div>
+
+        <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Urgency</label>
+            <select
+              value={filterUrgency}
+              onChange={(e) => setFilterUrgency(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+            >
+              <option value="all">All Urgencies</option>
+              <option value="high">High Priority</option>
+              <option value="medium">Medium Priority</option>
+              <option value="low">Low Priority</option>
+            </select>
+          </div>
+
+          <div className="flex-1">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-200 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+            >
+              <option value="recent">Most Recent</option>
+              <option value="budget-high">Budget: High to Low</option>
+              <option value="budget-low">Budget: Low to High</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -166,72 +208,98 @@ export function ContractorDashboard() {
           <p className="text-gray-600">Check back later for new opportunities</p>
         </div>
       ) : (
-        <div className="grid gap-6">
+        <div className="space-y-4">
           {filteredProjects.map(project => (
             <div
               key={project.id}
-              className="bg-white rounded-xl p-6 border border-gray-100 hover:shadow-lg transition-all"
+              className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-md transition-all duration-300"
             >
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
-                    <h3 className="text-lg font-semibold text-gray-900">{project.title}</h3>
-                    {project.urgency === 'high' && (
-                      <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-medium rounded-full">
-                        Urgent
-                      </span>
-                    )}
+              <div className="p-6">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-3">
+                      <h3 className="text-xl font-bold text-gray-900">{project.title}</h3>
+                      {project.urgency === 'high' && (
+                        <div className="flex items-center gap-1 px-3 py-1 bg-red-50 rounded-lg">
+                          <AlertCircle className="w-4 h-4 text-red-600" />
+                          <span className="text-red-700 text-xs font-semibold">URGENT</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-gray-600 text-sm line-clamp-2 mb-3">{project.description}</p>
-
-                  <div className="flex flex-wrap items-center gap-4 text-sm text-gray-600">
-                    {project.owner?.location?.city && (
-                      <div className="flex items-center gap-1">
-                        <MapPin className="w-4 h-4" />
-                        <span>{project.owner.location.city}, {project.owner.location.state}</span>
-                      </div>
-                    )}
-
-                    {project.ai_analysis?.timeline_weeks && (
-                      <div className="flex items-center gap-1">
-                        <Calendar className="w-4 h-4" />
-                        <span>{project.ai_analysis.timeline_weeks} weeks</span>
-                      </div>
-                    )}
-
-                    {project.ai_analysis?.complexity && (
-                      <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs">
-                        {project.ai_analysis.complexity} Complexity
-                      </span>
-                    )}
+                  <div className="text-right">
+                    <p className="text-xs text-gray-500 font-medium mb-1">Budget Range</p>
+                    <p className="text-2xl font-bold text-teal-600">
+                      ${(project.budget_min / 1000).toFixed(0)}k - ${(project.budget_max / 1000).toFixed(0)}k
+                    </p>
                   </div>
                 </div>
 
-                <div className="text-right ml-4">
-                  <p className="text-sm text-gray-600 mb-1">Budget Range</p>
-                  <p className="text-xl font-bold text-gray-900">
-                    ${project.budget_min?.toLocaleString()} - ${project.budget_max?.toLocaleString()}
-                  </p>
-                </div>
-              </div>
+                <p className="text-gray-700 text-base leading-relaxed mb-4">{project.description}</p>
 
-              <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-                <div className="flex flex-wrap gap-2">
-                  {project.work_types.slice(0, 4).map(type => (
-                    <span key={type} className="px-3 py-1 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 py-4 border-y border-gray-100">
+                  {project.owner?.location?.city && (
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-5 h-5 text-gray-400" />
+                      <div>
+                        <p className="text-xs text-gray-500">Location</p>
+                        <p className="text-sm font-medium text-gray-900">{project.owner.location.city}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {project.ai_analysis?.timeline_weeks && (
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-5 h-5 text-gray-400" />
+                      <div>
+                        <p className="text-xs text-gray-500">Timeline</p>
+                        <p className="text-sm font-medium text-gray-900">{project.ai_analysis.timeline_weeks} weeks</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {project.ai_analysis?.complexity && (
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-5 h-5 text-gray-400" />
+                      <div>
+                        <p className="text-xs text-gray-500">Complexity</p>
+                        <p className="text-sm font-medium text-gray-900">{project.ai_analysis.complexity}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {project.owner?.full_name && (
+                    <div className="flex items-center gap-2">
+                      <Briefcase className="w-5 h-5 text-gray-400" />
+                      <div>
+                        <p className="text-xs text-gray-500">Owner</p>
+                        <p className="text-sm font-medium text-gray-900 truncate">{project.owner.full_name}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2 mb-4">
+                  {project.work_types.slice(0, 5).map(type => (
+                    <span key={type} className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-50 text-blue-700 border border-blue-200">
                       {type}
                     </span>
                   ))}
-                  {project.work_types.length > 4 && (
-                    <span className="px-3 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs font-medium">
-                      +{project.work_types.length - 4} more
+                  {project.work_types.length > 5 && (
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-700 border border-gray-200">
+                      +{project.work_types.length - 5} more
                     </span>
                   )}
                 </div>
 
-                <button className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors">
-                  Submit Quote
-                </button>
+                <div className="flex gap-3 pt-4">
+                  <button className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-semibold rounded-lg transition-all duration-200 shadow-sm hover:shadow-md">
+                    Submit Quote
+                  </button>
+                  <button className="px-6 py-3 border border-gray-200 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition-colors">
+                    Save
+                  </button>
+                </div>
               </div>
             </div>
           ))}
