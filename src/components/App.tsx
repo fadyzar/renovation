@@ -2,6 +2,7 @@ import React from "react";
 import { BrowserRouter as Router, Routes, Route, NavLink } from "react-router-dom";
 import Dashboard from "./screens/Dashboard";
 import Projects from "./screens/Projects";
+import ProjectDetails from "./screens/ProjectDetails";
 import Contractors from "./screens/Contractors";
 import Support from "./screens/Support";
 import Settings from "./screens/Settings";
@@ -79,6 +80,7 @@ function App() {
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/projects" element={<Projects />} />
+              <Route path="/project/:id" element={<ProjectDetails />} />
               <Route path="/contractors" element={<Contractors />} />
               <Route path="/support" element={<Support />} />
               <Route path="/settings" element={<Settings />} />
