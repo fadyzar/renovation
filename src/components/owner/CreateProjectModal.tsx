@@ -37,6 +37,11 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
     budget_min: '',
     budget_max: '',
     urgency: 'medium' as 'low' | 'medium' | 'high',
+    address: '',
+    city: '',
+    state: '',
+    zip_code: '',
+    phone: '',
   });
 
   const [aiAnalysis, setAiAnalysis] = useState<{
@@ -91,15 +96,40 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
     setLoading(true);
 
     try {
+      if (formData.phone) {
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({ phone: formData.phone })
+          .eq('id', user?.id);
+
+        if (profileError) throw profileError;
+      }
+
+      const { data: propertyData, error: propertyError } = await supabase
+        .from('properties')
+        .insert({
+          owner_id: user?.id,
+          address: formData.address,
+          city: formData.city,
+          state: formData.state,
+          zip_code: formData.zip_code,
+        })
+        .select()
+        .single();
+
+      if (propertyError) throw propertyError;
+
       const { error } = await supabase
         .from('projects')
         .insert({
           owner_id: user?.id,
+          property_id: propertyData.id,
           title: formData.title,
           description: formData.description,
           work_types: formData.work_types,
           budget_min: parseFloat(formData.budget_min) || null,
           budget_max: parseFloat(formData.budget_max) || null,
+          timeline_weeks: aiAnalysis?.timeline_weeks || null,
           urgency: formData.urgency,
           status: 'draft',
           ai_analysis: aiAnalysis || {},
@@ -240,6 +270,79 @@ export function CreateProjectModal({ isOpen, onClose, onSuccess }: CreateProject
                       {level}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-gray-200">
+                <h3 className="text-lg font-semibold text-gray-900 mb-4">Property Details</h3>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Street Address
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.address}
+                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                      placeholder="123 Main Street"
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        City
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.city}
+                        onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                        placeholder="New York"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        State
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.state}
+                        onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                        placeholder="NY"
+                        className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      ZIP Code
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.zip_code}
+                      onChange={(e) => setFormData({ ...formData, zip_code: e.target.value })}
+                      placeholder="10001"
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Phone Number
+                    </label>
+                    <input
+                      type="tel"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      placeholder="+1 (555) 123-4567"
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
