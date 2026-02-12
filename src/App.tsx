@@ -1,13 +1,31 @@
 import React from "react";
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { Landing } from './components/Landing';
 import { Layout } from './components/Layout';
 import { OwnerDashboard } from './components/owner/OwnerDashboard';
 import { ContractorDashboard } from './components/contractor/ContractorDashboard';
 import { ProjectFeed } from './components/contractor/ProjectFeed';
+import { SubmitBid } from './components/contractor/SubmitBid';
 import Settings from './components/screens/Settings';
 import Support from './components/screens/Support';
+
+function SubmitBidPage() {
+  const { projectId } = useParams<{ projectId: string }>();
+  const navigate = useNavigate();
+
+  if (!projectId) {
+    return <Navigate to="/projects" replace />;
+  }
+
+  return (
+    <SubmitBid
+      projectId={projectId}
+      onSuccess={() => navigate('/dashboard')}
+      onCancel={() => navigate(-1)}
+    />
+  );
+}
 
 function App() {
   const { user, profile, loading } = useAuth();
@@ -52,6 +70,7 @@ function App() {
             </div>
           }
         />
+        <Route path="/submit-bid/:projectId" element={<SubmitBidPage />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/support" element={<Support />} />
       </Routes>
