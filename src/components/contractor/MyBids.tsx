@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Clock, CheckCircle, XCircle, Eye, DollarSign, Calendar, FileText } from 'lucide-react';
+import { ChevronDown, Search, Layers, Clock, ArrowRight } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 interface Milestone {
   description: string;
@@ -25,19 +26,27 @@ interface Bid {
     description: string;
     budget_min: number;
     budget_max: number;
+    timeline_weeks: number;
     status: string;
     owner: {
       full_name: string;
+      total_projects?: number;
     };
   };
 }
 
 export function MyBids() {
   const { profile } = useAuth();
+  const navigate = useNavigate();
   const [bids, setBids] = useState<Bid[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<'all' | 'sent' | 'viewed' | 'accepted' | 'rejected'>('all');
-  const [expandedBid, setExpandedBid] = useState<string | null>(null);
+
+  const [filters, setFilters] = useState({
+    renovationType: 'Select Project Type',
+    budgetRange: '$1,000 to $50,000',
+    location: 'Select your location',
+    duration: 'Next 30 Days'
+  });
 
   useEffect(() => {
     loadBids();
@@ -55,8 +64,9 @@ export function MyBids() {
             description,
             budget_min,
             budget_max,
+            timeline_weeks,
             status,
-            owner:profiles!projects_owner_id_fkey(full_name)
+            owner:profiles!projects_owner_id_fkey(full_name, total_projects)
           )
         `)
         .eq('contractor_id', profile?.id)
@@ -71,266 +81,219 @@ export function MyBids() {
     }
   }
 
-  const filteredBids = filter === 'all'
-    ? bids
-    : bids.filter(bid => bid.status === filter);
-
-  const stats = {
-    total: bids.length,
-    sent: bids.filter(b => b.status === 'sent').length,
-    viewed: bids.filter(b => b.status === 'viewed').length,
-    accepted: bids.filter(b => b.status === 'accepted').length,
-    rejected: bids.filter(b => b.status === 'rejected').length,
-  };
-
-  const getStatusColor = (status: string) => {
+  const getStatusConfig = (status: string) => {
     switch (status) {
       case 'sent':
-        return 'bg-blue-100 text-blue-700 border-blue-200';
+        return {
+          label: 'Pending Bid',
+          className: 'bg-gray-500 text-white'
+        };
       case 'viewed':
-        return 'bg-purple-100 text-purple-700 border-purple-200';
+        return {
+          label: 'Pending Bid',
+          className: 'bg-gray-500 text-white'
+        };
       case 'accepted':
-        return 'bg-green-100 text-green-700 border-green-200';
+        return {
+          label: 'Approved Bid',
+          className: 'bg-green-500 text-white'
+        };
       case 'rejected':
-        return 'bg-red-100 text-red-700 border-red-200';
+        return {
+          label: 'Rejected Bid',
+          className: 'bg-red-500 text-white'
+        };
       default:
-        return 'bg-gray-100 text-gray-700 border-gray-200';
+        return {
+          label: 'Pending Bid',
+          className: 'bg-gray-500 text-white'
+        };
     }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'sent':
-        return <Clock className="w-4 h-4" />;
-      case 'viewed':
-        return <Eye className="w-4 h-4" />;
-      case 'accepted':
-        return <CheckCircle className="w-4 h-4" />;
-      case 'rejected':
-        return <XCircle className="w-4 h-4" />;
-      default:
-        return null;
-    }
-  };
-
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const toggleExpand = (bidId: string) => {
-    setExpandedBid(expandedBid === bidId ? null : bidId);
   };
 
   return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <button
-          onClick={() => setFilter('all')}
-          className={`p-4 rounded-xl border-2 transition-all ${
-            filter === 'all'
-              ? 'border-blue-600 bg-blue-50'
-              : 'border-gray-200 bg-white hover:border-gray-300'
-          }`}
-        >
-          <p className="text-sm text-gray-600 mb-1">Total Bids</p>
-          <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
-        </button>
-
-        <button
-          onClick={() => setFilter('sent')}
-          className={`p-4 rounded-xl border-2 transition-all ${
-            filter === 'sent'
-              ? 'border-blue-600 bg-blue-50'
-              : 'border-gray-200 bg-white hover:border-gray-300'
-          }`}
-        >
-          <p className="text-sm text-gray-600 mb-1">Sent</p>
-          <p className="text-2xl font-bold text-blue-600">{stats.sent}</p>
-        </button>
-
-        <button
-          onClick={() => setFilter('viewed')}
-          className={`p-4 rounded-xl border-2 transition-all ${
-            filter === 'viewed'
-              ? 'border-purple-600 bg-purple-50'
-              : 'border-gray-200 bg-white hover:border-gray-300'
-          }`}
-        >
-          <p className="text-sm text-gray-600 mb-1">Viewed</p>
-          <p className="text-2xl font-bold text-purple-600">{stats.viewed}</p>
-        </button>
-
-        <button
-          onClick={() => setFilter('accepted')}
-          className={`p-4 rounded-xl border-2 transition-all ${
-            filter === 'accepted'
-              ? 'border-green-600 bg-green-50'
-              : 'border-gray-200 bg-white hover:border-gray-300'
-          }`}
-        >
-          <p className="text-sm text-gray-600 mb-1">Accepted</p>
-          <p className="text-2xl font-bold text-green-600">{stats.accepted}</p>
-        </button>
-
-        <button
-          onClick={() => setFilter('rejected')}
-          className={`p-4 rounded-xl border-2 transition-all ${
-            filter === 'rejected'
-              ? 'border-red-600 bg-red-50'
-              : 'border-gray-200 bg-white hover:border-gray-300'
-          }`}
-        >
-          <p className="text-sm text-gray-600 mb-1">Rejected</p>
-          <p className="text-2xl font-bold text-red-600">{stats.rejected}</p>
-        </button>
+    <div className="min-h-screen">
+      <div className="bg-gray-900 text-white py-6 mb-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h1 className="text-3xl font-bold">My Bids</h1>
+        </div>
       </div>
 
-      {loading ? (
-        <div className="text-center py-12">
-          <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-        </div>
-      ) : filteredBids.length === 0 ? (
-        <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
-          <FileText className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-900 mb-2">No bids found</h3>
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">Your Submitted Bids</h2>
           <p className="text-gray-600">
-            {filter === 'all'
-              ? 'Start submitting bids to projects'
-              : `No ${filter} bids yet`
-            }
+            Track the status of your bids, view client responses, and manage your proposals efficiently.
           </p>
         </div>
-      ) : (
-        <div className="space-y-4">
-          {filteredBids.map(bid => (
-            <div
-              key={bid.id}
-              className="bg-white rounded-2xl border border-gray-200 overflow-hidden hover:shadow-md transition-all duration-300"
+
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Renovation Type</label>
+              <select
+                value={filters.renovationType}
+                onChange={(e) => setFilters({ ...filters, renovationType: e.target.value })}
+                className="w-full px-4 py-3 pr-10 bg-white border border-gray-300 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-gray-700"
+              >
+                <option>Select Project Type</option>
+                <option>Kitchen Renovation</option>
+                <option>Bathroom Renovation</option>
+                <option>Full House Renovation</option>
+                <option>Roof Repair</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-11 w-5 h-5 text-gray-400 pointer-events-none" />
+            </div>
+
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Budget Range</label>
+              <select
+                value={filters.budgetRange}
+                onChange={(e) => setFilters({ ...filters, budgetRange: e.target.value })}
+                className="w-full px-4 py-3 pr-10 bg-white border border-gray-300 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-gray-700"
+              >
+                <option>$1,000 to $50,000</option>
+                <option>$10,000 to $50,000</option>
+                <option>$50,000 to $100,000</option>
+                <option>$100,000+</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-11 w-5 h-5 text-gray-400 pointer-events-none" />
+            </div>
+
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
+              <select
+                value={filters.location}
+                onChange={(e) => setFilters({ ...filters, location: e.target.value })}
+                className="w-full px-4 py-3 pr-10 bg-white border border-gray-300 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-gray-700"
+              >
+                <option>Select your location</option>
+                <option>New York</option>
+                <option>California</option>
+                <option>Texas</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-11 w-5 h-5 text-gray-400 pointer-events-none" />
+            </div>
+
+            <div className="relative">
+              <label className="block text-sm font-medium text-gray-700 mb-2">Duration</label>
+              <select
+                value={filters.duration}
+                onChange={(e) => setFilters({ ...filters, duration: e.target.value })}
+                className="w-full px-4 py-3 pr-10 bg-white border border-gray-300 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-gray-700"
+              >
+                <option>Next 30 Days</option>
+                <option>Next 60 Days</option>
+                <option>Next 90 Days</option>
+                <option>All Time</option>
+              </select>
+              <ChevronDown className="absolute right-3 top-11 w-5 h-5 text-gray-400 pointer-events-none" />
+            </div>
+          </div>
+
+          <button className="w-full md:w-auto px-8 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-full transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center gap-2">
+            <Search className="w-5 h-5" />
+            Search
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="inline-block w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        ) : bids.length === 0 ? (
+          <div className="bg-white rounded-2xl p-12 text-center border border-gray-200">
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">No bids yet</h3>
+            <p className="text-gray-600 mb-6">Start submitting bids to projects</p>
+            <button
+              onClick={() => navigate('/projects')}
+              className="px-8 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-lg transition-all duration-200"
             >
-              <div className="p-6">
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">
-                      {bid.project.title}
-                    </h3>
-                    <p className="text-sm text-gray-600">
-                      To: {bid.project.owner.full_name}
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-semibold text-sm ${getStatusColor(bid.status)}`}>
-                      {getStatusIcon(bid.status)}
-                      {bid.status.charAt(0).toUpperCase() + bid.status.slice(1)}
-                    </div>
-                    <p className="text-2xl font-bold text-gray-900">
-                      ${bid.total_price.toLocaleString()}
-                    </p>
-                  </div>
-                </div>
+              Browse Projects
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {bids.map((bid) => {
+              const statusConfig = getStatusConfig(bid.status);
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-4 border-y border-gray-100">
-                  <div className="flex items-center gap-2">
-                    <DollarSign className="w-5 h-5 text-gray-400" />
-                    <div>
-                      <p className="text-xs text-gray-500">Budget Range</p>
-                      <p className="text-sm font-medium text-gray-900">
-                        ${(bid.project.budget_min / 1000).toFixed(0)}k - ${(bid.project.budget_max / 1000).toFixed(0)}k
-                      </p>
-                    </div>
-                  </div>
+              return (
+                <div key={bid.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+                  <div className="p-6">
+                    <div className="flex items-start gap-4">
+                      <img
+                        src={`https://ui-avatars.com/api/?name=${bid.project.owner.full_name}&background=random`}
+                        alt={bid.project.owner.full_name}
+                        className="w-16 h-16 rounded-full flex-shrink-0"
+                      />
 
-                  <div className="flex items-center gap-2">
-                    <Clock className="w-5 h-5 text-gray-400" />
-                    <div>
-                      <p className="text-xs text-gray-500">Submitted</p>
-                      <p className="text-sm font-medium text-gray-900">
-                        {formatDate(bid.created_at)}
-                      </p>
-                    </div>
-                  </div>
+                      <div className="flex-1">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <h3 className="text-lg font-bold text-gray-900 mb-1">
+                              {bid.project.owner.full_name}
+                            </h3>
+                            <p className="text-sm text-gray-600 mb-2">First-Time Renovator</p>
+                            <span className="inline-block px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
+                              Verified
+                            </span>
+                          </div>
 
-                  {bid.viewed_at && (
-                    <div className="flex items-center gap-2">
-                      <Eye className="w-5 h-5 text-gray-400" />
-                      <div>
-                        <p className="text-xs text-gray-500">Viewed</p>
-                        <p className="text-sm font-medium text-gray-900">
-                          {formatDate(bid.viewed_at)}
-                        </p>
-                      </div>
-                    </div>
-                  )}
+                          <div className="text-right">
+                            <span className={`inline-block px-4 py-1.5 rounded-lg text-sm font-semibold ${statusConfig.className} mb-3`}>
+                              {statusConfig.label}
+                            </span>
+                            <p className="text-sm text-gray-600 mb-1">Bid Amount:</p>
+                            <p className="text-2xl font-bold text-gray-900">
+                              ${bid.total_price.toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
 
-                  {bid.responded_at && (
-                    <div className="flex items-center gap-2">
-                      <CheckCircle className="w-5 h-5 text-gray-400" />
-                      <div>
-                        <p className="text-xs text-gray-500">Responded</p>
-                        <p className="text-sm font-medium text-gray-900">
-                          {formatDate(bid.responded_at)}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="mt-4">
-                  <button
-                    onClick={() => toggleExpand(bid.id)}
-                    className="text-blue-600 hover:text-blue-700 font-medium text-sm"
-                  >
-                    {expandedBid === bid.id ? 'Hide Details' : 'Show Details'}
-                  </button>
-
-                  {expandedBid === bid.id && (
-                    <div className="mt-4 space-y-4">
-                      <div>
-                        <h4 className="font-semibold text-gray-900 mb-2">Your Message</h4>
-                        <p className="text-gray-700 bg-gray-50 rounded-lg p-4">
-                          {bid.message}
-                        </p>
-                      </div>
-
-                      <div>
-                        <h4 className="font-semibold text-gray-900 mb-3">Milestones</h4>
-                        <div className="space-y-3">
-                          {bid.milestones.map((milestone, index) => (
-                            <div
-                              key={index}
-                              className="bg-gray-50 rounded-lg p-4 border border-gray-200"
-                            >
-                              <div className="flex items-center justify-between mb-2">
-                                <h5 className="font-medium text-gray-900">
-                                  Milestone {index + 1}
-                                </h5>
-                                <div className="flex items-center gap-4 text-sm">
-                                  <span className="font-semibold text-gray-900">
-                                    ${milestone.price.toLocaleString()}
-                                  </span>
-                                  <span className="text-gray-600">
-                                    {milestone.duration} days
-                                  </span>
-                                </div>
-                              </div>
-                              <p className="text-gray-700">{milestone.description}</p>
+                        <div className="flex items-center gap-6 text-sm pt-3 border-t border-gray-200">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                              <Layers className="w-4 h-4 text-blue-600" />
                             </div>
-                          ))}
+                            <div>
+                              <p className="text-xs text-gray-500">Finished Projects</p>
+                              <p className="text-sm font-semibold text-gray-900">
+                                {bid.project.owner.total_projects || 2} Projects
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                              <Clock className="w-4 h-4 text-blue-600" />
+                            </div>
+                            <div>
+                              <p className="text-xs text-gray-500">Estimated Completion Time</p>
+                              <p className="text-sm font-semibold text-gray-900">
+                                {bid.project.timeline_weeks || 1.5} Months
+                              </p>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  )}
+                  </div>
                 </div>
-              </div>
+              );
+            })}
+
+            <div className="text-center py-8">
+              <button
+                onClick={() => navigate('/projects')}
+                className="px-8 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl inline-flex items-center gap-2"
+              >
+                Browse More Projects
+                <ArrowRight className="w-5 h-5" />
+              </button>
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
