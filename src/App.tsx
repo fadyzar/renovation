@@ -8,6 +8,7 @@ import { ContractorDashboard } from './components/contractor/ContractorDashboard
 import { ProjectFeed } from './components/contractor/ProjectFeed';
 import { SubmitBid } from './components/contractor/SubmitBid';
 import { CreateProjectWizard } from './components/owner/CreateProjectWizard';
+import { ContractorMatching } from './components/owner/ContractorMatching';
 import Settings from './components/screens/Settings';
 import Support from './components/screens/Support';
 
@@ -72,6 +73,7 @@ function App() {
           }
         />
         <Route path="/create-project" element={<CreateProjectWizard />} />
+        <Route path="/contractor-matching/:projectId" element={<ContractorMatching />} />
         <Route path="/submit-bid/:projectId" element={<SubmitBidPage />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/support" element={<Support />} />
