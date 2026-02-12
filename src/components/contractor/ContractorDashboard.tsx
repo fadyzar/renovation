@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Star, DollarSign, Briefcase, FileText, MapPin, Mail, Phone, Home, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -48,6 +49,7 @@ interface Project {
 
 export function ContractorDashboard() {
   const { profile } = useAuth();
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalRevenue: 0,
     totalProjects: 0,
@@ -115,7 +117,7 @@ export function ContractorDashboard() {
   }
 
   const handleBrowseProjects = () => {
-    window.location.href = '/projects';
+    navigate('/projects');
   };
 
   return (

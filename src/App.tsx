@@ -1,9 +1,13 @@
 import React from "react";
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './contexts/AuthContext';
 import { Landing } from './components/Landing';
 import { Layout } from './components/Layout';
 import { OwnerDashboard } from './components/owner/OwnerDashboard';
 import { ContractorDashboard } from './components/contractor/ContractorDashboard';
+import { ProjectFeed } from './components/contractor/ProjectFeed';
+import Settings from './components/screens/Settings';
+import Support from './components/screens/Support';
 
 function App() {
   const { user, profile, loading } = useAuth();
@@ -20,23 +24,37 @@ function App() {
   }
 
   if (!user || !profile) {
-    return (
-      <div>
-        <Landing />
-      </div>
-    );
+    return <Landing />;
   }
 
   return (
     <Layout>
-      {profile.role === 'property_owner' && <OwnerDashboard />}
-      {profile.role === 'contractor' && <ContractorDashboard />}
-      {profile.role === 'admin' && (
-        <div className="max-w-7xl mx-auto px-4 py-8">
-          <h1 className="text-3xl font-bold">Admin Dashboard</h1>
-          <p className="text-gray-600 mt-2">Coming soon...</p>
-        </div>
-      )}
+      <Routes>
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route
+          path="/dashboard"
+          element={
+            profile.role === 'property_owner' ? <OwnerDashboard /> :
+            profile.role === 'contractor' ? <ContractorDashboard /> :
+            <div className="max-w-7xl mx-auto px-4 py-8">
+              <h1 className="text-3xl font-bold">Admin Dashboard</h1>
+              <p className="text-gray-600 mt-2">Coming soon...</p>
+            </div>
+          }
+        />
+        <Route
+          path="/projects"
+          element={
+            profile.role === 'contractor' ? <ProjectFeed onSelectProject={() => {}} /> :
+            <div className="max-w-7xl mx-auto px-4 py-8">
+              <h1 className="text-3xl font-bold">Projects</h1>
+              <p className="text-gray-600 mt-2">Coming soon...</p>
+            </div>
+          }
+        />
+        <Route path="/settings" element={<Settings />} />
+        <Route path="/support" element={<Support />} />
+      </Routes>
     </Layout>
   );
 }
