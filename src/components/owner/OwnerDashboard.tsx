@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, Home, Clock, CheckCircle, AlertCircle, Send, Eye } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -23,6 +24,7 @@ interface Project {
 
 export function OwnerDashboard() {
   const { profile } = useAuth();
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -87,7 +89,7 @@ export function OwnerDashboard() {
             <p className="text-gray-600 mt-1">Manage your renovation projects</p>
           </div>
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => navigate('/create-project')}
             className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-all hover:shadow-lg hover:shadow-blue-500/30"
           >
             <Plus className="w-5 h-5" />

@@ -7,6 +7,7 @@ import { OwnerDashboard } from './components/owner/OwnerDashboard';
 import { ContractorDashboard } from './components/contractor/ContractorDashboard';
 import { ProjectFeed } from './components/contractor/ProjectFeed';
 import { SubmitBid } from './components/contractor/SubmitBid';
+import { CreateProjectWizard } from './components/owner/CreateProjectWizard';
 import Settings from './components/screens/Settings';
 import Support from './components/screens/Support';
 
@@ -70,6 +71,7 @@ function App() {
             </div>
           }
         />
+        <Route path="/create-project" element={<CreateProjectWizard />} />
         <Route path="/submit-bid/:projectId" element={<SubmitBidPage />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/support" element={<Support />} />
