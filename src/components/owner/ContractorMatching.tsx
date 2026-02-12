@@ -44,7 +44,6 @@ export function ContractorMatching() {
   const [loading, setLoading] = useState(true);
   const [selectedBid, setSelectedBid] = useState<Bid | null>(null);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [acceptingBid, setAcceptingBid] = useState<string | null>(null);
 
   useEffect(() => {
     if (projectId) {
@@ -94,33 +93,8 @@ export function ContractorMatching() {
     }
   }
 
-  async function handleAcceptOffer(bidId: string) {
-    setAcceptingBid(bidId);
-
-    try {
-      await supabase
-        .from('bids')
-        .update({ status: 'accepted', responded_at: new Date().toISOString() })
-        .eq('id', bidId);
-
-      await supabase
-        .from('bids')
-        .update({ status: 'rejected', responded_at: new Date().toISOString() })
-        .eq('project_id', projectId)
-        .neq('id', bidId);
-
-      await supabase
-        .from('projects')
-        .update({ status: 'in_progress' })
-        .eq('id', projectId);
-
-      navigate('/dashboard');
-    } catch (error) {
-      console.error('Error accepting bid:', error);
-      alert('Failed to accept offer. Please try again.');
-    } finally {
-      setAcceptingBid(null);
-    }
+  function handleAcceptOffer(bidId: string) {
+    navigate(`/accept-offer/${projectId}/${bidId}`);
   }
 
   function calculateEstimatedTime(bid: Bid): string {
@@ -243,10 +217,9 @@ export function ContractorMatching() {
               </button>
               <button
                 onClick={() => handleAcceptOffer(bid.id)}
-                disabled={acceptingBid !== null}
-                className="w-full px-4 py-3 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 transition-colors"
               >
-                {acceptingBid === bid.id ? 'Accepting...' : 'Accept Offer'}
+                Accept Offer
               </button>
             </div>
           ))}
@@ -374,13 +347,11 @@ export function ContractorMatching() {
 
               <button
                 onClick={() => {
-                  setShowProfileModal(false);
                   handleAcceptOffer(selectedBid.id);
                 }}
-                disabled={acceptingBid !== null}
-                className="w-full px-6 py-4 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-6 py-4 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 transition-colors"
               >
-                {acceptingBid === selectedBid.id ? 'Accepting...' : 'Accept This Offer'}
+                Accept This Offer
               </button>
             </div>
           </div>
