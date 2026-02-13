@@ -19,7 +19,9 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
-import { AuthModal } from "./auth/AuthModal";
+import { SignUpModal } from "./auth/SignUpModal";
+import { LogInModal } from "./auth/LogInModal";
+import { ForgotPasswordModal } from "./auth/ForgotPasswordModal";
 
 /**
  * Drop-in Landing page (Tailwind + Framer Motion)
@@ -116,8 +118,7 @@ function FAQItem({
 }
 
 export function Landing() {
-  const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authMode, setAuthMode] = useState<"owner" | "contractor">("owner");
+  const [authView, setAuthView] = useState<"signup" | "login" | "forgot" | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const [projectType, setProjectType] = useState("");
@@ -240,15 +241,8 @@ export function Landing() {
     []
   );
 
-  const openAuth = (mode: "owner" | "contractor") => {
-    setAuthMode(mode);
-    setShowAuthModal(true);
-  };
-
   const onKickstart = () => {
-    // optional: validate, store prefill, then open auth
-    // You can persist these in localStorage or pass to the modal flow
-    openAuth("owner");
+    setAuthView("signup");
   };
 
   return (
@@ -292,13 +286,13 @@ export function Landing() {
             <div className="flex items-center gap-2">
               <div className="hidden md:flex items-center gap-2">
                 <button
-                  onClick={() => openAuth("owner")}
+                  onClick={() => setAuthView("login")}
                   className="px-4 py-2 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-900 text-sm font-semibold transition-all"
                 >
                   Log In
                 </button>
                 <button
-                  onClick={() => openAuth("owner")}
+                  onClick={() => setAuthView("signup")}
                   className="px-4 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold transition-all shadow-sm hover:shadow-md"
                 >
                   Sign Up
@@ -328,13 +322,13 @@ export function Landing() {
               <a onClick={() => setMobileOpen(false)} href="#support" className="block text-slate-700 py-2">Contact & Support</a>
               <div className="pt-2 border-t border-slate-100 mt-2 flex flex-col gap-2">
                 <button
-                  onClick={() => { setMobileOpen(false); openAuth("owner"); }}
+                  onClick={() => { setMobileOpen(false); setAuthView("login"); }}
                   className="w-full px-4 py-2 rounded-full border border-slate-200 bg-white text-slate-900 text-sm font-semibold"
                 >
                   Log In
                 </button>
                 <button
-                  onClick={() => { setMobileOpen(false); openAuth("owner"); }}
+                  onClick={() => { setMobileOpen(false); setAuthView("signup"); }}
                   className="w-full px-4 py-2 rounded-full bg-blue-600 text-white text-sm font-semibold"
                 >
                   Sign Up
@@ -387,14 +381,14 @@ export function Landing() {
 
               <motion.div variants={item} className="mt-8 flex flex-col sm:flex-row gap-3">
                 <button
-                  onClick={() => openAuth("owner")}
+                  onClick={() => setAuthView("signup")}
                   className="group px-7 py-4 rounded-full bg-orange-500 hover:bg-orange-600 text-white font-semibold transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
                 >
                   Start Your Project
                   <ArrowRight className="w-5 h-5 transition-transform group-hover:translate-x-0.5" />
                 </button>
                 <button
-                  onClick={() => openAuth("contractor")}
+                  onClick={() => setAuthView("signup")}
                   className="px-7 py-4 rounded-full bg-white hover:bg-slate-50 text-slate-900 font-semibold border border-slate-200 transition-all flex items-center justify-center gap-2"
                 >
                   Join as Contractor
@@ -475,13 +469,13 @@ export function Landing() {
 
                   <div className="mt-6 flex gap-2">
                     <button
-                      onClick={() => openAuth("owner")}
+                      onClick={() => setAuthView("signup")}
                       className="flex-1 px-4 py-3 rounded-full bg-slate-900 hover:bg-slate-800 text-white font-semibold transition-all"
                     >
                       Post Project
                     </button>
                     <button
-                      onClick={() => openAuth("contractor")}
+                      onClick={() => setAuthView("signup")}
                       className="flex-1 px-4 py-3 rounded-full bg-white hover:bg-slate-50 text-slate-900 font-semibold border border-slate-200 transition-all"
                     >
                       Bid Now
@@ -743,13 +737,13 @@ export function Landing() {
                 </div>
                 <div className="flex gap-3">
                   <button
-                    onClick={() => openAuth("owner")}
+                    onClick={() => setAuthView("signup")}
                     className="px-6 py-3 rounded-full bg-white text-slate-900 font-semibold hover:shadow-xl transition-all"
                   >
                     Get Started
                   </button>
                   <button
-                    onClick={() => openAuth("contractor")}
+                    onClick={() => setAuthView("signup")}
                     className="px-6 py-3 rounded-full border border-white/25 text-white font-semibold hover:bg-white/10 transition-all"
                   >
                     Join as Pro
@@ -834,7 +828,7 @@ export function Landing() {
                     Find Contractors
                   </a>
                   <button
-                    onClick={() => openAuth("owner")}
+                    onClick={() => setAuthView("signup")}
                     className="block hover:text-slate-900 text-left"
                   >
                     My Projects
@@ -891,9 +885,32 @@ export function Landing() {
         </div>
       </footer>
 
-      {/* AUTH */}
-      <AuthModal isOpen={showAuthModal} onClose={() => setShowAuthModal(false)} />
-      {/* If you have modes in AuthModal, pass it like: <AuthModal mode={authMode} ... /> */}
+      {/* AUTH MODALS */}
+      {authView === "signup" && (
+        <SignUpModal
+          onClose={() => setAuthView(null)}
+          onSwitchToLogin={() => setAuthView("login")}
+          onSuccess={() => {
+            setAuthView(null);
+            window.location.reload();
+          }}
+        />
+      )}
+
+      {authView === "login" && (
+        <LogInModal
+          onClose={() => setAuthView(null)}
+          onSwitchToSignUp={() => setAuthView("signup")}
+          onSwitchToForgotPassword={() => setAuthView("forgot")}
+        />
+      )}
+
+      {authView === "forgot" && (
+        <ForgotPasswordModal
+          onClose={() => setAuthView(null)}
+          onBack={() => setAuthView("login")}
+        />
+      )}
     </div>
   );
 }
