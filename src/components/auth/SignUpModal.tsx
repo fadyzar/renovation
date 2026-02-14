@@ -80,7 +80,7 @@ export function SignUpModal({ onClose, onSwitchToLogin, onSuccess }: SignUpModal
           <X className="w-6 h-6" />
         </button>
 
-        <div className="w-full md:w-1/2 p-12 overflow-y-auto">
+        <div className="flex-1 md:w-1/2 p-12 overflow-y-auto">
           <div className="max-w-md mx-auto">
             <div className="flex items-center gap-2 mb-8">
               <div className="flex items-center gap-1">
@@ -265,7 +265,7 @@ export function SignUpModal({ onClose, onSwitchToLogin, onSuccess }: SignUpModal
         </div>
 
         <div
-          className="hidden md:block w-1/2 bg-cover bg-center"
+          className="hidden md:block w-1/2 bg-cover bg-center flex-shrink-0"
           style={{
             backgroundImage: 'url(https://images.pexels.com/photos/48889/pexels-photo-48889.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2)',
           }}
