@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { Star, ChevronLeft, ChevronRight, Upload, Edit2, Check, X } from 'lucide-react';
+import { Star, ChevronLeft, ChevronRight, Upload, Edit2, Check, X, Camera } from 'lucide-react';
 
 interface Specialization {
   id: string;
@@ -39,6 +39,13 @@ export function ContractorProfile() {
   const [editing, setEditing] = useState(false);
   const [editingLicense, setEditingLicense] = useState(false);
   const [currentProjectIndex, setCurrentProjectIndex] = useState(0);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingBackground, setUploadingBackground] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || '');
+  const [backgroundUrl, setBackgroundUrl] = useState(profile?.background_url || '');
+
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const backgroundInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
     full_name: profile?.full_name || '',
@@ -49,6 +56,15 @@ export function ContractorProfile() {
 
   const [selectedSpecs, setSelectedSpecs] = useState<string[]>([]);
   const [licenseNumber, setLicenseNumber] = useState('Your CSLB License Verification Link');
+
+  useEffect(() => {
+    if (profile?.avatar_url) {
+      setAvatarUrl(profile.avatar_url);
+    }
+    if (profile?.background_url) {
+      setBackgroundUrl(profile.background_url);
+    }
+  }, [profile]);
 
   const completedProjects: Project[] = [
     {
@@ -122,6 +138,84 @@ export function ContractorProfile() {
     );
   };
 
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const file = event.target.files?.[0];
+      if (!file || !profile?.id) return;
+
+      setUploadingAvatar(true);
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${profile.id}/avatar.${fileExt}`;
+      const filePath = fileName;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      const publicUrl = urlData.publicUrl;
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ avatar_url: publicUrl })
+        .eq('id', profile.id);
+
+      if (updateError) throw updateError;
+
+      setAvatarUrl(publicUrl);
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      alert('Failed to upload image. Please try again.');
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const handleBackgroundUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const file = event.target.files?.[0];
+      if (!file || !profile?.id) return;
+
+      setUploadingBackground(true);
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${profile.id}/background.${fileExt}`;
+      const filePath = fileName;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data: urlData } = supabase.storage
+        .from('avatars')
+        .getPublicUrl(filePath);
+
+      const publicUrl = urlData.publicUrl;
+
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ background_url: publicUrl })
+        .eq('id', profile.id);
+
+      if (updateError) throw updateError;
+
+      setBackgroundUrl(publicUrl);
+    } catch (error) {
+      console.error('Error uploading background:', error);
+      alert('Failed to upload image. Please try again.');
+    } finally {
+      setUploadingBackground(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -135,25 +229,51 @@ export function ContractorProfile() {
         </div>
 
         <div className="relative mb-12">
-          <div className="h-48 bg-gradient-to-r from-green-400 to-blue-500 rounded-t-3xl overflow-hidden">
+          <div className="h-48 bg-gradient-to-r from-green-400 to-blue-500 rounded-t-3xl overflow-hidden relative group">
             <img
-              src="https://images.pexels.com/photos/1396122/pexels-photo-1396122.jpeg?auto=compress&cs=tinysrgb&w=1200"
+              src={backgroundUrl || "https://images.pexels.com/photos/1396122/pexels-photo-1396122.jpeg?auto=compress&cs=tinysrgb&w=1200"}
               alt="Background"
               className="w-full h-full object-cover opacity-60"
             />
+            <input
+              ref={backgroundInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleBackgroundUpload}
+              className="hidden"
+            />
+            <button
+              onClick={() => backgroundInputRef.current?.click()}
+              disabled={uploadingBackground}
+              className="absolute top-4 right-4 px-4 py-2 bg-white/90 backdrop-blur-sm border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-white transition-all flex items-center gap-2 shadow-lg opacity-0 group-hover:opacity-100"
+            >
+              <Camera className="w-4 h-4" />
+              {uploadingBackground ? 'Uploading...' : 'Change Background'}
+            </button>
           </div>
 
           <div className="bg-white rounded-3xl shadow-lg border border-gray-200 -mt-24 pt-20 pb-8 px-8 relative">
             <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
               <div className="relative">
                 <img
-                  src={`https://ui-avatars.com/api/?name=${profile?.full_name || 'John Mitchell'}&size=150&background=random`}
+                  src={avatarUrl || `https://ui-avatars.com/api/?name=${profile?.full_name || 'John Mitchell'}&size=150&background=random`}
                   alt={profile?.full_name}
-                  className="w-36 h-36 rounded-full border-4 border-white shadow-xl"
+                  className="w-36 h-36 rounded-full border-4 border-white shadow-xl object-cover"
                 />
-                <button className="absolute bottom-0 right-0 px-4 py-2 bg-white border border-gray-300 rounded-full text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 shadow-lg">
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarUpload}
+                  className="hidden"
+                />
+                <button
+                  onClick={() => avatarInputRef.current?.click()}
+                  disabled={uploadingAvatar}
+                  className="absolute bottom-0 right-0 px-4 py-2 bg-white border border-gray-300 rounded-full text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   <Upload className="w-4 h-4" />
-                  Upload New Photo
+                  {uploadingAvatar ? 'Uploading...' : 'Upload New Photo'}
                 </button>
               </div>
             </div>
