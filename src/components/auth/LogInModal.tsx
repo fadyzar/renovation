@@ -178,9 +178,9 @@ export function LogInModal({ onClose, onSwitchToSignUp, onSwitchToForgotPassword
         </div>
 
         <div
-          className="hidden md:block w-1/2 bg-cover bg-center flex-shrink-0"
+          className="hidden md:block w-1/2 bg-cover bg-center flex-shrink-0 min-h-full"
           style={{
-            backgroundImage: 'url(https://images.pexels.com/photos/1249611/pexels-photo-1249611.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2)',
+            backgroundImage: 'url(https://images.pexels.com/photos/259588/pexels-photo-259588.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2)',
           }}
         ></div>
       </div>

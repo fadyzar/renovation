@@ -265,9 +265,9 @@ export function SignUpModal({ onClose, onSwitchToLogin, onSuccess }: SignUpModal
         </div>
 
         <div
-          className="hidden md:block w-1/2 bg-cover bg-center flex-shrink-0"
+          className="hidden md:block w-1/2 bg-cover bg-center flex-shrink-0 min-h-full"
           style={{
-            backgroundImage: 'url(https://images.pexels.com/photos/48889/pexels-photo-48889.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2)',
+            backgroundImage: 'url(https://images.pexels.com/photos/416405/pexels-photo-416405.jpeg?auto=compress&cs=tinysrgb&w=1260&h=750&dpr=2)',
           }}
         ></div>
       </div>
