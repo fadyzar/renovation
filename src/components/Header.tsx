@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Bell, Settings, Volume2, Menu, X } from 'lucide-react';
+import { Bell, Settings, Volume2, Menu, X, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 export function Header() {
-  const { profile } = useAuth();
+  const { profile, signOut } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -63,6 +63,14 @@ export function Header() {
             </button>
 
             <button
+              onClick={signOut}
+              className="hidden sm:flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Log Out</span>
+            </button>
+
+            <button
               onClick={() => navigate('/settings')}
               className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-teal-400 flex items-center justify-center text-white text-sm font-bold hover:shadow-lg transition-shadow"
             >
@@ -98,6 +106,16 @@ export function Header() {
                 {item.label}
               </button>
             ))}
+            <button
+              onClick={() => {
+                signOut();
+                setMobileMenuOpen(false);
+              }}
+              className="flex items-center gap-2 w-full text-left px-4 py-3 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>Log Out</span>
+            </button>
           </nav>
         </div>
       )}
