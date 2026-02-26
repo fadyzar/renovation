@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Plus, Home, Clock, CheckCircle, AlertCircle, Send, Eye } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { CreateProjectModal } from './CreateProjectModal';
 import { PublishProjectModal } from './PublishProjectModal';
 
 interface Project {
@@ -27,7 +26,6 @@ export function OwnerDashboard() {
   const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [publishingProject, setPublishingProject] = useState<Project | null>(null);
   const [publishingLoading, setPublishingLoading] = useState(false);
 
@@ -164,7 +162,7 @@ export function OwnerDashboard() {
           <h3 className="text-xl font-semibold text-gray-900 mb-2">No projects yet</h3>
           <p className="text-gray-600 mb-6">Create your first renovation project to get started</p>
           <button
-            onClick={() => setShowCreateModal(true)}
+            onClick={() => navigate('/create-project')}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors"
           >
             Create Project
@@ -254,15 +252,6 @@ export function OwnerDashboard() {
           })}
         </div>
       )}
-
-      <CreateProjectModal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        onSuccess={() => {
-          setShowCreateModal(false);
-          loadProjects();
-        }}
-      />
 
       {publishingProject && (
         <PublishProjectModal

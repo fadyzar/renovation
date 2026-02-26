@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Bell, Settings, Volume2, Menu, X, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
+import logo from '../assets/logo.svg';
 
 export function Header() {
   const { profile, signOut } = useAuth();
@@ -23,13 +24,7 @@ export function Header() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate('/')}>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-              <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-            </div>
-            <span className="text-xl font-bold text-gray-900">M.G.BiT</span>
+            <img src={logo} alt="M.G.BIT Logo" className="h-5 w-auto" />
           </div>
 
           <nav className="hidden md:flex items-center gap-8">

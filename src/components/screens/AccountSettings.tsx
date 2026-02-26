@@ -1,10 +1,97 @@
 import { useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { Edit2, Upload, LogOut } from 'lucide-react';
+import { Pencil, Upload, LogOut, Trash2 } from 'lucide-react';
+
+/* ── shared input style matching Figma ── */
+const inputBase =
+  'w-full h-[59px] px-6 bg-white border-[1.5px] border-[#D9D9D9] rounded-full text-brand-navy placeholder-[#909090] focus:outline-none focus:border-brand-blue focus:bg-[#EDF3FF] transition-colors disabled:bg-[#F5F5F5] disabled:text-[#909090] disabled:cursor-not-allowed';
+
+/* ── section card wrapper ── */
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="border border-[#CFCFCF] rounded-2xl p-8 bg-white">
+      <h2 className="text-[22px] font-bold text-brand-navy mb-6">{title}</h2>
+      {children}
+    </div>
+  );
+}
+
+/* ── labelled editable input row ── */
+function EditableField({
+  label,
+  value,
+  onChange,
+  type = 'text',
+  placeholder,
+  disabled,
+  onToggle,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  type?: string;
+  placeholder?: string;
+  disabled: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-semibold text-brand-navy mb-2">{label}</label>
+      <div className="relative">
+        <input
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          disabled={disabled}
+          className={inputBase + ' pr-12'}
+        />
+        <button
+          type="button"
+          onClick={onToggle}
+          className="absolute right-5 top-1/2 -translate-y-1/2 text-[#909090] hover:text-brand-blue transition-colors"
+        >
+          <Pencil className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── toggle switch ── */
+function Toggle({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: () => void;
+  label: string;
+}) {
+  return (
+    <div className="flex items-center justify-between py-3">
+      <span className="text-[20px] font-medium text-brand-navy">{label}</span>
+      <button
+        type="button"
+        onClick={onChange}
+        className={`relative w-[48px] h-[26px] rounded-full transition-colors duration-300 ${
+          checked ? 'bg-brand-blue' : 'bg-[#D9D9D9]'
+        }`}
+      >
+        <span
+          className={`absolute top-[3px] w-5 h-5 bg-white rounded-full shadow transition-all duration-300 ${
+            checked ? 'left-[25px]' : 'left-[3px]'
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
 
 export function AccountSettings() {
   const { profile, signOut } = useAuth();
+
   const [editing, setEditing] = useState({
     fullName: false,
     phone: false,
@@ -16,7 +103,7 @@ export function AccountSettings() {
     accountNumber: false,
     routingNumber: false,
     bankAddress: false,
-    swiftCode: false
+    swiftCode: false,
   });
 
   const [formData, setFormData] = useState({
@@ -30,422 +117,255 @@ export function AccountSettings() {
     accountNumber: '',
     routingNumber: '',
     bankAddress: '',
-    swiftCode: ''
+    swiftCode: '',
   });
 
   const [notifications, setNotifications] = useState({
-    projectUpdates: true,
-    paymentReminders: false,
-    promotionalEmails: false
+    contractorMessages: true,
+    promotionalEmails: false,
   });
 
-  const toggleEdit = (field: keyof typeof editing) => {
-    setEditing(prev => ({ ...prev, [field]: !prev[field] }));
-  };
+  const toggle = (field: keyof typeof editing) =>
+    setEditing((prev) => ({ ...prev, [field]: !prev[field] }));
+
+  const set = (field: keyof typeof formData) => (v: string) =>
+    setFormData((prev) => ({ ...prev, [field]: v }));
 
   const handleUpdateProfile = async () => {
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({
-          full_name: formData.full_name,
-          phone: formData.phone
-        })
+        .update({ full_name: formData.full_name, phone: formData.phone })
         .eq('id', profile?.id);
-
       if (error) throw error;
-      setEditing(prev => ({ ...prev, fullName: false, phone: false, address: false }));
-    } catch (error) {
-      console.error('Error updating profile:', error);
+      setEditing((p) => ({ ...p, fullName: false, phone: false, address: false }));
+    } catch (err) {
+      console.error('Error updating profile:', err);
     }
   };
 
   const handleLogoutAll = async () => {
-    if (confirm('Are you sure you want to logout from all devices?')) {
-      await signOut();
-    }
+    if (confirm('Are you sure you want to logout from all devices?')) await signOut();
   };
 
   const handleDeleteAccount = () => {
-    if (confirm('Are you sure you want to delete your account? This action cannot be undone.')) {
+    if (confirm('Are you sure you want to delete your account? This action cannot be undone.'))
       console.log('Delete account');
-    }
   };
 
+  if (!profile) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="w-10 h-10 border-4 border-brand-orange border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Manage Your Account - Update Your Information & Preferences
+    <div className="min-h-screen bg-white py-12 px-4">
+      <div className="max-w-[999px] mx-auto">
+
+        {/* ── Page heading ── */}
+        <div className="mb-10">
+          <h1 className="text-[40px] leading-[1.2] font-extrabold text-brand-navy max-w-[771px]">
+            Manage Your Account – Update Your Information & Preferences
           </h1>
-          <p className="text-gray-600">
-            Edit your profile details, adjust security settings, and manage notifications
+          <p className="text-[20px] text-[#909090] mt-3">
+            Edit your profile details, adjust security settings, and manage notifications.
           </p>
         </div>
 
         <div className="space-y-6">
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Personal Information</h2>
 
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Full Name
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={formData.full_name}
-                      onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                      disabled={!editing.fullName}
-                      className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-gray-50"
-                    />
-                    <button
-                      onClick={() => toggleEdit('fullName')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
+          {/* ══ 1. Personal Information ══ */}
+          <Section title="Personal Information">
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email Address
-                  </label>
-                  <input
-                    type="email"
-                    value={profile?.email || ''}
-                    disabled
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
-                  />
-                </div>
+            {/* Avatar */}
+            <div className="flex items-center gap-5 mb-8">
+              <div className="w-20 h-20 rounded-full bg-gradient-to-br from-brand-blue to-brand-orange flex items-center justify-center text-white text-3xl font-bold shrink-0">
+                {profile.full_name?.charAt(0)?.toUpperCase() || 'U'}
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Phone Number
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="tel"
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      disabled={!editing.phone}
-                      placeholder="+1 12345789"
-                      className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-gray-50"
-                    />
-                    <button
-                      onClick={() => toggleEdit('phone')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                  </div>
+              <label className="cursor-pointer">
+                <div className="flex items-center gap-2 px-6 h-[44px] rounded-full border-[1.5px] border-brand-blue text-brand-blue text-sm font-semibold hover:bg-[#EDF3FF] transition-colors">
+                  <Upload className="w-4 h-4" />
+                  Upload profile picture
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Address
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={formData.address}
-                      onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                      disabled={!editing.address}
-                      placeholder="1600 Amphitheatre Parkway, Mountain View, CA 94043, USA"
-                      className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-gray-50"
-                    />
-                    <button
-                      onClick={() => toggleEdit('address')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <button className="w-full px-6 py-3 bg-white border-2 border-blue-500 text-blue-600 rounded-lg font-medium hover:bg-blue-50 transition-colors flex items-center justify-center gap-2">
-                <Upload className="w-5 h-5" />
-                Upload my profile picture
-              </button>
-
-              <button
-                onClick={handleUpdateProfile}
-                className="w-full px-6 py-3 bg-orange-500 text-white rounded-lg font-semibold hover:bg-orange-600 transition-colors"
-              >
-                Save Changes
-              </button>
+                <input type="file" accept="image/*" className="hidden" />
+              </label>
             </div>
-          </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Security & Login Settings</h2>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Current Password
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="password"
-                      value={formData.currentPassword}
-                      onChange={(e) => setFormData({ ...formData, currentPassword: e.target.value })}
-                      disabled={!editing.currentPassword}
-                      placeholder="••••••••••••"
-                      className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-gray-50"
-                    />
-                    <button
-                      onClick={() => toggleEdit('currentPassword')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Confirm Password
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="password"
-                      value={formData.confirmPassword}
-                      onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                      disabled={!editing.confirmPassword}
-                      placeholder="••••••••••••"
-                      className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-gray-50"
-                    />
-                    <button
-                      onClick={() => toggleEdit('confirmPassword')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <EditableField
+                label="Full Name"
+                value={formData.full_name}
+                onChange={set('full_name')}
+                placeholder="Your full name"
+                disabled={!editing.fullName}
+                onToggle={() => toggle('fullName')}
+              />
+              <div>
+                <label className="block text-sm font-semibold text-brand-navy mb-2">Email Address</label>
+                <input
+                  type="email"
+                  value={profile.email || ''}
+                  disabled
+                  className={inputBase}
+                />
               </div>
+              <EditableField
+                label="Phone Number"
+                value={formData.phone}
+                onChange={set('phone')}
+                placeholder="+1 (555) 000-0000"
+                disabled={!editing.phone}
+                onToggle={() => toggle('phone')}
+              />
+              <EditableField
+                label="Address"
+                value={formData.address}
+                onChange={set('address')}
+                placeholder="1600 Amphitheatre Pkwy, Mountain View, CA"
+                disabled={!editing.address}
+                onToggle={() => toggle('address')}
+              />
+            </div>
 
+            <button
+              onClick={handleUpdateProfile}
+              className="mt-6 w-full h-[54px] bg-brand-orange rounded-full border border-[#E6E8E7] text-white font-semibold hover:opacity-90 transition-opacity"
+            >
+              Save Changes
+            </button>
+          </Section>
+
+          {/* ══ 2. Security & Login ══ */}
+          <Section title="Security & Login Settings">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <EditableField
+                label="Current Password"
+                value={formData.currentPassword}
+                onChange={set('currentPassword')}
+                type="password"
+                placeholder="••••••••••••"
+                disabled={!editing.currentPassword}
+                onToggle={() => toggle('currentPassword')}
+              />
+              <EditableField
+                label="New Password"
+                value={formData.confirmPassword}
+                onChange={set('confirmPassword')}
+                type="password"
+                placeholder="••••••••••••"
+                disabled={!editing.confirmPassword}
+                onToggle={() => toggle('confirmPassword')}
+              />
+            </div>
+
+            <div className="flex gap-4 mt-6">
               <button
                 onClick={handleLogoutAll}
-                className="w-full px-6 py-3 bg-white border-2 border-red-500 text-red-600 rounded-lg font-medium hover:bg-red-50 transition-colors flex items-center justify-center gap-2"
+                className="flex-1 h-[54px] flex items-center justify-center gap-2 rounded-full border-[1.5px] border-[#FF1612] text-[#FF1612] font-semibold hover:bg-red-50 transition-colors"
               >
-                <LogOut className="w-5 h-5" />
+                <LogOut className="w-4 h-4" />
                 Logout from All Devices
               </button>
-
-              <button className="w-full px-6 py-3 bg-orange-500 text-white rounded-lg font-semibold hover:bg-orange-600 transition-colors">
+              <button className="flex-1 h-[54px] bg-brand-orange rounded-full border border-[#E6E8E7] text-white font-semibold hover:opacity-90 transition-opacity">
                 Save New Password
               </button>
             </div>
-          </div>
+          </Section>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Bank Details</h2>
-
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Account Holder Name
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={formData.accountHolder}
-                      onChange={(e) => setFormData({ ...formData, accountHolder: e.target.value })}
-                      disabled={!editing.accountHolder}
-                      placeholder="Gilad Ben Arush"
-                      className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-gray-50"
-                    />
-                    <button
-                      onClick={() => toggleEdit('accountHolder')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Bank Name
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={formData.bankName}
-                      onChange={(e) => setFormData({ ...formData, bankName: e.target.value })}
-                      disabled={!editing.bankName}
-                      placeholder="Bank of America"
-                      className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-gray-50"
-                    />
-                    <button
-                      onClick={() => toggleEdit('bankName')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Bank Account Number
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={formData.accountNumber}
-                      onChange={(e) => setFormData({ ...formData, accountNumber: e.target.value })}
-                      disabled={!editing.accountNumber}
-                      placeholder="78527735612"
-                      className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-gray-50"
-                    />
-                    <button
-                      onClick={() => toggleEdit('accountNumber')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Routing Number (ABA)
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={formData.routingNumber}
-                      onChange={(e) => setFormData({ ...formData, routingNumber: e.target.value })}
-                      disabled={!editing.routingNumber}
-                      placeholder="10791"
-                      className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-gray-50"
-                    />
-                    <button
-                      onClick={() => toggleEdit('routingNumber')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Bank Address (optional)
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={formData.bankAddress}
-                      onChange={(e) => setFormData({ ...formData, bankAddress: e.target.value })}
-                      disabled={!editing.bankAddress}
-                      placeholder="Address ABCD"
-                      className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-gray-50"
-                    />
-                    <button
-                      onClick={() => toggleEdit('bankAddress')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    SWIFT Code
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={formData.swiftCode}
-                      onChange={(e) => setFormData({ ...formData, swiftCode: e.target.value })}
-                      disabled={!editing.swiftCode}
-                      placeholder="10930"
-                      className="w-full px-4 py-2 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:bg-gray-50"
-                    />
-                    <button
-                      onClick={() => toggleEdit('swiftCode')}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      <Edit2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <button className="w-full px-6 py-3 bg-orange-500 text-white rounded-lg font-semibold hover:bg-orange-600 transition-colors">
-                Save Changes
-              </button>
+          {/* ══ 3. Bank Details ══ */}
+          <Section title="Bank Details">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <EditableField
+                label="Account Holder Name"
+                value={formData.accountHolder}
+                onChange={set('accountHolder')}
+                placeholder="Full name as on bank account"
+                disabled={!editing.accountHolder}
+                onToggle={() => toggle('accountHolder')}
+              />
+              <EditableField
+                label="Bank Name"
+                value={formData.bankName}
+                onChange={set('bankName')}
+                placeholder="Bank of America"
+                disabled={!editing.bankName}
+                onToggle={() => toggle('bankName')}
+              />
+              <EditableField
+                label="Bank Account Number"
+                value={formData.accountNumber}
+                onChange={set('accountNumber')}
+                placeholder="78527735612"
+                disabled={!editing.accountNumber}
+                onToggle={() => toggle('accountNumber')}
+              />
+              <EditableField
+                label="Routing Number (ABA)"
+                value={formData.routingNumber}
+                onChange={set('routingNumber')}
+                placeholder="10791"
+                disabled={!editing.routingNumber}
+                onToggle={() => toggle('routingNumber')}
+              />
+              <EditableField
+                label="Bank Address (Optional)"
+                value={formData.bankAddress}
+                onChange={set('bankAddress')}
+                placeholder="Address ABCD"
+                disabled={!editing.bankAddress}
+                onToggle={() => toggle('bankAddress')}
+              />
+              <EditableField
+                label="SWIFT Code"
+                value={formData.swiftCode}
+                onChange={set('swiftCode')}
+                placeholder="10930"
+                disabled={!editing.swiftCode}
+                onToggle={() => toggle('swiftCode')}
+              />
             </div>
-          </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Notification Settings</h2>
+            <button className="mt-6 w-full h-[54px] bg-brand-orange rounded-full border border-[#E6E8E7] text-white font-semibold hover:opacity-90 transition-opacity">
+              Save Changes
+            </button>
+          </Section>
 
-            <div className="space-y-4">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="radio"
-                  name="notifications"
-                  checked={notifications.projectUpdates}
-                  onChange={() => setNotifications({ projectUpdates: true, paymentReminders: false, promotionalEmails: false })}
-                  className="w-4 h-4 text-orange-500 focus:ring-orange-500"
-                />
-                <span className="text-gray-700">Project Updates</span>
-              </label>
+          {/* ══ 4. Notification Settings ══ */}
+          <Section title="Notification Settings">
+            <div className="divide-y divide-[#CFCFCF]">
+              <Toggle
+                label="Contractor Messages"
+                checked={notifications.contractorMessages}
+                onChange={() =>
+                  setNotifications((p) => ({ ...p, contractorMessages: !p.contractorMessages }))
+                }
+              />
+              <Toggle
+                label="Promotional Emails"
+                checked={notifications.promotionalEmails}
+                onChange={() =>
+                  setNotifications((p) => ({ ...p, promotionalEmails: !p.promotionalEmails }))
+                }
+              />
+            </div>
 
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="radio"
-                  name="notifications"
-                  checked={notifications.paymentReminders}
-                  onChange={() => setNotifications({ projectUpdates: false, paymentReminders: true, promotionalEmails: false })}
-                  className="w-4 h-4 text-orange-500 focus:ring-orange-500"
-                />
-                <span className="text-gray-700">Payment Reminders</span>
-              </label>
-
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input
-                  type="radio"
-                  name="notifications"
-                  checked={notifications.promotionalEmails}
-                  onChange={() => setNotifications({ projectUpdates: false, paymentReminders: false, promotionalEmails: true })}
-                  className="w-4 h-4 text-orange-500 focus:ring-orange-500"
-                />
-                <span className="text-gray-700">Promotional Emails</span>
-              </label>
-
+            <div className="flex gap-4 mt-6">
               <button
                 onClick={handleDeleteAccount}
-                className="w-full px-6 py-3 bg-white border-2 border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+                className="flex-1 h-[54px] flex items-center justify-center gap-2 rounded-full border-[1.5px] border-[#CFCFCF] text-brand-navy font-semibold hover:bg-gray-50 transition-colors"
               >
-                <span className="text-xl">🗑️</span>
+                <Trash2 className="w-4 h-4" />
                 Delete My Account
               </button>
-
-              <button className="w-full px-6 py-3 bg-orange-500 text-white rounded-lg font-semibold hover:bg-orange-600 transition-colors">
-                Save Notification Preferences
+              <button className="flex-1 h-[54px] bg-brand-orange rounded-full border border-[#E6E8E7] text-white font-semibold hover:opacity-90 transition-opacity">
+                Save Preferences
               </button>
             </div>
-          </div>
+          </Section>
+
         </div>
       </div>
     </div>
