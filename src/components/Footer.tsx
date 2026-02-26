@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { ChevronUp } from 'lucide-react';
+import { Facebook, Twitter, Linkedin, Instagram, ChevronUp } from 'lucide-react';
+import logo from '../assets/logo.svg';
 
 export function Footer() {
   const [email, setEmail] = useState('');
@@ -10,147 +11,216 @@ export function Footer() {
     setEmail('');
   };
 
-  const scrollToTop = () => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  const scrollToTop = () => window.scrollTo({ top: 0, behavior: 'smooth' });
 
   return (
-    <footer className="bg-white border-t border-gray-200 mt-16">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-12">
-          <div>
-            <h3 className="text-2xl font-bold text-gray-900 mb-2">Contact Info</h3>
-            <p className="text-3xl font-bold text-gray-900 mb-8">
+    <footer>
+
+      {/* ── 1. Contact Info ── */}
+      <div className="bg-white py-16 px-4">
+        <div className="max-w-[1400px] mx-auto flex flex-col lg:flex-row items-start gap-16">
+
+          {/* Left: heading */}
+          <div className="flex-1 min-w-0">
+            <p className="text-[24px] text-brand-navy mb-4">Contact Info</p>
+            <h2 className="text-[50px] font-bold text-brand-navy leading-tight">
               We are always happy<br />to assist you
-            </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-8">
-              <div>
-                <h4 className="text-sm font-semibold text-gray-900 mb-2">Email Address</h4>
-                <div className="h-px bg-gray-300 mb-3"></div>
-                <a href="mailto:office@mgbit.com" className="text-gray-700 hover:text-gray-900">
-                  office@mgbit.com
-                </a>
-                <p className="text-sm text-gray-600 mt-2">
-                  Assistance hours:<br />
-                  Monday - Friday 6 am to 8 pm EST
-                </p>
-              </div>
-
-              <div>
-                <h4 className="text-sm font-semibold text-gray-900 mb-2">Number</h4>
-                <div className="h-px bg-gray-300 mb-3"></div>
-                <a href="tel:+11234567890" className="text-gray-700 hover:text-gray-900">
-                  +1 123456789
-                </a>
-                <p className="text-sm text-gray-600 mt-2">
-                  Assistance hours:<br />
-                  Monday - Friday 6 am to 8 pm EST
-                </p>
-              </div>
-            </div>
+            </h2>
           </div>
 
-          <div className="bg-gray-900 text-white rounded-2xl p-8">
-            <h3 className="text-2xl font-bold mb-2">Subscribe to our Newsletter</h3>
-            <p className="text-gray-400 mb-6">
-              Subscribe to our newsletter to get the latest renovation tips, industry updates, and exclusive offers.
+          {/* Right: two cards */}
+          <div className="flex flex-col sm:flex-row gap-6 shrink-0">
+
+            {/* Email card */}
+            <div className="w-full sm:w-[310px]  px-8 py-10">
+              <h4 className="text-[20px] font-semibold text-brand-navy">Email Address</h4>
+              <div className="w-7 h-[3px] bg-brand-navy mt-2 mb-5" />
+              <a
+                href="mailto:office@mgbit.com"
+                className="text-[18px] font-semibold text-brand-navy hover:underline"
+              >
+                office@mgbit.com
+              </a>
+              <p className="text-[18px] text-brand-navy mt-5 leading-relaxed">
+                Assistance hours:<br />
+                Monday – Friday 6 am to 8 pm EST
+              </p>
+            </div>
+
+            {/* Number card */}
+            <div className="w-full sm:w-[310px]  px-8 py-10">
+              <h4 className="text-[20px] font-semibold text-brand-navy">Number</h4>
+              <div className="w-7 h-[3px] bg-brand-navy mt-2 mb-5" />
+              <a
+                href="tel:+11234567890"
+                className="text-[18px] font-semibold text-brand-navy hover:underline"
+              >
+                +1 123456789
+              </a>
+              <p className="text-[18px] text-brand-navy mt-5 leading-relaxed">
+                Assistance hours:<br />
+                Monday – Friday 6 am to 8 pm EST
+              </p>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      {/* ── 2. Newsletter ── */}
+      <div className="bg-brand-navy py-14 px-4 relative">
+        <div className="max-w-[1400px] mx-auto flex flex-col lg:flex-row items-center gap-12">
+
+          {/* Text */}
+          <div className="flex-1 min-w-0">
+            <h2 className="text-[40px] font-bold text-white leading-tight">
+              Subscribe to our Newsletter
+            </h2>
+            <p className="text-[20px] text-[#ECECEC] mt-4 leading-relaxed">
+              Subscribe to our newsletter to get the latest renovation tips,
+              industry updates, and exclusive offers.
             </p>
-            <form onSubmit={handleSubscribe} className="flex gap-3">
+          </div>
+
+          {/* Input + button */}
+          <div className="shrink-0 w-full lg:w-auto">
+            <form
+              onSubmit={handleSubscribe}
+              className="flex bg-white rounded-[20px] overflow-hidden h-[84px] min-w-[500px]"
+            >
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email"
-                className="flex-1 px-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-white/50"
                 required
+                className="flex-1 px-8 text-[18px] text-brand-navy placeholder-[#909090] focus:outline-none bg-transparent"
               />
-              <button
-                type="submit"
-                className="px-8 py-3 bg-white text-gray-900 font-semibold rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                Subscribe
-              </button>
+              <div className="p-2">
+                <button
+                  type="submit"
+                  className="h-full px-8 bg-brand-navy text-white text-[16px] font-bold rounded-[14px] hover:opacity-90 transition-opacity"
+                >
+                  Subscribe
+                </button>
+              </div>
             </form>
-
-            <button
-              onClick={scrollToTop}
-              className="mt-6 w-12 h-12 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center transition-colors mx-auto"
-            >
-              <ChevronUp className="w-6 h-6" />
-            </button>
           </div>
+
         </div>
 
-        <div className="border-t border-gray-200 pt-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-8">
-            <div>
-              <div className="flex items-center gap-2 mb-4">
-                <div className="flex items-center gap-1">
-                  <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                  <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                </div>
-                <span className="text-xl font-bold text-gray-900">M.G.BiT</span>
-              </div>
-              <p className="text-sm text-gray-600 mb-2">4516 Court Street, New York, NY 10012</p>
-              <p className="text-sm text-gray-600 mb-1">(+123) 456 789 111</p>
-              <p className="text-sm text-gray-600 mb-1">Phone: +1 123 4567 891</p>
-              <p className="text-sm text-gray-600">Email: office123@gmail.com</p>
-            </div>
+        {/* Back to top */}
+        <div className="flex justify-center mt-10">
+          <button
+            onClick={scrollToTop}
+            aria-label="Back to top"
+            className="w-[70px] h-[70px] rounded-full bg-white border border-[#F4F4F4] flex items-center justify-center hover:shadow-md transition-shadow"
+          >
+            <ChevronUp className="w-6 h-6 text-brand-navy" />
+          </button>
+        </div>
+      </div>
 
-            <div>
-              <h4 className="font-semibold text-gray-900 mb-4">Main Pages</h4>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li><a href="/" className="hover:text-gray-900">Home</a></li>
-                <li><a href="/projects" className="hover:text-gray-900">New Projects</a></li>
-                <li><a href="/projects" className="hover:text-gray-900">My Projects</a></li>
-                <li><a href="/support" className="hover:text-gray-900">Contact & Support</a></li>
-              </ul>
-            </div>
+      {/* ── 3. Footer columns ── */}
+      <div className="bg-white py-12 px-4">
+        <div className="max-w-[1400px] mx-auto flex flex-col lg:flex-row gap-12 lg:gap-16">
 
-            <div>
-              <h4 className="font-semibold text-gray-900 mb-4">Company</h4>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li><a href="#" className="hover:text-gray-900">About Us</a></li>
-                <li><a href="#" className="hover:text-gray-900">Careers</a></li>
-                <li><a href="#" className="hover:text-gray-900">Blog</a></li>
-              </ul>
-            </div>
+          {/* Logo + address + social */}
+          <div className="w-full lg:w-[310px] shrink-0">
+            <img src={logo} alt="M.G.BIT" className="h-9 w-auto mb-6" />
+            <p className="text-[14px] text-black leading-relaxed mb-3">
+              A108 Adam Street<br />
+              New York, NY 535022<br />
+              United States
+            </p>
+            <p className="text-[14px] text-black mb-1">Phone: +1 123 4567 891</p>
+            <p className="text-[14px] text-black mb-6">Email: office@mgbit.com</p>
 
-            <div>
-              <h4 className="font-semibold text-gray-900 mb-4">Support & Resources</h4>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li><a href="/support" className="hover:text-gray-900">Help Center</a></li>
-                <li><a href="#" className="hover:text-gray-900">FAQs</a></li>
-                <li><a href="#" className="hover:text-gray-900">Guides & Tutorials</a></li>
-                <li><a href="#" className="hover:text-gray-900">Community Forum</a></li>
-              </ul>
-            </div>
-
-            <div>
-              <h4 className="font-semibold text-gray-900 mb-4">Legal</h4>
-              <ul className="space-y-2 text-sm text-gray-600">
-                <li><a href="#" className="hover:text-gray-900">Terms & Conditions</a></li>
-                <li><a href="#" className="hover:text-gray-900">Privacy Policy</a></li>
-                <li><a href="#" className="hover:text-gray-900">Refund Policy</a></li>
-              </ul>
+            {/* Social icons */}
+            <div className="flex items-center gap-4">
+              {[
+                { Icon: Facebook, href: '#' },
+                { Icon: Twitter, href: '#' },
+                { Icon: Instagram, href: '#' },
+                { Icon: Linkedin, href: '#' },
+              ].map(({ Icon, href }, i) => (
+                <a
+                  key={i}
+                  href={href}
+                  className="w-6 h-6 flex items-center justify-center text-black hover:opacity-60 transition-opacity"
+                >
+                  <Icon className="w-5 h-5" />
+                </a>
+              ))}
             </div>
           </div>
 
-          <div className="text-center pt-8 border-t border-gray-200">
-            <p className="text-sm text-gray-600">
-              © Copyright 2024 powered by{' '}
-              <a href="#" className="text-blue-600 hover:text-blue-700 font-semibold">
-                United Themes
-              </a>
-              . All Rights Reserved and secured in{' '}
-              <span className="font-semibold">M.G.BiT</span>
-            </p>
+          {/* Link columns */}
+          <div className="flex-1 grid grid-cols-2 sm:grid-cols-4 gap-8">
+
+            <div>
+              <h4 className="text-[18px] font-semibold text-black mb-5">Main Pages</h4>
+              <ul className="space-y-3">
+                {['Home', 'How It Works', 'Find Contractors', 'My Projects', 'Contact & Support'].map((item) => (
+                  <li key={item}>
+                    <a href="#" className="text-[14px] text-black hover:opacity-60 transition-opacity">
+                      {item}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="text-[18px] font-semibold text-black mb-5">Company</h4>
+              <ul className="space-y-3">
+                {['About Us', 'Careers', 'Blog'].map((item) => (
+                  <li key={item}>
+                    <a href="#" className="text-[14px] text-black hover:opacity-60 transition-opacity">
+                      {item}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="text-[18px] font-semibold text-black mb-5">Support & Resources</h4>
+              <ul className="space-y-3">
+                {['Help Center', 'FAQs', 'Guides & Tutorials', 'Customer Reviews'].map((item) => (
+                  <li key={item}>
+                    <a href="#" className="text-[14px] text-black hover:opacity-60 transition-opacity">
+                      {item}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div>
+              <h4 className="text-[18px] font-semibold text-black mb-5">Legal</h4>
+              <ul className="space-y-3">
+                {['Terms & Conditions', 'Privacy Policy', 'Refund Policy'].map((item) => (
+                  <li key={item}>
+                    <a href="#" className="text-[14px] text-black hover:opacity-60 transition-opacity">
+                      {item}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+
           </div>
         </div>
       </div>
+
+      {/* ── 4. Copyright bar ── */}
+      <div className="bg-[#F7F7F7] py-8 px-4">
+        <p className="text-center text-[14px] text-black">
+          © Designed by InspireUX Digital Studio. All Rights Reserved to M.G.BiT
+        </p>
+      </div>
+
     </footer>
   );
 }
