@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { Star, ChevronLeft, ChevronRight, Upload, Edit2, Check, X, Camera } from 'lucide-react';
+import { Star, ChevronLeft, ChevronRight, Upload, Edit2, Check, X, Camera, ShieldCheck, AlertCircle, Clock } from 'lucide-react';
+import { LicenseVerificationModal } from './LicenseVerificationModal';
 
 interface Specialization {
   id: string;
@@ -43,6 +44,8 @@ export function ContractorProfile() {
   const [uploadingBackground, setUploadingBackground] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || '');
   const [backgroundUrl, setBackgroundUrl] = useState(profile?.background_url || '');
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [verificationStatus, setVerificationStatus] = useState(profile?.verification_status || 'not_verified');
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const backgroundInputRef = useRef<HTMLInputElement>(null);
@@ -64,7 +67,55 @@ export function ContractorProfile() {
     if (profile?.background_url) {
       setBackgroundUrl(profile.background_url);
     }
+    if (profile?.verification_status) {
+      setVerificationStatus(profile.verification_status);
+    }
   }, [profile]);
+
+  const handleVerificationSuccess = () => {
+    setVerificationStatus('pending');
+  };
+
+  const getVerificationBadge = () => {
+    switch (verificationStatus) {
+      case 'verified':
+        return (
+          <div className="group relative inline-block">
+            <span className="px-4 py-1 bg-green-100 text-green-700 text-sm font-semibold rounded-full flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4" />
+              Verified via CSLB
+            </span>
+            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
+              This professional holds an active California contractor license verified through the official CSLB database.
+            </div>
+          </div>
+        );
+      case 'pending':
+        return (
+          <span className="px-4 py-1 bg-yellow-100 text-yellow-700 text-sm font-semibold rounded-full flex items-center gap-2">
+            <Clock className="w-4 h-4" />
+            Verification Pending
+          </span>
+        );
+      case 'rejected':
+      case 'expired':
+      case 'suspended':
+        return (
+          <span className="px-4 py-1 bg-red-100 text-red-700 text-sm font-semibold rounded-full flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" />
+            {verificationStatus === 'rejected' ? 'Verification Failed' :
+             verificationStatus === 'expired' ? 'License Expired' : 'License Suspended'}
+          </span>
+        );
+      default:
+        return (
+          <span className="px-4 py-1 bg-gray-100 text-gray-700 text-sm font-semibold rounded-full flex items-center gap-2">
+            <AlertCircle className="w-4 h-4" />
+            Not Verified
+          </span>
+        );
+    }
+  };
 
   const completedProjects: Project[] = [
     {
@@ -318,16 +369,44 @@ export function ContractorProfile() {
                 <p className="text-gray-600 mb-3">{profile?.company_name || 'Licensed General Contractor'}</p>
               )}
 
-              <div className="flex items-center justify-center gap-3">
-                <span className="px-4 py-1 bg-green-100 text-green-700 text-sm font-semibold rounded-full">
-                  Verified
-                </span>
-                <div className="flex items-center gap-1">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-5 h-5 fill-yellow-400 text-yellow-400" />
-                  ))}
-                  <span className="ml-2 text-gray-600 font-medium">(5 Stars)</span>
+              <div className="flex flex-col items-center gap-3">
+                <div className="flex items-center gap-3">
+                  {getVerificationBadge()}
+                  <div className="flex items-center gap-1">
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} className="w-5 h-5 fill-yellow-400 text-yellow-400" />
+                    ))}
+                    <span className="ml-2 text-gray-600 font-medium">(5 Stars)</span>
+                  </div>
                 </div>
+
+                {verificationStatus === 'not_verified' && (
+                  <button
+                    onClick={() => setShowVerificationModal(true)}
+                    className="px-6 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center gap-2"
+                  >
+                    <ShieldCheck className="w-5 h-5" />
+                    Verify License via CSLB
+                  </button>
+                )}
+
+                {verificationStatus === 'pending' && (
+                  <p className="text-sm text-yellow-700 bg-yellow-50 px-4 py-2 rounded-lg">
+                    Your verification is under review. You will be notified within 24-48 hours.
+                  </p>
+                )}
+
+                {(verificationStatus === 'rejected' || verificationStatus === 'expired' || verificationStatus === 'suspended') && (
+                  <div className="text-sm text-red-700 bg-red-50 px-4 py-2 rounded-lg">
+                    <p className="font-semibold mb-1">License verification issue detected</p>
+                    <button
+                      onClick={() => setShowVerificationModal(true)}
+                      className="text-red-600 hover:text-red-700 underline"
+                    >
+                      Resubmit verification
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -522,6 +601,13 @@ export function ContractorProfile() {
           </div>
         </div>
       </div>
+
+      {showVerificationModal && (
+        <LicenseVerificationModal
+          onClose={() => setShowVerificationModal(false)}
+          onSuccess={handleVerificationSuccess}
+        />
+      )}
     </div>
   );
 }
