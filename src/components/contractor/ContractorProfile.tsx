@@ -70,6 +70,31 @@ export function ContractorProfile() {
     if (profile?.verification_status) {
       setVerificationStatus(profile.verification_status);
     }
+
+    if (!profile?.id) return;
+
+    const channel = supabase
+      .channel(`profile-updates-${profile.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${profile.id}`
+        },
+        (payload) => {
+          const newStatus = payload.new.verification_status;
+          if (newStatus) {
+            setVerificationStatus(newStatus);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [profile]);
 
   const handleVerificationSuccess = () => {

@@ -270,37 +270,48 @@ export function LicenseVerificationModal({ onClose, onSuccess }: LicenseVerifica
 
           {step === 'success' && (
             <div className="space-y-6 text-center py-8">
-              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto">
-                <CheckCircle className="w-12 h-12 text-green-600" />
+              <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
+                <CheckCircle className="w-12 h-12 text-blue-600" />
               </div>
 
               <div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Verification Submitted!</h3>
-                <p className="text-gray-600">
-                  Your license verification request has been submitted successfully.
+                <h3 className="text-2xl font-bold text-gray-900 mb-3">Thank You for Submitting</h3>
+                <p className="text-gray-700 text-lg leading-relaxed max-w-xl mx-auto">
+                  Your license verification is currently under review by our administrative team.
                 </p>
               </div>
 
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 text-left">
-                <h4 className="font-bold text-blue-900 mb-2">What happens next?</h4>
-                <ul className="space-y-2 text-blue-800 text-sm">
-                  <li className="flex items-start gap-2">
-                    <span className="text-blue-600 font-bold">•</span>
-                    <span>Our admin team will review your submission within 24-48 hours</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-blue-600 font-bold">•</span>
-                    <span>We will verify your license against the CSLB database</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-blue-600 font-bold">•</span>
-                    <span>You will receive an email notification once verified</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-blue-600 font-bold">•</span>
-                    <span>Your profile will display a verified badge after approval</span>
-                  </li>
-                </ul>
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6 text-left max-w-xl mx-auto">
+                <h4 className="font-bold text-gray-900 mb-4 text-center">What's Next?</h4>
+                <div className="space-y-3 text-gray-700">
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">1</div>
+                    <div>
+                      <p className="font-semibold text-gray-900">Under Review</p>
+                      <p className="text-sm text-gray-600">Our team is currently reviewing your submission and verifying your credentials with the CSLB database.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">2</div>
+                    <div>
+                      <p className="font-semibold text-gray-900">Verification Process</p>
+                      <p className="text-sm text-gray-600">Once verified, your profile will be updated with a verified badge, and you'll gain full access to bid on projects.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">3</div>
+                    <div>
+                      <p className="font-semibold text-gray-900">You'll Be Notified</p>
+                      <p className="text-sm text-gray-600">We'll send you an email notification as soon as your license has been verified.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-yellow-50 border border-yellow-300 rounded-xl p-4 max-w-xl mx-auto">
+                <p className="text-yellow-900 text-sm font-medium">
+                  Please note: Verification typically takes 24-48 hours. You will be able to browse projects but cannot submit bids until verified.
+                </p>
               </div>
 
               <button
@@ -308,9 +319,9 @@ export function LicenseVerificationModal({ onClose, onSuccess }: LicenseVerifica
                   onSuccess();
                   onClose();
                 }}
-                className="px-8 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors"
+                className="px-8 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg"
               >
-                Done
+                Return to Dashboard
               </button>
             </div>
           )}

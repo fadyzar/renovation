@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
-import { ShieldCheck, X, ExternalLink, Check, AlertCircle, Clock } from 'lucide-react';
+import { ShieldCheck, X, ExternalLink, Check, AlertCircle, Clock, Bell } from 'lucide-react';
 
 interface VerificationRequest {
   id: string;
@@ -23,6 +23,26 @@ export function AdminVerificationReview() {
 
   useEffect(() => {
     loadPendingRequests();
+
+    const channel = supabase
+      .channel('verification-requests')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'profiles',
+          filter: 'verification_status=eq.pending'
+        },
+        () => {
+          loadPendingRequests();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const loadPendingRequests = async () => {
@@ -97,13 +117,23 @@ export function AdminVerificationReview() {
     <div className="min-h-screen bg-gray-50 py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
-            <ShieldCheck className="w-8 h-8 text-green-600" />
-            License Verification Review
-          </h1>
-          <p className="text-gray-600">
-            Review and approve contractor license verification requests
-          </p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-3">
+                <ShieldCheck className="w-8 h-8 text-green-600" />
+                License Verification Review
+              </h1>
+              <p className="text-gray-600">
+                Review and approve contractor license verification requests
+              </p>
+            </div>
+            {requests.length > 0 && (
+              <div className="flex items-center gap-2 px-4 py-2 bg-red-100 border-2 border-red-300 rounded-xl">
+                <Bell className="w-5 h-5 text-red-600 animate-bounce" />
+                <span className="font-bold text-red-900">{requests.length} Pending Request{requests.length !== 1 ? 's' : ''}</span>
+              </div>
+            )}
+          </div>
         </div>
 
         {requests.length === 0 ? (
