@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
-import { ChevronDown, Search, MapPin, Mail, Phone, Maximize2, BarChart3, Calendar, Layers, Clock } from 'lucide-react';
+import { ChevronDown, Search, MapPin, Mail, Phone, Maximize2, BarChart3, Calendar, Layers, Clock, Navigation } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { BidBuilder } from './BidBuilder';
+import { useAuth } from '../../contexts/AuthContext';
+import { LocationPermissionRequest } from '../shared/LocationPermissionRequest';
+import { calculateDistance, formatDistance } from '../../utils/geolocation';
 
 interface Project {
   id: string;
@@ -14,6 +17,9 @@ interface Project {
   timeline_weeks: number;
   urgency: string;
   created_at: string;
+  latitude?: number;
+  longitude?: number;
+  distance?: number;
   ai_analysis?: {
     complexity?: string;
     timeline_weeks?: number;
@@ -34,9 +40,17 @@ interface Project {
 }
 
 export function ProjectFeed() {
+  const { profile } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(
+    profile?.service_latitude && profile?.service_longitude
+      ? { lat: profile.service_latitude, lon: profile.service_longitude }
+      : null
+  );
+  const [distanceFilter, setDistanceFilter] = useState(50);
 
   const [filters, setFilters] = useState({
     renovationType: 'Select Renovation Type',
@@ -47,7 +61,7 @@ export function ProjectFeed() {
 
   useEffect(() => {
     loadProjects();
-  }, []);
+  }, [distanceFilter, userLocation]);
 
   async function loadProjects() {
     try {
@@ -59,16 +73,53 @@ export function ProjectFeed() {
           owner:profiles!projects_owner_id_fkey(full_name, email, phone)
         `)
         .eq('status', 'seeking_quotes')
+        .not('latitude', 'is', null)
+        .not('longitude', 'is', null)
         .order('created_at', { ascending: filters.sortBy === 'Oldest' });
 
       if (error) throw error;
-      setProjects(data || []);
+
+      let processedProjects = data || [];
+
+      if (userLocation) {
+        processedProjects = processedProjects.map(project => ({
+          ...project,
+          distance: project.latitude && project.longitude
+            ? calculateDistance(userLocation.lat, userLocation.lon, project.latitude, project.longitude)
+            : undefined
+        }));
+
+        processedProjects = processedProjects.filter(
+          project => !project.distance || project.distance <= distanceFilter
+        );
+
+        processedProjects.sort((a, b) => (a.distance || 9999) - (b.distance || 9999));
+      }
+
+      setProjects(processedProjects);
     } catch (error) {
       console.error('Error loading projects:', error);
     } finally {
       setLoading(false);
     }
   }
+
+  const handleLocationGranted = async (latitude: number, longitude: number) => {
+    setUserLocation({ lat: latitude, lon: longitude });
+
+    if (profile?.id) {
+      await supabase
+        .from('profiles')
+        .update({
+          service_latitude: latitude,
+          service_longitude: longitude,
+          location_enabled: true
+        })
+        .eq('id', profile.id);
+    }
+
+    setShowLocationModal(false);
+  };
 
   const getProjectIcon = (title: string) => {
     if (title.toLowerCase().includes('kitchen')) return 'K';
@@ -96,6 +147,68 @@ export function ProjectFeed() {
             Browse open renovation projects, review client requirements, and submit competitive bids to win more jobs.
           </p>
         </div>
+
+        {!userLocation && (
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-6 mb-8">
+            <div className="flex items-start gap-4">
+              <div className="w-14 h-14 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                <Navigation className="w-7 h-7 text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Enable Location Services</h3>
+                <p className="text-gray-700 mb-4">
+                  Find projects near you and see exact distances. Get matched with nearby opportunities in your service area.
+                </p>
+                <button
+                  onClick={() => setShowLocationModal(true)}
+                  className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2"
+                >
+                  <MapPin className="w-4 h-4" />
+                  Enable Location
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {userLocation && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                  <Navigation className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900">Distance Filter</h3>
+                  <p className="text-sm text-gray-600">Showing projects within {distanceFilter}km</p>
+                </div>
+              </div>
+              <span className="text-2xl font-bold text-blue-600">{projects.length}</span>
+            </div>
+
+            <div className="space-y-2">
+              <input
+                type="range"
+                min="5"
+                max="200"
+                step="5"
+                value={distanceFilter}
+                onChange={(e) => setDistanceFilter(Number(e.target.value))}
+                className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer slider"
+                style={{
+                  background: `linear-gradient(to right, #3B82F6 0%, #3B82F6 ${(distanceFilter / 200) * 100}%, #DBEAFE ${(distanceFilter / 200) * 100}%, #DBEAFE 100%)`
+                }}
+              />
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>5km</span>
+                <span>50km</span>
+                <span>100km</span>
+                <span>150km</span>
+                <span>200km</span>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
@@ -187,7 +300,15 @@ export function ProjectFeed() {
                       <span className="text-white text-xl font-bold">{getProjectIcon(project.title)}</span>
                     </div>
                     <div className="flex-1">
-                      <h3 className="text-xl font-bold text-gray-900 mb-1">{project.title}</h3>
+                      <div className="flex items-center justify-between mb-1">
+                        <h3 className="text-xl font-bold text-gray-900">{project.title}</h3>
+                        {project.distance !== undefined && (
+                          <div className="flex items-center gap-2 px-3 py-1 bg-green-100 rounded-full">
+                            <Navigation className="w-4 h-4 text-green-700" />
+                            <span className="text-sm font-bold text-green-700">{formatDistance(project.distance)} away</span>
+                          </div>
+                        )}
+                      </div>
                       <p className="text-gray-600 text-sm leading-relaxed">{project.description}</p>
                     </div>
                   </div>
@@ -320,6 +441,15 @@ export function ProjectFeed() {
             setSelectedProject(null);
             loadProjects();
           }}
+        />
+      )}
+
+      {showLocationModal && (
+        <LocationPermissionRequest
+          onLocationGranted={handleLocationGranted}
+          onClose={() => setShowLocationModal(false)}
+          title="Enable Location for Project Discovery"
+          description="Find projects near you and see exact distances to job sites. Location helps us match you with opportunities in your service area."
         />
       )}
     </div>

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star, DollarSign, Briefcase, FileText, MapPin, Mail, Phone, Home, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Star, DollarSign, Briefcase, FileText, MapPin, Mail, Phone, Home, Calendar, ChevronLeft, ChevronRight, Settings } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { BidBuilder } from './BidBuilder';
+import { LocationSettings } from './LocationSettings';
 
 interface Bid {
   id: string;
@@ -218,6 +219,8 @@ export function ContractorDashboard() {
             </button>
           </div>
         </div>
+
+        <LocationSettings />
 
         {activeBids.length > 0 && (
           <div className="mb-8">

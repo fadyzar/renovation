@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { Upload } from 'lucide-react';
+import { Upload, MapPin } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { LocationPermissionRequest } from '../shared/LocationPermissionRequest';
+import { reverseGeocode } from '../../utils/geolocation';
 
 interface ProjectFormData {
   renovationType: string;
@@ -23,6 +25,9 @@ interface ProjectFormData {
   email: string;
   phone: string;
   agreeToTerms: boolean;
+  latitude: number | null;
+  longitude: number | null;
+  locationAccuracy: number | null;
 }
 
 export function CreateProjectWizard() {
@@ -31,6 +36,8 @@ export function CreateProjectWizard() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showLoading, setShowLoading] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [locationObtained, setLocationObtained] = useState(false);
 
   const [formData, setFormData] = useState<ProjectFormData>({
     renovationType: '',
@@ -50,7 +57,10 @@ export function CreateProjectWizard() {
     fullName: profile?.full_name || '',
     email: profile?.email || '',
     phone: profile?.phone || '',
-    agreeToTerms: false
+    agreeToTerms: false,
+    latitude: null,
+    longitude: null,
+    locationAccuracy: null
   });
 
   const updateField = (field: keyof ProjectFormData, value: any) => {
@@ -101,7 +111,36 @@ export function CreateProjectWizard() {
       alert('Please select country');
       return false;
     }
+    if (!formData.latitude || !formData.longitude) {
+      alert('Please enable location services to help contractors find your project');
+      return false;
+    }
     return true;
+  };
+
+  const handleLocationGranted = async (latitude: number, longitude: number, accuracy: number) => {
+    setFormData({
+      ...formData,
+      latitude,
+      longitude,
+      locationAccuracy: accuracy
+    });
+
+    const address = await reverseGeocode(latitude, longitude);
+    if (address && !formData.address) {
+      const parts = address.split(',');
+      setFormData(prev => ({
+        ...prev,
+        latitude,
+        longitude,
+        locationAccuracy: accuracy,
+        address: parts[0]?.trim() || '',
+        city: parts[1]?.trim() || prev.city,
+      }));
+    }
+
+    setLocationObtained(true);
+    setShowLocationModal(false);
   };
 
   const validateStep3 = () => {
@@ -160,6 +199,9 @@ export function CreateProjectWizard() {
           room_width: formData.width ? parseFloat(formData.width) : null,
           finish_level: formData.finishLevel,
           timeline: formData.timeline,
+          latitude: formData.latitude,
+          longitude: formData.longitude,
+          location_accuracy: formData.locationAccuracy,
           status: 'seeking_quotes'
         });
 
@@ -471,6 +513,39 @@ export function CreateProjectWizard() {
                 </div>
               </div>
 
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6">
+                <div className="flex items-start gap-4">
+                  <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <MapPin className="w-6 h-6 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <h4 className="font-bold text-gray-900 mb-2">Enable Precise Location</h4>
+                    <p className="text-sm text-gray-700 mb-4">
+                      Help contractors find your project easily. Your exact location is never shared publicly.
+                    </p>
+                    {locationObtained ? (
+                      <div className="flex items-center gap-2 text-green-700 font-semibold">
+                        <div className="w-5 h-5 bg-green-600 rounded-full flex items-center justify-center">
+                          <svg className="w-3 h-3 text-white" fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" stroke="currentColor">
+                            <path d="M5 13l4 4L19 7"></path>
+                          </svg>
+                        </div>
+                        Location enabled
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setShowLocationModal(true)}
+                        className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2"
+                      >
+                        <MapPin className="w-4 h-4" />
+                        Enable Location
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div className="flex gap-4">
                 <button
                   onClick={() => setCurrentStep(1)}
@@ -564,6 +639,15 @@ export function CreateProjectWizard() {
           )}
         </div>
       </div>
+
+      {showLocationModal && (
+        <LocationPermissionRequest
+          onLocationGranted={handleLocationGranted}
+          onClose={() => setShowLocationModal(false)}
+          title="Enable Project Location"
+          description="Share your project's location to connect with nearby contractors and get accurate distance-based matching."
+        />
+      )}
     </div>
   );
 }
