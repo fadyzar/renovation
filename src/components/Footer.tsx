@@ -217,7 +217,7 @@ export function Footer() {
       {/* ── 4. Copyright bar ── */}
       <div className="bg-[#F7F7F7] py-8 px-4">
         <p className="text-center text-[14px] text-black">
-          © Designed by InspireUX Digital Studio. All Rights Reserved to M.G.BiT
+          © Developed by <span className="font-semibold">NFD - Next Flow Digital</span>, Israel. All Rights Reserved to M.G.BiT
         </p>
       </div>
 
