@@ -30,7 +30,7 @@ export function LocationSettings() {
 
       setLocationEnabled(true);
       setShowLocationModal(false);
-      alert('Location enabled successfully!');
+      window.location.reload();
     } catch (error) {
       console.error('Error saving location:', error);
       alert('Failed to save location. Please try again.');

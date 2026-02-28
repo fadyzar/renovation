@@ -28,6 +28,7 @@ interface ProjectFormData {
   latitude: number | null;
   longitude: number | null;
   locationAccuracy: number | null;
+  searchRadius: number;
 }
 
 export function CreateProjectWizard() {
@@ -60,7 +61,8 @@ export function CreateProjectWizard() {
     agreeToTerms: false,
     latitude: null,
     longitude: null,
-    locationAccuracy: null
+    locationAccuracy: null,
+    searchRadius: 50
   });
 
   const updateField = (field: keyof ProjectFormData, value: any) => {
@@ -202,6 +204,7 @@ export function CreateProjectWizard() {
           latitude: formData.latitude,
           longitude: formData.longitude,
           location_accuracy: formData.locationAccuracy,
+          search_radius_km: formData.searchRadius,
           status: 'seeking_quotes'
         });
 
@@ -514,7 +517,7 @@ export function CreateProjectWizard() {
               </div>
 
               <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-xl p-6">
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-4 mb-6">
                   <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
                     <MapPin className="w-6 h-6 text-white" />
                   </div>
@@ -544,6 +547,40 @@ export function CreateProjectWizard() {
                     )}
                   </div>
                 </div>
+
+                {locationObtained && (
+                  <div className="border-t border-blue-200 pt-6">
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="font-semibold text-gray-900">Contractor Search Radius</label>
+                      <span className="text-2xl font-bold text-blue-600">{formData.searchRadius}km</span>
+                    </div>
+
+                    <p className="text-sm text-gray-700 mb-4">
+                      Set the maximum distance to search for contractors from your project location
+                    </p>
+
+                    <input
+                      type="range"
+                      min="5"
+                      max="200"
+                      step="5"
+                      value={formData.searchRadius}
+                      onChange={(e) => updateField('searchRadius', Number(e.target.value))}
+                      className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer"
+                      style={{
+                        background: `linear-gradient(to right, #3B82F6 0%, #3B82F6 ${(formData.searchRadius / 200) * 100}%, #DBEAFE ${(formData.searchRadius / 200) * 100}%, #DBEAFE 100%)`
+                      }}
+                    />
+
+                    <div className="flex justify-between text-xs text-gray-600 mt-2">
+                      <span>5km</span>
+                      <span>50km</span>
+                      <span>100km</span>
+                      <span>150km</span>
+                      <span>200km</span>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="flex gap-4">
