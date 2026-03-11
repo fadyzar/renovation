@@ -46,19 +46,26 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
-  const [isTyping, setIsTyping] = useState(false);
+  const [otherUserTyping, setOtherUserTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const channelRef = useRef<any>(null);
 
   useEffect(() => {
     loadConversation();
   }, [conversationId, projectId, contractorId]);
 
   useEffect(() => {
-    if (!conversation) return;
+    if (!conversation || !profile?.id) return;
 
     const channel = supabase
-      .channel(`conversation:${conversation.id}`)
+      .channel(`conversation:${conversation.id}`, {
+        config: {
+          presence: {
+            key: profile.id,
+          },
+        },
+      })
       .on(
         'postgres_changes',
         {
@@ -107,7 +114,24 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
           );
         }
       )
-      .subscribe();
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        const presenceData = Object.values(state).flat() as any[];
+        const otherUsersTyping = presenceData.some(
+          (user: any) => user.user_id !== profile.id && user.typing === true
+        );
+        setOtherUserTyping(otherUsersTyping);
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({
+            user_id: profile.id,
+            typing: false,
+          });
+        }
+      });
+
+    channelRef.current = channel;
 
     return () => {
       supabase.removeChannel(channel);
@@ -260,14 +284,26 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
     }
   }
 
-  function handleTyping() {
+  async function handleTyping() {
+    if (!channelRef.current || !profile?.id) return;
+
+    await channelRef.current.track({
+      user_id: profile.id,
+      typing: true,
+    });
+
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
 
-    typingTimeoutRef.current = setTimeout(() => {
-      setIsTyping(false);
-    }, 1000);
+    typingTimeoutRef.current = setTimeout(async () => {
+      if (channelRef.current && profile?.id) {
+        await channelRef.current.track({
+          user_id: profile.id,
+          typing: false,
+        });
+      }
+    }, 2000);
   }
 
   function scrollToBottom() {
@@ -368,10 +404,12 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
                 </div>
               );
             })}
-            {isTyping && (
+            {otherUserTyping && (
               <div className="flex items-end gap-2">
                 <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full flex items-center justify-center flex-shrink-0">
-                  <span className="text-white text-xs font-bold">U</span>
+                  <span className="text-white text-xs font-bold">
+                    {otherPerson?.charAt(0) || 'U'}
+                  </span>
                 </div>
                 <div className="bg-gray-100 rounded-2xl px-4 py-3">
                   <div className="flex gap-1">
