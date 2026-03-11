@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { ChevronDown, Search, MapPin, Mail, Phone, Maximize2, BarChart3, Calendar, Layers, Clock, Navigation, AlertCircle, TrendingUp } from 'lucide-react';
+import { ChevronDown, Search, MapPin, Mail, Phone, Maximize2, BarChart3, Calendar, Layers, Clock, Navigation, AlertCircle, TrendingUp, MessageCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { BidBuilder } from './BidBuilder';
 import { useAuth } from '../../contexts/AuthContext';
 import { LocationPermissionRequest } from '../shared/LocationPermissionRequest';
 import { calculateDistance, formatDistance } from '../../utils/geolocation';
+import { useNavigate } from 'react-router-dom';
 
 interface Project {
   id: string;
@@ -34,6 +35,7 @@ interface Project {
     zip_code?: string;
   };
   owner: {
+    id: string;
     full_name: string;
     email: string;
     phone?: string;
@@ -42,6 +44,7 @@ interface Project {
 
 export function ProjectFeed() {
   const { profile } = useAuth();
+  const navigate = useNavigate();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -72,7 +75,7 @@ export function ProjectFeed() {
         .select(`
           *,
           properties(address, city, state, zip_code),
-          owner:profiles!projects_owner_id_fkey(full_name, email, phone)
+          owner:profiles!projects_owner_id_fkey(id, full_name, email, phone)
         `)
         .eq('status', 'seeking_quotes');
 
@@ -193,6 +196,39 @@ export function ProjectFeed() {
 
   const handleSubmitBid = (project: Project) => {
     setSelectedProject(project);
+  };
+
+  const handleContactOwner = async (project: Project) => {
+    if (!profile?.id) return;
+
+    try {
+      const { data: existingConv } = await supabase
+        .from('conversations')
+        .select('id')
+        .eq('project_id', project.id)
+        .eq('contractor_id', profile.id)
+        .maybeSingle();
+
+      if (existingConv) {
+        navigate('/messages');
+      } else {
+        const { data: newConv, error } = await supabase
+          .from('conversations')
+          .insert({
+            project_id: project.id,
+            contractor_id: profile.id,
+            owner_id: project.owner.id,
+          })
+          .select('id')
+          .single();
+
+        if (error) throw error;
+        navigate('/messages');
+      }
+    } catch (error) {
+      console.error('Error creating conversation:', error);
+      alert('Failed to start conversation. Please try again.');
+    }
   };
 
   return (
@@ -558,12 +594,21 @@ export function ProjectFeed() {
                       </p>
                     </div>
 
-                    <button
-                      onClick={() => handleSubmitBid(project)}
-                      className="px-8 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl"
-                    >
-                      Submit a bid
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => handleContactOwner(project)}
+                        className="px-6 py-3 bg-white border-2 border-blue-600 text-blue-600 font-semibold rounded-lg transition-all duration-200 hover:bg-blue-50 flex items-center gap-2"
+                      >
+                        <MessageCircle className="w-5 h-5" />
+                        Contact Owner
+                      </button>
+                      <button
+                        onClick={() => handleSubmitBid(project)}
+                        className="px-8 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl"
+                      >
+                        Submit a bid
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
