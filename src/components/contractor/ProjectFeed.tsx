@@ -74,9 +74,7 @@ export function ProjectFeed() {
           properties(address, city, state, zip_code),
           owner:profiles!projects_owner_id_fkey(full_name, email, phone)
         `)
-        .eq('status', 'seeking_quotes')
-        .not('latitude', 'is', null)
-        .not('longitude', 'is', null);
+        .eq('status', 'seeking_quotes');
 
       if (filters.renovationType !== 'all') {
         query = query.ilike('title', `%${filters.renovationType}%`);
@@ -122,6 +120,8 @@ export function ProjectFeed() {
         }));
 
         processedProjects = processedProjects.filter(project => {
+          if (!project.latitude || !project.longitude) return true;
+
           if (!project.distance) return false;
 
           const withinContractorRadius = project.distance <= distanceFilter;
@@ -133,6 +133,17 @@ export function ProjectFeed() {
         if (filters.sortBy === 'distance') {
           processedProjects.sort((a, b) => (a.distance || 9999) - (b.distance || 9999));
         } else if (filters.sortBy === 'budget_high') {
+          processedProjects.sort((a, b) => b.budget_max - a.budget_max);
+        } else if (filters.sortBy === 'budget_low') {
+          processedProjects.sort((a, b) => a.budget_min - b.budget_min);
+        } else if (filters.sortBy === 'newest') {
+          processedProjects.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        } else if (filters.sortBy === 'urgent') {
+          const urgencyOrder = { urgent: 0, moderate: 1, flexible: 2 };
+          processedProjects.sort((a, b) => (urgencyOrder[a.urgency as keyof typeof urgencyOrder] || 3) - (urgencyOrder[b.urgency as keyof typeof urgencyOrder] || 3));
+        }
+      } else {
+        if (filters.sortBy === 'budget_high') {
           processedProjects.sort((a, b) => b.budget_max - a.budget_max);
         } else if (filters.sortBy === 'budget_low') {
           processedProjects.sort((a, b) => a.budget_min - b.budget_min);
@@ -369,12 +380,6 @@ export function ProjectFeed() {
         {loading ? (
           <div className="text-center py-12">
             <div className="inline-block w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
-          </div>
-        ) : !userLocation ? (
-          <div className="bg-white rounded-2xl p-12 text-center border border-gray-200">
-            <Navigation className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">Location Required</h3>
-            <p className="text-gray-600 mb-4">Enable location services above to view available projects in your area</p>
           </div>
         ) : projects.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 text-center border border-gray-200">
