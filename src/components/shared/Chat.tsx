@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, X, MessageCircle, FileText, Image as ImageIcon, CheckCheck, Check } from 'lucide-react';
+import { Send, X, MessageCircle, FileText, Image as ImageIcon, CheckCheck, Check, Paperclip } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -10,6 +10,9 @@ interface Message {
   sender_id: string;
   is_read: boolean;
   created_at: string;
+  attachment_url?: string;
+  attachment_type?: string;
+  attachment_name?: string;
   sender?: {
     full_name: string;
     avatar_url?: string;
@@ -27,9 +30,11 @@ interface Conversation {
   };
   owner?: {
     full_name: string;
+    avatar_url?: string;
   };
   contractor?: {
     full_name: string;
+    avatar_url?: string;
   };
 }
 
@@ -47,9 +52,12 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [otherUserTyping, setOtherUserTyping] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const channelRef = useRef<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadConversation();
@@ -157,8 +165,8 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
           .select(`
             *,
             project:projects(title),
-            owner:profiles!conversations_owner_id_fkey(full_name),
-            contractor:profiles!conversations_contractor_id_fkey(full_name)
+            owner:profiles!conversations_owner_id_fkey(full_name, avatar_url),
+            contractor:profiles!conversations_contractor_id_fkey(full_name, avatar_url)
           `)
           .eq('id', conversationId)
           .maybeSingle();
@@ -198,8 +206,8 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
             .select(`
               *,
               project:projects(title),
-              owner:profiles!conversations_owner_id_fkey(full_name),
-              contractor:profiles!conversations_contractor_id_fkey(full_name)
+              owner:profiles!conversations_owner_id_fkey(full_name, avatar_url),
+              contractor:profiles!conversations_contractor_id_fkey(full_name, avatar_url)
             `)
             .single();
 
@@ -248,17 +256,62 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
     }
   }
 
+  async function uploadFile(file: File): Promise<string | null> {
+    if (!profile?.id) return null;
+
+    try {
+      setUploading(true);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${profile.id}/${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('chat-attachments')
+        .upload(fileName, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('chat-attachments')
+        .getPublicUrl(fileName);
+
+      return publicUrl;
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      return null;
+    } finally {
+      setUploading(false);
+    }
+  }
+
   async function sendMessage() {
-    if (!newMessage.trim() || !conversation?.id || !profile?.id) return;
+    if ((!newMessage.trim() && !selectedFile) || !conversation?.id || !profile?.id) return;
 
     const messageContent = newMessage.trim();
+    let attachmentUrl: string | null = null;
+    let attachmentType: string | null = null;
+    let attachmentName: string | null = null;
+
+    if (selectedFile) {
+      attachmentUrl = await uploadFile(selectedFile);
+      if (!attachmentUrl) {
+        return;
+      }
+      attachmentType = selectedFile.type.startsWith('image/') ? 'image' :
+                       selectedFile.type.startsWith('video/') ? 'video' : 'file';
+      attachmentName = selectedFile.name;
+    }
+
     setNewMessage('');
+    setSelectedFile(null);
 
     try {
       const { error } = await supabase.from('messages').insert({
         conversation_id: conversation.id,
         sender_id: profile.id,
-        content: messageContent,
+        content: messageContent || null,
+        attachment_url: attachmentUrl,
+        attachment_type: attachmentType,
+        attachment_name: attachmentName,
       });
 
       if (error) throw error;
@@ -343,17 +396,36 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
           <>
             {messages.map((message) => {
               const isOwn = message.sender_id === profile?.id;
+              const senderAvatar = isOwn
+                ? profile?.avatar_url
+                : (profile?.id === conversation?.owner_id
+                    ? conversation?.contractor?.avatar_url
+                    : conversation?.owner?.avatar_url);
+              const senderName = isOwn
+                ? profile?.full_name
+                : (profile?.id === conversation?.owner_id
+                    ? conversation?.contractor?.full_name
+                    : conversation?.owner?.full_name);
+
               return (
                 <div
                   key={message.id}
                   className={`flex items-end gap-2 ${isOwn ? 'justify-end' : 'justify-start'}`}
                 >
                   {!isOwn && (
-                    <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full flex items-center justify-center flex-shrink-0">
-                      <span className="text-white text-xs font-bold">
-                        {message.sender?.full_name?.charAt(0) || 'U'}
-                      </span>
-                    </div>
+                    senderAvatar ? (
+                      <img
+                        src={senderAvatar}
+                        alt={senderName || 'User'}
+                        className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-white text-xs font-bold">
+                          {message.sender?.full_name?.charAt(0) || 'U'}
+                        </span>
+                      </div>
+                    )
                   )}
                   <div
                     className={`max-w-[70%] rounded-2xl px-4 py-2.5 ${
@@ -362,7 +434,33 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
                         : 'bg-gray-100 text-gray-900'
                     }`}
                   >
-                    <p className="text-sm leading-relaxed">{message.content}</p>
+                    {message.attachment_url && (
+                      <div className="mb-2">
+                        {message.attachment_type === 'image' ? (
+                          <img
+                            src={message.attachment_url}
+                            alt={message.attachment_name || 'Attached image'}
+                            className="max-w-full rounded-lg mb-1"
+                            style={{ maxHeight: '300px' }}
+                          />
+                        ) : (
+                          <a
+                            href={message.attachment_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`flex items-center gap-2 p-2 rounded-lg ${
+                              isOwn ? 'bg-blue-800/30' : 'bg-gray-200'
+                            }`}
+                          >
+                            <FileText className="w-5 h-5" />
+                            <span className="text-sm truncate">{message.attachment_name || 'File'}</span>
+                          </a>
+                        )}
+                      </div>
+                    )}
+                    {message.content && (
+                      <p className="text-sm leading-relaxed">{message.content}</p>
+                    )}
                     <div className={`flex items-center gap-1 mt-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
                       <p className={`text-xs ${isOwn ? 'text-blue-100' : 'text-gray-500'}`}>
                         {new Date(message.created_at).toLocaleTimeString([], {
@@ -380,22 +478,42 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
                     </div>
                   </div>
                   {isOwn && (
-                    <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-700 rounded-full flex items-center justify-center flex-shrink-0">
-                      <span className="text-white text-xs font-bold">
-                        {profile?.full_name?.charAt(0) || 'Y'}
-                      </span>
-                    </div>
+                    senderAvatar ? (
+                      <img
+                        src={senderAvatar}
+                        alt={senderName || 'You'}
+                        className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-700 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span className="text-white text-xs font-bold">
+                          {profile?.full_name?.charAt(0) || 'Y'}
+                        </span>
+                      </div>
+                    )
                   )}
                 </div>
               );
             })}
             {otherUserTyping && (
               <div className="flex items-end gap-2">
-                <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full flex items-center justify-center flex-shrink-0">
-                  <span className="text-white text-xs font-bold">
-                    {otherPerson?.charAt(0) || 'U'}
-                  </span>
-                </div>
+                {(profile?.id === conversation?.owner_id
+                  ? conversation?.contractor?.avatar_url
+                  : conversation?.owner?.avatar_url) ? (
+                  <img
+                    src={profile?.id === conversation?.owner_id
+                      ? conversation?.contractor?.avatar_url
+                      : conversation?.owner?.avatar_url}
+                    alt={otherPerson || 'User'}
+                    className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                  />
+                ) : (
+                  <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full flex items-center justify-center flex-shrink-0">
+                    <span className="text-white text-xs font-bold">
+                      {otherPerson?.charAt(0) || 'U'}
+                    </span>
+                  </div>
+                )}
                 <div className="bg-gray-100 rounded-2xl px-4 py-3">
                   <div className="flex gap-1">
                     <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
@@ -411,13 +529,50 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
       </div>
 
       <div className="p-4 border-t border-gray-200 bg-gray-50">
+        {selectedFile && (
+          <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {selectedFile.type.startsWith('image/') ? (
+                <ImageIcon className="w-5 h-5 text-blue-600" />
+              ) : (
+                <FileText className="w-5 h-5 text-blue-600" />
+              )}
+              <span className="text-sm text-gray-700 truncate max-w-xs">{selectedFile.name}</span>
+            </div>
+            <button
+              onClick={() => setSelectedFile(null)}
+              className="p-1 hover:bg-blue-100 rounded"
+            >
+              <X className="w-4 h-4 text-gray-600" />
+            </button>
+          </div>
+        )}
         <div className="flex gap-2 items-end">
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                setSelectedFile(file);
+              }
+            }}
+            className="hidden"
+            accept="image/*,video/*,.pdf,.doc,.docx,.txt"
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="p-3 text-gray-600 hover:bg-gray-200 rounded-2xl transition-colors"
+            title="Attach file"
+          >
+            <Paperclip className="w-5 h-5" />
+          </button>
           <textarea
             value={newMessage}
             onChange={(e) => {
               const value = e.target.value;
               setNewMessage(value);
-              handleTyping(value.trim().length > 0);
+              handleTyping(value.trim().length > 0 || selectedFile !== null);
             }}
             onKeyPress={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -435,11 +590,15 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
           />
           <button
             onClick={sendMessage}
-            disabled={!newMessage.trim()}
+            disabled={(!newMessage.trim() && !selectedFile) || uploading}
             className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-2xl hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl"
           >
-            <Send className="w-4 h-4" />
-            <span className="hidden sm:inline">Send</span>
+            {uploading ? (
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              <Send className="w-4 h-4" />
+            )}
+            <span className="hidden sm:inline">{uploading ? 'Sending...' : 'Send'}</span>
           </button>
         </div>
         <p className="text-xs text-gray-500 mt-2 text-center">

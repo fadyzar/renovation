@@ -34,12 +34,36 @@ export function Messages() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
+  const [typingUsers, setTypingUsers] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     if (profile) {
       loadConversations();
 
-      const channel = supabase
+      const channels = conversations.map((conv) => {
+        return supabase
+          .channel(`conversation-typing:${conv.id}`, {
+            config: {
+              presence: {
+                key: profile.id,
+              },
+            },
+          })
+          .on('presence', { event: 'sync' }, () => {
+            const state = supabase.channel(`conversation-typing:${conv.id}`).presenceState();
+            const otherUserId = profile.id === conv.owner_id ? conv.contractor_id : conv.owner_id;
+            const otherUserPresence = state[otherUserId];
+
+            if (otherUserPresence && otherUserPresence[0]?.typing) {
+              setTypingUsers((prev) => ({ ...prev, [conv.id]: true }));
+            } else {
+              setTypingUsers((prev) => ({ ...prev, [conv.id]: false }));
+            }
+          })
+          .subscribe();
+      });
+
+      const mainChannel = supabase
         .channel('conversations-list')
         .on(
           'postgres_changes',
@@ -119,10 +143,11 @@ export function Messages() {
         .subscribe();
 
       return () => {
-        supabase.removeChannel(channel);
+        channels.forEach(channel => supabase.removeChannel(channel));
+        supabase.removeChannel(mainChannel);
       };
     }
-  }, [profile?.id]);
+  }, [profile?.id, conversations.length]);
 
   async function loadConversations() {
     if (!profile) return;
@@ -234,6 +259,10 @@ export function Messages() {
                     profile?.id === conv.owner_id
                       ? conv.contractor?.full_name
                       : conv.owner?.full_name;
+                  const otherPersonAvatar =
+                    profile?.id === conv.owner_id
+                      ? conv.contractor?.avatar_url
+                      : conv.owner?.avatar_url;
                   const isSelected = selectedConversation === conv.id;
                   const hasUnread = conv.last_message && !conv.last_message.is_read && (conv.last_message as any).sender_id !== profile?.id;
                   const timeSince = conv.last_message_at ? new Date(conv.last_message_at).toLocaleDateString() : '';
@@ -252,11 +281,19 @@ export function Messages() {
                     >
                       <div className="flex items-start gap-3">
                         <div className="relative">
-                          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-md">
-                            <span className="text-white font-bold text-lg">
-                              {otherPerson?.charAt(0)}
-                            </span>
-                          </div>
+                          {otherPersonAvatar ? (
+                            <img
+                              src={otherPersonAvatar}
+                              alt={otherPerson || 'User'}
+                              className="w-12 h-12 rounded-full object-cover flex-shrink-0 shadow-md"
+                            />
+                          ) : (
+                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-md">
+                              <span className="text-white font-bold text-lg">
+                                {otherPerson?.charAt(0)}
+                              </span>
+                            </div>
+                          )}
                           {hasUnread && (
                             <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center border-2 border-white">
                               <span className="text-white text-xs font-bold">●</span>
@@ -271,11 +308,13 @@ export function Messages() {
                             <span className="text-xs text-gray-500 flex-shrink-0">{timeSince}</span>
                           </div>
                           <p className="text-xs text-blue-600 mb-1 font-medium">{conv.project?.title}</p>
-                          {conv.last_message && (
+                          {typingUsers[conv.id] ? (
+                            <p className="text-sm text-blue-600 font-medium italic">typing...</p>
+                          ) : conv.last_message ? (
                             <p className={`text-sm truncate ${hasUnread ? 'text-gray-900 font-medium' : 'text-gray-600'}`}>
                               {conv.last_message.content}
                             </p>
-                          )}
+                          ) : null}
                         </div>
                       </div>
                     </button>
