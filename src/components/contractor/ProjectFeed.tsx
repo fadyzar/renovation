@@ -167,7 +167,7 @@ export function ProjectFeed() {
     }
   }
 
-  const handleLocationGranted = async (latitude: number, longitude: number) => {
+  const handleLocationGranted = async (latitude: number, longitude: number, accuracy: number) => {
     setUserLocation({ lat: latitude, lon: longitude });
 
     if (profile?.id) {
