@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { ChevronDown, Search, MapPin, Mail, Phone, Maximize2, BarChart3, Calendar, Layers, Clock, Navigation } from 'lucide-react';
+import { ChevronDown, Search, MapPin, Mail, Phone, Maximize2, BarChart3, Calendar, Layers, Clock, Navigation, AlertCircle, TrendingUp } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { BidBuilder } from './BidBuilder';
 import { useAuth } from '../../contexts/AuthContext';
@@ -54,10 +54,11 @@ export function ProjectFeed() {
   const [distanceFilter, setDistanceFilter] = useState(profile?.service_radius_km || 50);
 
   const [filters, setFilters] = useState({
-    renovationType: 'Select Renovation Type',
-    budgetRange: '$1,000 to $50,000',
-    location: 'Select your Location',
-    sortBy: 'Oldest'
+    renovationType: 'all',
+    budgetRange: 'all',
+    workTypes: [] as string[],
+    urgency: 'all',
+    sortBy: 'distance'
   });
 
   useEffect(() => {
@@ -66,7 +67,7 @@ export function ProjectFeed() {
 
   async function loadProjects() {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('projects')
         .select(`
           *,
@@ -75,32 +76,41 @@ export function ProjectFeed() {
         `)
         .eq('status', 'seeking_quotes')
         .not('latitude', 'is', null)
-        .not('longitude', 'is', null)
-        .order('created_at', { ascending: filters.sortBy === 'Oldest' });
+        .not('longitude', 'is', null);
+
+      if (filters.renovationType !== 'all') {
+        query = query.ilike('title', `%${filters.renovationType}%`);
+      }
+
+      if (filters.urgency !== 'all') {
+        query = query.eq('urgency', filters.urgency);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
       let processedProjects = data || [];
 
-      if (filters.renovationType !== 'Select Renovation Type') {
-        processedProjects = processedProjects.filter(project =>
-          project.title.includes(filters.renovationType.replace(' Renovation', ''))
-        );
-      }
-
-      if (filters.budgetRange !== '$1,000 to $50,000') {
+      if (filters.budgetRange !== 'all') {
         processedProjects = processedProjects.filter(project => {
           const avgBudget = (project.budget_min + project.budget_max) / 2;
 
-          if (filters.budgetRange === '$10,000 to $50,000') {
-            return avgBudget >= 10000 && avgBudget <= 50000;
-          } else if (filters.budgetRange === '$50,000 to $100,000') {
-            return avgBudget >= 50000 && avgBudget <= 100000;
-          } else if (filters.budgetRange === '$100,000+') {
-            return avgBudget >= 100000;
+          if (filters.budgetRange === 'low') {
+            return avgBudget < 25000;
+          } else if (filters.budgetRange === 'medium') {
+            return avgBudget >= 25000 && avgBudget <= 75000;
+          } else if (filters.budgetRange === 'high') {
+            return avgBudget > 75000;
           }
           return true;
         });
+      }
+
+      if (filters.workTypes.length > 0) {
+        processedProjects = processedProjects.filter(project =>
+          project.work_types?.some((type: string) => filters.workTypes.includes(type))
+        );
       }
 
       if (userLocation) {
@@ -120,7 +130,18 @@ export function ProjectFeed() {
           return withinContractorRadius && withinProjectRadius;
         });
 
-        processedProjects.sort((a, b) => (a.distance || 9999) - (b.distance || 9999));
+        if (filters.sortBy === 'distance') {
+          processedProjects.sort((a, b) => (a.distance || 9999) - (b.distance || 9999));
+        } else if (filters.sortBy === 'budget_high') {
+          processedProjects.sort((a, b) => b.budget_max - a.budget_max);
+        } else if (filters.sortBy === 'budget_low') {
+          processedProjects.sort((a, b) => a.budget_min - b.budget_min);
+        } else if (filters.sortBy === 'newest') {
+          processedProjects.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        } else if (filters.sortBy === 'urgent') {
+          const urgencyOrder = { urgent: 0, moderate: 1, flexible: 2 };
+          processedProjects.sort((a, b) => (urgencyOrder[a.urgency as keyof typeof urgencyOrder] || 3) - (urgencyOrder[b.urgency as keyof typeof urgencyOrder] || 3));
+        }
       }
 
       setProjects(processedProjects);
@@ -238,19 +259,37 @@ export function ProjectFeed() {
         )}
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-lg font-bold text-gray-900">Search & Filter</h3>
+            <button
+              onClick={() => setFilters({
+                renovationType: 'all',
+                budgetRange: 'all',
+                workTypes: [],
+                urgency: 'all',
+                sortBy: 'distance'
+              })}
+              className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+            >
+              Clear All Filters
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
             <div className="relative">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Renovation Type</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Project Type</label>
               <select
                 value={filters.renovationType}
                 onChange={(e) => setFilters({ ...filters, renovationType: e.target.value })}
-                className="w-full px-4 py-3 pr-10 bg-white border border-gray-300 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-gray-700"
+                className="w-full px-4 py-3 pr-10 bg-white border border-gray-300 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
               >
-                <option>Select Renovation Type</option>
-                <option>Kitchen Renovation</option>
-                <option>Bathroom Renovation</option>
-                <option>Full House Renovation</option>
-                <option>Roof Repair</option>
+                <option value="all">All Types</option>
+                <option value="kitchen">Kitchen</option>
+                <option value="bathroom">Bathroom</option>
+                <option value="basement">Basement</option>
+                <option value="roof">Roof</option>
+                <option value="flooring">Flooring</option>
+                <option value="painting">Painting</option>
               </select>
               <ChevronDown className="absolute right-3 top-11 w-5 h-5 text-gray-400 pointer-events-none" />
             </div>
@@ -260,48 +299,71 @@ export function ProjectFeed() {
               <select
                 value={filters.budgetRange}
                 onChange={(e) => setFilters({ ...filters, budgetRange: e.target.value })}
-                className="w-full px-4 py-3 pr-10 bg-white border border-gray-300 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-gray-700"
+                className="w-full px-4 py-3 pr-10 bg-white border border-gray-300 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
               >
-                <option>$1,000 to $50,000</option>
-                <option>$10,000 to $50,000</option>
-                <option>$50,000 to $100,000</option>
-                <option>$100,000+</option>
+                <option value="all">Any Budget</option>
+                <option value="low">Under $25,000</option>
+                <option value="medium">$25,000 - $75,000</option>
+                <option value="high">Over $75,000</option>
               </select>
               <ChevronDown className="absolute right-3 top-11 w-5 h-5 text-gray-400 pointer-events-none" />
             </div>
 
             <div className="relative">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Urgency</label>
               <select
-                value={filters.location}
-                onChange={(e) => setFilters({ ...filters, location: e.target.value })}
-                className="w-full px-4 py-3 pr-10 bg-white border border-gray-300 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-gray-700"
+                value={filters.urgency}
+                onChange={(e) => setFilters({ ...filters, urgency: e.target.value })}
+                className="w-full px-4 py-3 pr-10 bg-white border border-gray-300 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
               >
-                <option>Select your Location</option>
-                <option>New York</option>
-                <option>California</option>
-                <option>Texas</option>
+                <option value="all">Any Urgency</option>
+                <option value="urgent">Urgent</option>
+                <option value="moderate">Moderate</option>
+                <option value="flexible">Flexible</option>
               </select>
               <ChevronDown className="absolute right-3 top-11 w-5 h-5 text-gray-400 pointer-events-none" />
             </div>
 
             <div className="relative">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Sort by (Date)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Sort By</label>
               <select
                 value={filters.sortBy}
-                onChange={(e) => {
-                  setFilters({ ...filters, sortBy: e.target.value });
-                  loadProjects();
-                }}
-                className="w-full px-4 py-3 pr-10 bg-white border border-gray-300 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-gray-700"
+                onChange={(e) => setFilters({ ...filters, sortBy: e.target.value })}
+                className="w-full px-4 py-3 pr-10 bg-white border border-gray-300 rounded-lg appearance-none focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700"
               >
-                <option>Oldest</option>
-                <option>Newest</option>
+                <option value="distance">Nearest First</option>
+                <option value="newest">Newest First</option>
+                <option value="urgent">Most Urgent</option>
+                <option value="budget_high">Highest Budget</option>
+                <option value="budget_low">Lowest Budget</option>
               </select>
               <ChevronDown className="absolute right-3 top-11 w-5 h-5 text-gray-400 pointer-events-none" />
             </div>
           </div>
 
+          <div className="border-t border-gray-200 pt-4">
+            <p className="text-sm font-medium text-gray-700 mb-3">Work Types</p>
+            <div className="flex flex-wrap gap-2">
+              {['demolition', 'electrical', 'plumbing', 'carpentry', 'painting', 'flooring', 'hvac', 'drywall'].map((type) => (
+                <button
+                  key={type}
+                  onClick={() => {
+                    const newTypes = filters.workTypes.includes(type)
+                      ? filters.workTypes.filter(t => t !== type)
+                      : [...filters.workTypes, type];
+                    setFilters({ ...filters, workTypes: newTypes });
+                  }}
+                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
+                    filters.workTypes.includes(type)
+                      ? 'bg-blue-600 text-white shadow-md'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                  }`}
+                >
+                  {type.charAt(0).toUpperCase() + type.slice(1)}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {loading ? (
@@ -326,23 +388,57 @@ export function ProjectFeed() {
         ) : (
           <div className="space-y-6">
             {projects.map((project) => (
-              <div key={project.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+              <div key={project.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-lg transition-all duration-200 hover:border-blue-300">
                 <div className="p-6">
                   <div className="flex items-start gap-4 mb-4">
-                    <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <span className="text-white text-xl font-bold">{getProjectIcon(project.title)}</span>
+                    <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-md">
+                      <span className="text-white text-2xl font-bold">{getProjectIcon(project.title)}</span>
                     </div>
                     <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-3 mb-2">
                         <h3 className="text-xl font-bold text-gray-900">{project.title}</h3>
-                        {project.distance !== undefined && (
-                          <div className="flex items-center gap-2 px-3 py-1 bg-green-100 rounded-full">
-                            <Navigation className="w-4 h-4 text-green-700" />
-                            <span className="text-sm font-bold text-green-700">{formatDistance(project.distance)} away</span>
-                          </div>
+                        {project.urgency === 'urgent' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-100 text-red-700 rounded-full text-xs font-bold">
+                            <AlertCircle className="w-3 h-3" />
+                            URGENT
+                          </span>
+                        )}
+                        {project.urgency === 'moderate' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-orange-100 text-orange-700 rounded-full text-xs font-bold">
+                            <Clock className="w-3 h-3" />
+                            MODERATE
+                          </span>
                         )}
                       </div>
-                      <p className="text-gray-600 text-sm leading-relaxed">{project.description}</p>
+                      <div className="flex items-center gap-3 mb-2">
+                        {project.distance !== undefined && (
+                          <div className="flex items-center gap-1.5 px-3 py-1 bg-green-100 rounded-full">
+                            <Navigation className="w-3.5 h-3.5 text-green-700" />
+                            <span className="text-xs font-bold text-green-700">{formatDistance(project.distance)}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-100 rounded-full">
+                          <TrendingUp className="w-3.5 h-3.5 text-blue-700" />
+                          <span className="text-xs font-bold text-blue-700">
+                            ${project.budget_min.toLocaleString()} - ${project.budget_max.toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-gray-600 text-sm leading-relaxed line-clamp-2">{project.description}</p>
+                      {project.work_types && project.work_types.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {project.work_types.slice(0, 4).map((type, idx) => (
+                            <span key={idx} className="px-2 py-0.5 bg-gray-100 text-gray-700 rounded text-xs font-medium">
+                              {type}
+                            </span>
+                          ))}
+                          {project.work_types.length > 4 && (
+                            <span className="px-2 py-0.5 bg-gray-200 text-gray-700 rounded text-xs font-medium">
+                              +{project.work_types.length - 4} more
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
 

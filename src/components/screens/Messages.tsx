@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MessageCircle, Search } from 'lucide-react';
+import { MessageCircle, Search, Circle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Chat } from '../shared/Chat';
@@ -33,6 +33,7 @@ export function Messages() {
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     if (profile) {
@@ -91,7 +92,7 @@ export function Messages() {
         (data || []).map(async (conv) => {
           const { data: lastMsg } = await supabase
             .from('messages')
-            .select('content, is_read')
+            .select('content, is_read, sender_id')
             .eq('conversation_id', conv.id)
             .order('created_at', { ascending: false })
             .limit(1)
@@ -101,6 +102,11 @@ export function Messages() {
         })
       );
 
+      const unread = conversationsWithLastMessage.filter(
+        conv => conv.last_message && !conv.last_message.is_read && conv.last_message.sender_id !== profile.id
+      ).length;
+
+      setUnreadCount(unread);
       setConversations(conversationsWithLastMessage);
     } catch (error) {
       console.error('Error loading conversations:', error);
@@ -133,8 +139,17 @@ export function Messages() {
     <div className="min-h-screen bg-gray-50">
       <div className="bg-gradient-to-br from-blue-600 to-blue-800 text-white py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h1 className="text-4xl font-bold mb-2">Messages</h1>
-          <p className="text-blue-100">Chat with property owners and contractors</p>
+          <div className="flex items-center gap-4">
+            <div className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center">
+              <MessageCircle className="w-8 h-8 text-white" />
+            </div>
+            <div>
+              <h1 className="text-4xl font-bold mb-1">Messages</h1>
+              <p className="text-blue-100">
+                {unreadCount > 0 ? `${unreadCount} unread message${unreadCount !== 1 ? 's' : ''}` : 'All caught up!'}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -167,33 +182,44 @@ export function Messages() {
                       ? conv.contractor?.full_name
                       : conv.owner?.full_name;
                   const isSelected = selectedConversation === conv.id;
+                  const hasUnread = conv.last_message && !conv.last_message.is_read && (conv.last_message as any).sender_id !== profile?.id;
+                  const timeSince = conv.last_message_at ? new Date(conv.last_message_at).toLocaleDateString() : '';
 
                   return (
                     <button
                       key={conv.id}
                       onClick={() => setSelectedConversation(conv.id)}
-                      className={`w-full p-4 text-left hover:bg-gray-50 transition-colors ${
-                        isSelected ? 'bg-blue-50' : ''
+                      className={`w-full p-4 text-left transition-all duration-200 border-l-4 ${
+                        isSelected
+                          ? 'bg-blue-50 border-l-blue-600'
+                          : hasUnread
+                          ? 'bg-green-50/50 border-l-green-500 hover:bg-green-50'
+                          : 'border-l-transparent hover:bg-gray-50'
                       }`}
                     >
                       <div className="flex items-start gap-3">
-                        <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
-                          <span className="text-white font-bold text-lg">
-                            {otherPerson?.charAt(0)}
-                          </span>
+                        <div className="relative">
+                          <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-md">
+                            <span className="text-white font-bold text-lg">
+                              {otherPerson?.charAt(0)}
+                            </span>
+                          </div>
+                          {hasUnread && (
+                            <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center border-2 border-white">
+                              <span className="text-white text-xs font-bold">●</span>
+                            </div>
+                          )}
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between gap-2 mb-1">
-                            <h3 className="font-semibold text-gray-900 truncate">
+                            <h3 className={`font-semibold truncate ${hasUnread ? 'text-gray-900' : 'text-gray-800'}`}>
                               {otherPerson}
                             </h3>
-                            {!conv.last_message?.is_read && (
-                              <span className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"></span>
-                            )}
+                            <span className="text-xs text-gray-500 flex-shrink-0">{timeSince}</span>
                           </div>
-                          <p className="text-xs text-gray-500 mb-1">{conv.project?.title}</p>
+                          <p className="text-xs text-blue-600 mb-1 font-medium">{conv.project?.title}</p>
                           {conv.last_message && (
-                            <p className="text-sm text-gray-600 truncate">
+                            <p className={`text-sm truncate ${hasUnread ? 'text-gray-900 font-medium' : 'text-gray-600'}`}>
                               {conv.last_message.content}
                             </p>
                           )}

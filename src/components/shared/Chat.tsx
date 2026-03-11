@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, X, MessageCircle } from 'lucide-react';
+import { Send, X, MessageCircle, FileText, Image as ImageIcon, CheckCheck, Check } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -45,7 +45,9 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     loadConversation();
@@ -186,10 +188,26 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
       });
 
       if (error) throw error;
+
+      await supabase
+        .from('conversations')
+        .update({ last_message_at: new Date().toISOString() })
+        .eq('id', conversation.id);
+
       setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
     }
+  }
+
+  function handleTyping() {
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    typingTimeoutRef.current = setTimeout(() => {
+      setIsTyping(false);
+    }, 1000);
   }
 
   function scrollToBottom() {
@@ -232,52 +250,117 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[400px] max-h-[600px]">
-        {messages.map((message) => {
-          const isOwn = message.sender_id === profile?.id;
-          return (
-            <div
-              key={message.id}
-              className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[70%] rounded-2xl px-4 py-2 ${
-                  isOwn
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-gray-100 text-gray-900'
-                }`}
-              >
-                <p className="text-sm">{message.content}</p>
-                <p className={`text-xs mt-1 ${isOwn ? 'text-blue-100' : 'text-gray-500'}`}>
-                  {new Date(message.created_at).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </p>
-              </div>
+        {messages.length === 0 ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <MessageCircle className="w-16 h-16 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500 mb-1">No messages yet</p>
+              <p className="text-sm text-gray-400">Start the conversation by sending a message</p>
             </div>
-          );
-        })}
+          </div>
+        ) : (
+          <>
+            {messages.map((message) => {
+              const isOwn = message.sender_id === profile?.id;
+              return (
+                <div
+                  key={message.id}
+                  className={`flex items-end gap-2 ${isOwn ? 'justify-end' : 'justify-start'}`}
+                >
+                  {!isOwn && (
+                    <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-white text-xs font-bold">
+                        {message.sender?.full_name?.charAt(0) || 'U'}
+                      </span>
+                    </div>
+                  )}
+                  <div
+                    className={`max-w-[70%] rounded-2xl px-4 py-2.5 ${
+                      isOwn
+                        ? 'bg-gradient-to-br from-blue-600 to-blue-700 text-white'
+                        : 'bg-gray-100 text-gray-900'
+                    }`}
+                  >
+                    <p className="text-sm leading-relaxed">{message.content}</p>
+                    <div className={`flex items-center gap-1 mt-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
+                      <p className={`text-xs ${isOwn ? 'text-blue-100' : 'text-gray-500'}`}>
+                        {new Date(message.created_at).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                      {isOwn && (
+                        message.is_read ? (
+                          <CheckCheck className="w-3.5 h-3.5 text-blue-100" />
+                        ) : (
+                          <Check className="w-3.5 h-3.5 text-blue-100" />
+                        )
+                      )}
+                    </div>
+                  </div>
+                  {isOwn && (
+                    <div className="w-8 h-8 bg-gradient-to-br from-blue-600 to-blue-700 rounded-full flex items-center justify-center flex-shrink-0">
+                      <span className="text-white text-xs font-bold">
+                        {profile?.full_name?.charAt(0) || 'Y'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {isTyping && (
+              <div className="flex items-end gap-2">
+                <div className="w-8 h-8 bg-gradient-to-br from-gray-400 to-gray-500 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-white text-xs font-bold">U</span>
+                </div>
+                <div className="bg-gray-100 rounded-2xl px-4 py-3">
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        )}
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-4 border-t border-gray-200">
-        <div className="flex gap-2">
-          <input
-            type="text"
+      <div className="p-4 border-t border-gray-200 bg-gray-50">
+        <div className="flex gap-2 items-end">
+          <textarea
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
-            placeholder="Type a message..."
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-full focus:outline-none focus:ring-2 focus:ring-blue-500"
+            onChange={(e) => {
+              setNewMessage(e.target.value);
+              handleTyping();
+            }}
+            onKeyPress={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+              }
+            }}
+            placeholder="Type a message... (Shift+Enter for new line)"
+            rows={1}
+            className="flex-1 px-4 py-3 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            style={{
+              minHeight: '44px',
+              maxHeight: '120px',
+            }}
           />
           <button
             onClick={sendMessage}
             disabled={!newMessage.trim()}
-            className="px-6 py-2 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            className="px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-2xl hover:from-blue-700 hover:to-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl"
           >
             <Send className="w-4 h-4" />
+            <span className="hidden sm:inline">Send</span>
           </button>
         </div>
+        <p className="text-xs text-gray-500 mt-2 text-center">
+          Press Enter to send, Shift+Enter for new line
+        </p>
       </div>
     </div>
   );
