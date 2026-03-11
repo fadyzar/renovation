@@ -48,6 +48,7 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
   const [loading, setLoading] = useState(true);
   const [otherUserTyping, setOtherUserTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const channelRef = useRef<any>(null);
 
@@ -307,7 +308,9 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
   }
 
   function scrollToBottom() {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
   }
 
   const otherPerson =
@@ -345,7 +348,7 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
         )}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[400px] max-h-[600px]">
+      <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 min-h-[400px] max-h-[600px]">
         {messages.length === 0 ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center">
