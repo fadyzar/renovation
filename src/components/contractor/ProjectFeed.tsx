@@ -118,19 +118,45 @@ export function ProjectFeed() {
             ? calculateDistance(userLocation.lat, userLocation.lon, project.latitude, project.longitude)
             : undefined
         }));
-      }
 
-      if (filters.sortBy === 'distance') {
-        processedProjects.sort((a, b) => (a.distance || 9999) - (b.distance || 9999));
-      } else if (filters.sortBy === 'budget_high') {
-        processedProjects.sort((a, b) => b.budget_max - a.budget_max);
-      } else if (filters.sortBy === 'budget_low') {
-        processedProjects.sort((a, b) => a.budget_min - b.budget_min);
-      } else if (filters.sortBy === 'newest') {
-        processedProjects.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-      } else if (filters.sortBy === 'urgent') {
-        const urgencyOrder = { urgent: 0, moderate: 1, flexible: 2 };
-        processedProjects.sort((a, b) => (urgencyOrder[a.urgency as keyof typeof urgencyOrder] || 3) - (urgencyOrder[b.urgency as keyof typeof urgencyOrder] || 3));
+        processedProjects = processedProjects.filter(project => {
+          if (!project.latitude || !project.longitude) {
+            return true;
+          }
+
+          if (project.distance === undefined) {
+            return true;
+          }
+
+          const withinContractorRadius = project.distance <= distanceFilter;
+          const withinProjectRadius = !project.search_radius_km || project.distance <= project.search_radius_km;
+
+          return withinContractorRadius && withinProjectRadius;
+        });
+
+        if (filters.sortBy === 'distance') {
+          processedProjects.sort((a, b) => (a.distance || 9999) - (b.distance || 9999));
+        } else if (filters.sortBy === 'budget_high') {
+          processedProjects.sort((a, b) => b.budget_max - a.budget_max);
+        } else if (filters.sortBy === 'budget_low') {
+          processedProjects.sort((a, b) => a.budget_min - b.budget_min);
+        } else if (filters.sortBy === 'newest') {
+          processedProjects.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        } else if (filters.sortBy === 'urgent') {
+          const urgencyOrder = { urgent: 0, moderate: 1, flexible: 2 };
+          processedProjects.sort((a, b) => (urgencyOrder[a.urgency as keyof typeof urgencyOrder] || 3) - (urgencyOrder[b.urgency as keyof typeof urgencyOrder] || 3));
+        }
+      } else {
+        if (filters.sortBy === 'budget_high') {
+          processedProjects.sort((a, b) => b.budget_max - a.budget_max);
+        } else if (filters.sortBy === 'budget_low') {
+          processedProjects.sort((a, b) => a.budget_min - b.budget_min);
+        } else if (filters.sortBy === 'newest') {
+          processedProjects.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+        } else if (filters.sortBy === 'urgent') {
+          const urgencyOrder = { urgent: 0, moderate: 1, flexible: 2 };
+          processedProjects.sort((a, b) => (urgencyOrder[a.urgency as keyof typeof urgencyOrder] || 3) - (urgencyOrder[b.urgency as keyof typeof urgencyOrder] || 3));
+        }
       }
 
       setProjects(processedProjects);
@@ -203,6 +229,45 @@ export function ProjectFeed() {
                   <MapPin className="w-4 h-4" />
                   Enable Location
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {userLocation && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                  <Navigation className="w-5 h-5 text-green-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-900">Distance Filter</h3>
+                  <p className="text-sm text-gray-600">Showing projects within {distanceFilter}km</p>
+                </div>
+              </div>
+              <span className="text-2xl font-bold text-blue-600">{projects.length}</span>
+            </div>
+
+            <div className="space-y-2">
+              <input
+                type="range"
+                min="5"
+                max="200"
+                step="5"
+                value={distanceFilter}
+                onChange={(e) => setDistanceFilter(Number(e.target.value))}
+                className="w-full h-2 bg-blue-200 rounded-lg appearance-none cursor-pointer slider"
+                style={{
+                  background: `linear-gradient(to right, #3B82F6 0%, #3B82F6 ${(distanceFilter / 200) * 100}%, #DBEAFE ${(distanceFilter / 200) * 100}%, #DBEAFE 100%)`
+                }}
+              />
+              <div className="flex justify-between text-xs text-gray-500">
+                <span>5km</span>
+                <span>50km</span>
+                <span>100km</span>
+                <span>150km</span>
+                <span>200km</span>
               </div>
             </div>
           </div>
