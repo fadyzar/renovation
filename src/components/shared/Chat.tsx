@@ -66,8 +66,48 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
           table: 'messages',
           filter: `conversation_id=eq.${conversation.id}`,
         },
+        async (payload) => {
+          const newMessage = payload.new as Message;
+
+          if (newMessage.sender_id !== profile?.id) {
+            const { data: sender } = await supabase
+              .from('profiles')
+              .select('full_name, avatar_url')
+              .eq('id', newMessage.sender_id)
+              .maybeSingle();
+
+            setMessages((prev) => [...prev, { ...newMessage, sender }]);
+
+            await supabase
+              .from('messages')
+              .update({ is_read: true })
+              .eq('id', newMessage.id);
+          } else {
+            const { data: sender } = await supabase
+              .from('profiles')
+              .select('full_name, avatar_url')
+              .eq('id', newMessage.sender_id)
+              .maybeSingle();
+
+            setMessages((prev) => [...prev, { ...newMessage, sender }]);
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'messages',
+          filter: `conversation_id=eq.${conversation.id}`,
+        },
         (payload) => {
-          loadMessages();
+          const updatedMessage = payload.new as Message;
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === updatedMessage.id ? { ...msg, is_read: updatedMessage.is_read } : msg
+            )
+          );
         }
       )
       .subscribe();
@@ -75,7 +115,7 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [conversation?.id]);
+  }, [conversation?.id, profile?.id]);
 
   useEffect(() => {
     scrollToBottom();
@@ -180,11 +220,14 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
   async function sendMessage() {
     if (!newMessage.trim() || !conversation?.id || !profile?.id) return;
 
+    const messageContent = newMessage.trim();
+    setNewMessage('');
+
     try {
       const { error } = await supabase.from('messages').insert({
         conversation_id: conversation.id,
         sender_id: profile.id,
-        content: newMessage.trim(),
+        content: messageContent,
       });
 
       if (error) throw error;
@@ -193,10 +236,9 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
         .from('conversations')
         .update({ last_message_at: new Date().toISOString() })
         .eq('id', conversation.id);
-
-      setNewMessage('');
     } catch (error) {
       console.error('Error sending message:', error);
+      setNewMessage(messageContent);
     }
   }
 

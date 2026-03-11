@@ -59,8 +59,61 @@ export function Messages() {
             schema: 'public',
             table: 'messages',
           },
-          () => {
-            loadConversations();
+          async (payload) => {
+            const newMsg = payload.new as any;
+
+            setConversations((prev) =>
+              prev.map((conv) => {
+                if (conv.id === newMsg.conversation_id) {
+                  return {
+                    ...conv,
+                    last_message_at: newMsg.created_at,
+                    last_message: {
+                      content: newMsg.content,
+                      is_read: newMsg.is_read,
+                      sender_id: newMsg.sender_id,
+                    },
+                  };
+                }
+                return conv;
+              }).sort((a, b) =>
+                new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
+              )
+            );
+
+            if (newMsg.sender_id !== profile.id && !newMsg.is_read) {
+              setUnreadCount((prev) => prev + 1);
+            }
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'messages',
+          },
+          (payload) => {
+            const updatedMsg = payload.new as any;
+
+            setConversations((prev) =>
+              prev.map((conv) => {
+                if (conv.id === updatedMsg.conversation_id && conv.last_message) {
+                  return {
+                    ...conv,
+                    last_message: {
+                      ...conv.last_message,
+                      is_read: updatedMsg.is_read,
+                    },
+                  };
+                }
+                return conv;
+              })
+            );
+
+            if (updatedMsg.is_read && updatedMsg.sender_id !== profile.id) {
+              setUnreadCount((prev) => Math.max(0, prev - 1));
+            }
           }
         )
         .subscribe();
