@@ -85,7 +85,12 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
             .maybeSingle();
 
           setMessages((prev) => {
-            const exists = prev.some(msg => msg.id === newMessage.id);
+            const exists = prev.some(msg =>
+              msg.id === newMessage.id ||
+              (msg.content === newMessage.content &&
+               msg.sender_id === newMessage.sender_id &&
+               Math.abs(new Date(msg.created_at).getTime() - new Date(newMessage.created_at).getTime()) < 2000)
+            );
             if (exists) return prev;
             return [...prev, { ...newMessage, sender }];
           });
@@ -250,21 +255,6 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
     const messageContent = newMessage.trim();
     setNewMessage('');
 
-    const optimisticMessage: Message = {
-      id: `temp-${Date.now()}`,
-      conversation_id: conversation.id,
-      sender_id: profile.id,
-      content: messageContent,
-      is_read: false,
-      created_at: new Date().toISOString(),
-      sender: {
-        full_name: profile.full_name,
-        avatar_url: profile.avatar_url,
-      },
-    };
-
-    setMessages((prev) => [...prev, optimisticMessage]);
-
     try {
       const { error } = await supabase.from('messages').insert({
         conversation_id: conversation.id,
@@ -278,9 +268,15 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
         .from('conversations')
         .update({ last_message_at: new Date().toISOString() })
         .eq('id', conversation.id);
+
+      if (channelRef.current) {
+        await channelRef.current.track({
+          user_id: profile.id,
+          typing: false,
+        });
+      }
     } catch (error) {
       console.error('Error sending message:', error);
-      setMessages((prev) => prev.filter((msg) => msg.id !== optimisticMessage.id));
       setNewMessage(messageContent);
     }
   }
