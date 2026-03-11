@@ -49,7 +49,6 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
   const [otherUserTyping, setOtherUserTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const channelRef = useRef<any>(null);
 
   useEffect(() => {
@@ -281,26 +280,13 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
     }
   }
 
-  async function handleTyping() {
+  async function handleTyping(isTyping: boolean) {
     if (!channelRef.current || !profile?.id) return;
 
     await channelRef.current.track({
       user_id: profile.id,
-      typing: true,
+      typing: isTyping,
     });
-
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-    }
-
-    typingTimeoutRef.current = setTimeout(async () => {
-      if (channelRef.current && profile?.id) {
-        await channelRef.current.track({
-          user_id: profile.id,
-          typing: false,
-        });
-      }
-    }, 3000);
   }
 
   function scrollToBottom() {
@@ -429,8 +415,9 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
           <textarea
             value={newMessage}
             onChange={(e) => {
-              setNewMessage(e.target.value);
-              handleTyping();
+              const value = e.target.value;
+              setNewMessage(value);
+              handleTyping(value.trim().length > 0);
             }}
             onKeyPress={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
