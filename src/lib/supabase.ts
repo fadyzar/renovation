@@ -32,4 +32,8 @@ export interface Profile {
   total_projects: number;
   created_at: string;
   updated_at: string;
+  service_latitude?: number;
+  service_longitude?: number;
+  service_radius_km?: number;
+  location_enabled?: boolean;
 }

@@ -19,6 +19,7 @@ interface Project {
   created_at: string;
   latitude?: number;
   longitude?: number;
+  search_radius_km?: number;
   distance?: number;
   ai_analysis?: {
     complexity?: string;
@@ -50,7 +51,7 @@ export function ProjectFeed() {
       ? { lat: profile.service_latitude, lon: profile.service_longitude }
       : null
   );
-  const [distanceFilter, setDistanceFilter] = useState(50);
+  const [distanceFilter, setDistanceFilter] = useState(profile?.service_radius_km || 50);
 
   const [filters, setFilters] = useState({
     renovationType: 'Select Renovation Type',
@@ -61,7 +62,7 @@ export function ProjectFeed() {
 
   useEffect(() => {
     loadProjects();
-  }, [distanceFilter, userLocation]);
+  }, [distanceFilter, userLocation, filters]);
 
   async function loadProjects() {
     try {
@@ -81,6 +82,27 @@ export function ProjectFeed() {
 
       let processedProjects = data || [];
 
+      if (filters.renovationType !== 'Select Renovation Type') {
+        processedProjects = processedProjects.filter(project =>
+          project.title.includes(filters.renovationType.replace(' Renovation', ''))
+        );
+      }
+
+      if (filters.budgetRange !== '$1,000 to $50,000') {
+        processedProjects = processedProjects.filter(project => {
+          const avgBudget = (project.budget_min + project.budget_max) / 2;
+
+          if (filters.budgetRange === '$10,000 to $50,000') {
+            return avgBudget >= 10000 && avgBudget <= 50000;
+          } else if (filters.budgetRange === '$50,000 to $100,000') {
+            return avgBudget >= 50000 && avgBudget <= 100000;
+          } else if (filters.budgetRange === '$100,000+') {
+            return avgBudget >= 100000;
+          }
+          return true;
+        });
+      }
+
       if (userLocation) {
         processedProjects = processedProjects.map(project => ({
           ...project,
@@ -89,9 +111,14 @@ export function ProjectFeed() {
             : undefined
         }));
 
-        processedProjects = processedProjects.filter(
-          project => !project.distance || project.distance <= distanceFilter
-        );
+        processedProjects = processedProjects.filter(project => {
+          if (!project.distance) return false;
+
+          const withinContractorRadius = project.distance <= distanceFilter;
+          const withinProjectRadius = !project.search_radius_km || project.distance <= project.search_radius_km;
+
+          return withinContractorRadius && withinProjectRadius;
+        });
 
         processedProjects.sort((a, b) => (a.distance || 9999) - (b.distance || 9999));
       }
@@ -275,20 +302,26 @@ export function ProjectFeed() {
             </div>
           </div>
 
-          <button className="w-full md:w-auto px-8 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-full transition-all duration-200 shadow-lg hover:shadow-xl flex items-center justify-center gap-2">
-            <Search className="w-5 h-5" />
-            Search
-          </button>
         </div>
 
         {loading ? (
           <div className="text-center py-12">
             <div className="inline-block w-8 h-8 border-4 border-orange-500 border-t-transparent rounded-full animate-spin"></div>
           </div>
+        ) : !userLocation ? (
+          <div className="bg-white rounded-2xl p-12 text-center border border-gray-200">
+            <Navigation className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">Location Required</h3>
+            <p className="text-gray-600 mb-4">Enable location services above to view available projects in your area</p>
+          </div>
         ) : projects.length === 0 ? (
           <div className="bg-white rounded-2xl p-12 text-center border border-gray-200">
             <h3 className="text-xl font-semibold text-gray-900 mb-2">No projects found</h3>
-            <p className="text-gray-600">Check back later for new opportunities</p>
+            <p className="text-gray-600">
+              {distanceFilter < 50
+                ? 'Try increasing your distance filter to see more projects'
+                : 'Check back later for new opportunities'}
+            </p>
           </div>
         ) : (
           <div className="space-y-6">
