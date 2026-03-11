@@ -113,10 +113,6 @@ export function CreateProjectWizard() {
       alert('Please select country');
       return false;
     }
-    if (!formData.latitude || !formData.longitude) {
-      alert('Please enable location services to help contractors find your project');
-      return false;
-    }
     return true;
   };
 
@@ -522,9 +518,9 @@ export function CreateProjectWizard() {
                     <MapPin className="w-6 h-6 text-white" />
                   </div>
                   <div className="flex-1">
-                    <h4 className="font-bold text-gray-900 mb-2">Enable Precise Location</h4>
+                    <h4 className="font-bold text-gray-900 mb-2">Enable Precise Location (Recommended)</h4>
                     <p className="text-sm text-gray-700 mb-4">
-                      Help contractors find your project easily. Your exact location is never shared publicly.
+                      Help contractors find your project with accurate distance matching. Your exact location is never shared publicly - only distance from contractors.
                     </p>
                     {locationObtained ? (
                       <div className="flex items-center gap-2 text-green-700 font-semibold">
@@ -533,17 +529,22 @@ export function CreateProjectWizard() {
                             <path d="M5 13l4 4L19 7"></path>
                           </svg>
                         </div>
-                        Location enabled
+                        Location enabled - contractors within {formData.searchRadius}km will see your project
                       </div>
                     ) : (
-                      <button
-                        type="button"
-                        onClick={() => setShowLocationModal(true)}
-                        className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2"
-                      >
-                        <MapPin className="w-4 h-4" />
-                        Enable Location
-                      </button>
+                      <div>
+                        <button
+                          type="button"
+                          onClick={() => setShowLocationModal(true)}
+                          className="px-6 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors flex items-center gap-2"
+                        >
+                          <MapPin className="w-4 h-4" />
+                          Enable Location
+                        </button>
+                        <p className="text-xs text-gray-600 mt-2">
+                          Optional but highly recommended for better contractor matching
+                        </p>
+                      </div>
                     )}
                   </div>
                 </div>

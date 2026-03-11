@@ -120,9 +120,13 @@ export function ProjectFeed() {
         }));
 
         processedProjects = processedProjects.filter(project => {
-          if (!project.latitude || !project.longitude) return true;
+          if (!project.latitude || !project.longitude) {
+            return true;
+          }
 
-          if (!project.distance) return false;
+          if (project.distance === undefined) {
+            return true;
+          }
 
           const withinContractorRadius = project.distance <= distanceFilter;
           const withinProjectRadius = !project.search_radius_km || project.distance <= project.search_radius_km;
