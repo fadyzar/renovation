@@ -3,6 +3,7 @@ import { Bell, Settings, Volume2, Menu, X, LogOut } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import logo from '../assets/logo.svg';
+import { NotificationDropdown } from './shared/NotificationDropdown';
 
 export function Header() {
   const { profile, signOut } = useAuth();
@@ -14,6 +15,7 @@ export function Header() {
     { label: 'Home', path: '/' },
     { label: 'Dashboard', path: '/dashboard' },
     { label: 'Available Projects', path: '/projects' },
+    { label: 'Messages', path: '/messages' },
     { label: 'Profile', path: '/settings' },
   ];
 
@@ -44,10 +46,7 @@ export function Header() {
           </nav>
 
           <div className="flex items-center gap-3">
-            <button className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-            </button>
+            <NotificationDropdown />
 
             <button className="hidden sm:block p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
               <Settings className="w-5 h-5" />

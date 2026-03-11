@@ -11,6 +11,7 @@ import { ContractorMatching } from "./components/owner/ContractorMatching";
 import { AcceptOffer } from "./components/owner/AcceptOffer";
 import Settings from "./components/screens/Settings";
 import Support from "./components/screens/Support";
+import { Messages } from "./components/screens/Messages";
 
 import { LoginPage } from "./components/auth/LoginPage";
 import { SignUpPage } from "./components/auth/SignUpPage";
@@ -98,6 +99,7 @@ function App() {
         <Route path="/contractor-matching/:projectId" element={<ContractorMatching />} />
         <Route path="/accept-offer/:projectId/:bidId" element={<AcceptOffer />} />
         <Route path="/submit-bid/:projectId" element={<SubmitBidPage />} />
+        <Route path="/messages" element={<Messages />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/support" element={<Support />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
