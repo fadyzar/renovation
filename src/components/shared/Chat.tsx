@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 
 interface Message {
   id: string;
+  conversation_id?: string;
   content: string;
   sender_id: string;
   is_read: boolean;
@@ -69,27 +70,23 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
         async (payload) => {
           const newMessage = payload.new as Message;
 
+          const { data: sender } = await supabase
+            .from('profiles')
+            .select('full_name, avatar_url')
+            .eq('id', newMessage.sender_id)
+            .maybeSingle();
+
+          setMessages((prev) => {
+            const exists = prev.some(msg => msg.id === newMessage.id);
+            if (exists) return prev;
+            return [...prev, { ...newMessage, sender }];
+          });
+
           if (newMessage.sender_id !== profile?.id) {
-            const { data: sender } = await supabase
-              .from('profiles')
-              .select('full_name, avatar_url')
-              .eq('id', newMessage.sender_id)
-              .maybeSingle();
-
-            setMessages((prev) => [...prev, { ...newMessage, sender }]);
-
             await supabase
               .from('messages')
               .update({ is_read: true })
               .eq('id', newMessage.id);
-          } else {
-            const { data: sender } = await supabase
-              .from('profiles')
-              .select('full_name, avatar_url')
-              .eq('id', newMessage.sender_id)
-              .maybeSingle();
-
-            setMessages((prev) => [...prev, { ...newMessage, sender }]);
           }
         }
       )
@@ -228,6 +225,21 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
     const messageContent = newMessage.trim();
     setNewMessage('');
 
+    const optimisticMessage: Message = {
+      id: `temp-${Date.now()}`,
+      conversation_id: conversation.id,
+      sender_id: profile.id,
+      content: messageContent,
+      is_read: false,
+      created_at: new Date().toISOString(),
+      sender: {
+        full_name: profile.full_name,
+        avatar_url: profile.avatar_url,
+      },
+    };
+
+    setMessages((prev) => [...prev, optimisticMessage]);
+
     try {
       const { error } = await supabase.from('messages').insert({
         conversation_id: conversation.id,
@@ -243,6 +255,7 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
         .eq('id', conversation.id);
     } catch (error) {
       console.error('Error sending message:', error);
+      setMessages((prev) => prev.filter((msg) => msg.id !== optimisticMessage.id));
       setNewMessage(messageContent);
     }
   }
