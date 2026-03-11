@@ -300,7 +300,7 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
           typing: false,
         });
       }
-    }, 2000);
+    }, 3000);
   }
 
   function scrollToBottom() {
