@@ -123,6 +123,8 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
 
   async function loadConversation() {
     try {
+      let loadedConversationId: string | null = null;
+
       if (conversationId) {
         const { data, error } = await supabase
           .from('conversations')
@@ -137,6 +139,7 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
 
         if (error) throw error;
         setConversation(data);
+        loadedConversationId = data?.id || null;
       } else if (projectId && contractorId) {
         let { data, error } = await supabase
           .from('conversations')
@@ -179,10 +182,11 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
         }
 
         setConversation(data);
+        loadedConversationId = data?.id || null;
       }
 
-      if (conversation || conversationId || (projectId && contractorId)) {
-        await loadMessages();
+      if (loadedConversationId) {
+        await loadMessages(loadedConversationId);
       }
     } catch (error) {
       console.error('Error loading conversation:', error);
@@ -191,8 +195,9 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
     }
   }
 
-  async function loadMessages() {
-    if (!conversation?.id && !conversationId) return;
+  async function loadMessages(convId?: string) {
+    const idToUse = convId || conversation?.id || conversationId;
+    if (!idToUse) return;
 
     try {
       const { data, error } = await supabase
@@ -201,7 +206,7 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
           *,
           sender:profiles!messages_sender_id_fkey(full_name, avatar_url)
         `)
-        .eq('conversation_id', conversation?.id || conversationId)
+        .eq('conversation_id', idToUse)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
@@ -210,7 +215,7 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
       await supabase
         .from('messages')
         .update({ is_read: true })
-        .eq('conversation_id', conversation?.id || conversationId)
+        .eq('conversation_id', idToUse)
         .neq('sender_id', profile?.id || '');
     } catch (error) {
       console.error('Error loading messages:', error);
