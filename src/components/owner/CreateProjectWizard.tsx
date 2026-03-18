@@ -1,10 +1,11 @@
-import { useState } from 'react';
-import { Upload, MapPin } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Upload, MapPin, Ruler, CheckCircle, ScanLine, Zap, Eye, RefreshCw } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { LocationPermissionRequest } from '../shared/LocationPermissionRequest';
 import { reverseGeocode } from '../../utils/geolocation';
+import { ScanSpaceModal, type RoomMeasurements } from './ScanSpaceModal';
 
 interface ProjectFormData {
   renovationType: string;
@@ -39,6 +40,11 @@ export function CreateProjectWizard() {
   const [showLoading, setShowLoading] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [locationObtained, setLocationObtained] = useState(false);
+  const [showScanModal, setShowScanModal] = useState(false);
+  const [scanData, setScanData] = useState<RoomMeasurements | null>(null);
+
+  // Pre-generate project ID so the scan record can reference it before submission
+  const projectIdRef = useRef<string>(crypto.randomUUID());
 
   const [formData, setFormData] = useState<ProjectFormData>({
     renovationType: '',
@@ -181,6 +187,7 @@ export function CreateProjectWizard() {
       const { error } = await supabase
         .from('projects')
         .insert({
+          id: projectIdRef.current,
           owner_id: profile?.id,
           title: `${formData.renovationType} Renovation`,
           description: formData.description,
@@ -332,38 +339,146 @@ export function CreateProjectWizard() {
                 </div>
               </div>
 
+              {/* ── Scan Your Space ── */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Room Dimensions <span className="text-gray-500">| Enter dimensions (Length x Width in feet)</span>
+                  Room Dimensions
                 </label>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Length</label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        value={formData.length}
-                        onChange={(e) => updateField('length', e.target.value)}
-                        placeholder="24"
-                        className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                      />
-                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500">ft</span>
+
+                {scanData ? (
+                  /* ── Post-scan result card ── */
+                  <div className="rounded-2xl border-2 border-green-200 bg-green-50 overflow-hidden">
+                    {/* Header */}
+                    <div className="flex items-center justify-between px-4 py-3 bg-green-600">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle className="w-4 h-4 text-white" />
+                        <span className="text-white text-sm font-bold">AI Scan Complete</span>
+                        {scanData.detected_room_type && (
+                          <span className="text-green-200 text-xs capitalize">
+                            · {scanData.detected_room_type.replace(/_/g, ' ')}
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowScanModal(true)}
+                        className="flex items-center gap-1 text-green-200 hover:text-white text-xs transition-colors"
+                      >
+                        <RefreshCw className="w-3 h-3" /> Rescan
+                      </button>
+                    </div>
+
+                    <div className="p-4 space-y-3">
+                      {/* Key measurements */}
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { label: 'Floor area', value: scanData.measured_area_sqft ? `${scanData.measured_area_sqft.toFixed(0)} sq ft` : '—' },
+                          { label: 'L × W', value: scanData.room_length_ft && scanData.room_width_ft ? `${scanData.room_length_ft.toFixed(0)} × ${scanData.room_width_ft.toFixed(0)} ft` : '—' },
+                          { label: 'Ceiling', value: scanData.room_height_ft ? `${scanData.room_height_ft.toFixed(1)} ft` : '—' },
+                        ].map(({ label, value }) => (
+                          <div key={label} className="bg-white rounded-lg px-2.5 py-2 border border-green-100 text-center">
+                            <p className="text-xs text-gray-400">{label}</p>
+                            <p className="text-sm font-bold text-gray-900 mt-0.5">{value}</p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* AI summary */}
+                      {scanData.scan_summary && (
+                        <div className="flex items-start gap-2 bg-white rounded-lg p-3 border border-green-100">
+                          <Eye className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                          <p className="text-xs text-gray-700">{scanData.scan_summary}</p>
+                        </div>
+                      )}
+
+                      {/* Complexity + confidence row */}
+                      <div className="flex items-center gap-3 flex-wrap">
+                        {scanData.estimated_complexity && (
+                          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full capitalize border ${
+                            scanData.estimated_complexity === 'low'    ? 'bg-green-100 text-green-700 border-green-200' :
+                            scanData.estimated_complexity === 'medium' ? 'bg-amber-100 text-amber-700 border-amber-200' :
+                            'bg-red-100 text-red-700 border-red-200'
+                          }`}>
+                            {scanData.estimated_complexity} complexity
+                          </span>
+                        )}
+                        <span className="text-xs text-gray-400">{scanData.scan_confidence}% confidence</span>
+                      </div>
+
+                      {/* Features */}
+                      {scanData.detected_features?.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {scanData.detected_features.slice(0, 5).map(f => (
+                            <span key={f} className="px-2 py-0.5 bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs rounded-full">
+                              {f.replace(/_/g, ' ')}
+                            </span>
+                          ))}
+                          {scanData.detected_features.length > 5 && (
+                            <span className="px-2 py-0.5 text-gray-400 text-xs">+{scanData.detected_features.length - 5} more</span>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Renovation notes */}
+                      {scanData.renovation_notes && (
+                        <div className="flex items-start gap-2">
+                          <Zap className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+                          <p className="text-xs text-gray-600">{scanData.renovation_notes}</p>
+                        </div>
+                      )}
                     </div>
                   </div>
-                  <div>
-                    <label className="block text-xs text-gray-500 mb-1">Width</label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        value={formData.width}
-                        onChange={(e) => updateField('width', e.target.value)}
-                        placeholder="75"
-                        className="w-full px-4 py-3 pr-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                      />
-                      <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500">ft</span>
+                ) : (
+                  /* ── Pre-scan CTA ── */
+                  <div className="rounded-2xl border-2 border-dashed border-blue-200 bg-gradient-to-br from-blue-50 to-indigo-50 overflow-hidden">
+                    <div className="p-5 text-center">
+                      <div className="w-14 h-14 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                        <ScanLine className="w-7 h-7 text-white" />
+                      </div>
+                      <h4 className="font-bold text-gray-900 mb-1">Scan Your Space with AI</h4>
+                      <p className="text-sm text-gray-500 mb-4 max-w-xs mx-auto">
+                        Take 2–5 photos. AI extracts room dimensions, detects features, and gives contractors a clearer picture of your project.
+                      </p>
+
+                      <button
+                        type="button"
+                        onClick={() => setShowScanModal(true)}
+                        className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors shadow-md shadow-blue-200"
+                      >
+                        <ScanLine className="w-4 h-4" />
+                        Start AI Scan
+                      </button>
+
+                      <div className="flex items-center justify-center gap-6 mt-4 text-xs text-gray-400">
+                        <span>📏 Auto-measures dimensions</span>
+                        <span>🔍 Detects features</span>
+                        <span>⚡ Under 15 sec</span>
+                      </div>
+                    </div>
+
+                    <div className="border-t border-blue-100 px-5 py-3 bg-white/60 flex items-center justify-between">
+                      <span className="text-xs text-gray-400">Prefer to enter manually?</span>
+                      <div className="flex gap-4">
+                        <div className="grid grid-cols-2 gap-2 items-center">
+                          <input
+                            type="number"
+                            value={formData.length}
+                            onChange={(e) => updateField('length', e.target.value)}
+                            placeholder="Length ft"
+                            className="px-2 py-1.5 border border-gray-200 rounded text-xs w-20 focus:outline-none focus:border-blue-400"
+                          />
+                          <input
+                            type="number"
+                            value={formData.width}
+                            onChange={(e) => updateField('width', e.target.value)}
+                            placeholder="Width ft"
+                            className="px-2 py-1.5 border border-gray-200 rounded text-xs w-20 focus:outline-none focus:border-blue-400"
+                          />
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
 
               <button
@@ -684,6 +799,22 @@ export function CreateProjectWizard() {
           onClose={() => setShowLocationModal(false)}
           title="Enable Project Location"
           description="Share your project's location to connect with nearby contractors and get accurate distance-based matching."
+        />
+      )}
+
+      {showScanModal && (
+        <ScanSpaceModal
+          projectId={projectIdRef.current}
+          renovationType={formData.renovationType}
+          onConfirm={(result) => {
+            const m = result.measurements;
+            setScanData(m);
+            // Auto-fill length/width from AI if not already set
+            if (m.room_length_ft) updateField('length', String(m.room_length_ft));
+            if (m.room_width_ft)  updateField('width',  String(m.room_width_ft));
+            setShowScanModal(false);
+          }}
+          onClose={() => setShowScanModal(false)}
         />
       )}
     </div>

@@ -115,20 +115,28 @@ export function AcceptOffer() {
     setSubmitting(true);
 
     try {
+      // 1. Accept the selected bid
       await supabase
         .from('bids')
         .update({ status: 'accepted', responded_at: new Date().toISOString() })
         .eq('id', bidId);
 
+      // 2. Reject all other bids for this project
       await supabase
         .from('bids')
         .update({ status: 'rejected', responded_at: new Date().toISOString() })
         .eq('project_id', projectId)
         .neq('id', bidId);
 
+      // 3. Move project to awaiting_deposit — contractor must pay 10% deposit
+      //    before the project becomes fully active (in_progress).
+      //    The DepositPaymentModal on the contractor side advances to in_progress.
       await supabase
         .from('projects')
-        .update({ status: 'in_progress' })
+        .update({
+          status: 'awaiting_deposit',
+          selected_contractor_id: bid?.contractor_id,
+        })
         .eq('id', projectId);
 
       navigate('/dashboard');

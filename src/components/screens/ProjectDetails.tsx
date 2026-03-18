@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { ScanDataPanel } from '../shared/ScanDataPanel';
 
 interface Milestone {
   description: string;
@@ -266,6 +267,9 @@ function ProjectDetails() {
                 </div>
               </div>
             </div>
+
+            {/* ── Space scan data ── */}
+            {id && <ScanDataPanel projectId={id} variant="card" />}
 
             {project.accepted_bid && (
               <div className="flex items-start gap-4 pt-2">

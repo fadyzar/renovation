@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Home, Clock, CheckCircle, AlertCircle, Send, Eye } from 'lucide-react';
+import { Plus, Home, Clock, CheckCircle, AlertCircle, Send, Eye, Hourglass, Users } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { PublishProjectModal } from './PublishProjectModal';
@@ -14,6 +14,7 @@ interface Project {
   budget_max: number;
   created_at: string;
   work_types: string[];
+  selected_contractor_id?: string | null;
   ai_analysis?: {
     estimated_cost?: number;
     complexity?: string;
@@ -72,6 +73,7 @@ export function OwnerDashboard() {
   const statusConfig = {
     draft: { icon: Clock, color: 'text-gray-600', bg: 'bg-gray-100', label: 'Draft' },
     seeking_quotes: { icon: Clock, color: 'text-blue-600', bg: 'bg-blue-100', label: 'Seeking Quotes' },
+    awaiting_deposit: { icon: Hourglass, color: 'text-amber-600', bg: 'bg-amber-100', label: 'Awaiting Contractor Deposit' },
     in_progress: { icon: AlertCircle, color: 'text-orange-600', bg: 'bg-orange-100', label: 'In Progress' },
     completed: { icon: CheckCircle, color: 'text-green-600', bg: 'bg-green-100', label: 'Completed' },
     cancelled: { icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-100', label: 'Cancelled' },
@@ -245,6 +247,35 @@ export function OwnerDashboard() {
                       <Send className="w-4 h-4" />
                       Publish Project
                     </button>
+                  </div>
+                )}
+
+                {project.status === 'seeking_quotes' && (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <button
+                      onClick={() => navigate(`/contractor-matching/${project.id}`)}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition-colors"
+                    >
+                      <Users className="w-4 h-4" />
+                      View Bids &amp; Select Contractor
+                    </button>
+                  </div>
+                )}
+
+                {project.status === 'awaiting_deposit' && (
+                  <div className="mt-4 pt-4 border-t border-amber-100">
+                    <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                      <Hourglass className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-amber-800">
+                          Waiting for contractor deposit
+                        </p>
+                        <p className="text-xs text-amber-700 mt-0.5">
+                          Your selected contractor must pay a 10% security deposit before the
+                          project becomes active. They have been notified.
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>

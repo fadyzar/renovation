@@ -1,8 +1,9 @@
-import { useState } from 'react';
-import { ChevronRight, ChevronLeft } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { ChevronRight, ChevronLeft, ScanLine, CheckCircle, Eye, Zap, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { ScanSpaceModal, type RoomMeasurements } from '../components/owner/ScanSpaceModal';
 
 interface ProjectFormData {
   renovationType: string;
@@ -63,6 +64,11 @@ export function CreateProjectPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showLoading, setShowLoading] = useState(false);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const [showScanModal, setShowScanModal] = useState(false);
+  const [scanData, setScanData] = useState<RoomMeasurements | null>(null);
+
+  // Pre-generate project ID so scan record can reference it before DB insert
+  const projectIdRef = useRef<string>(crypto.randomUUID());
 
   const [formData, setFormData] = useState<ProjectFormData>({
     renovationType: '',
@@ -146,6 +152,7 @@ export function CreateProjectPage() {
     try {
       const budget = parseFloat(formData.budget);
       const { error } = await supabase.from('projects').insert({
+        id: projectIdRef.current,
         owner_id: profile?.id,
         title: `${formData.renovationType} Renovation`,
         description: formData.description,
@@ -324,27 +331,144 @@ export function CreateProjectPage() {
               </label>
             </div>
 
-            {/* Room dimensions */}
+            {/* ── AI Space Scan ── */}
             <div>
               <p className="text-[20px] font-semibold text-brand-navy mb-3">
-                Room Dimensions | Enter dimensions (Length x Width in feet)
+                Room Dimensions
               </p>
-              <div className="grid grid-cols-2 gap-5">
-                <input
-                  type="number"
-                  value={formData.length}
-                  onChange={(e) => updateField('length', e.target.value)}
-                  placeholder="Length (ft)"
-                  className={`${inputBase} h-[59px]`}
-                />
-                <input
-                  type="number"
-                  value={formData.width}
-                  onChange={(e) => updateField('width', e.target.value)}
-                  placeholder="Width (ft)"
-                  className={`${inputBase} h-[59px]`}
-                />
-              </div>
+
+              {scanData ? (
+                /* ── Post-scan result card ── */
+                <div className="rounded-2xl border-2 border-green-300 overflow-hidden">
+                  {/* Green header */}
+                  <div className="flex items-center justify-between px-5 py-3 bg-green-600">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-white" />
+                      <span className="text-white font-bold text-sm">AI Scan Complete</span>
+                      {scanData.detected_room_type && (
+                        <span className="text-green-200 text-xs capitalize">
+                          · {scanData.detected_room_type.replace(/_/g, ' ')}
+                        </span>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowScanModal(true)}
+                      className="flex items-center gap-1 text-green-100 hover:text-white text-xs transition-colors"
+                    >
+                      <RefreshCw className="w-3 h-3" /> Rescan
+                    </button>
+                  </div>
+
+                  <div className="bg-white p-5 space-y-4">
+                    {/* Key measurements */}
+                    <div className="grid grid-cols-3 gap-3">
+                      {[
+                        { label: 'Floor area', value: scanData.measured_area_sqft ? `${scanData.measured_area_sqft.toFixed(0)} sq ft` : '—' },
+                        { label: 'L × W', value: scanData.room_length_ft && scanData.room_width_ft ? `${scanData.room_length_ft.toFixed(0)} × ${scanData.room_width_ft.toFixed(0)} ft` : '—' },
+                        { label: 'Ceiling', value: scanData.room_height_ft ? `${scanData.room_height_ft.toFixed(1)} ft` : '—' },
+                      ].map(({ label, value }) => (
+                        <div key={label} className="bg-[#EDF3FF] rounded-xl px-3 py-2.5 text-center">
+                          <p className="text-xs text-[#909090]">{label}</p>
+                          <p className="text-sm font-bold text-brand-navy mt-0.5">{value}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* AI summary */}
+                    {scanData.scan_summary && (
+                      <div className="flex items-start gap-2.5 bg-blue-50 border border-blue-100 rounded-xl p-3">
+                        <Eye className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
+                        <p className="text-sm text-blue-900">{scanData.scan_summary}</p>
+                      </div>
+                    )}
+
+                    {/* Complexity + confidence */}
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {scanData.estimated_complexity && (
+                        <span className={`text-xs font-semibold px-3 py-1 rounded-full capitalize border ${
+                          scanData.estimated_complexity === 'low'    ? 'bg-green-50 text-green-700 border-green-200' :
+                          scanData.estimated_complexity === 'medium' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                          'bg-red-50 text-red-700 border-red-200'
+                        }`}>
+                          {scanData.estimated_complexity} complexity
+                        </span>
+                      )}
+                      <span className="text-xs text-[#909090]">{scanData.scan_confidence}% confidence</span>
+                      <span className="text-xs text-[#909090]">
+                        {scanData.window_count !== null ? `${scanData.window_count} windows` : ''}
+                        {scanData.door_count !== null ? ` · ${scanData.door_count} doors` : ''}
+                      </span>
+                    </div>
+
+                    {/* Detected features */}
+                    {scanData.detected_features?.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {scanData.detected_features.slice(0, 6).map(f => (
+                          <span key={f} className="px-2.5 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-medium rounded-full capitalize">
+                            {f.replace(/_/g, ' ')}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Renovation notes */}
+                    {scanData.renovation_notes && (
+                      <div className="flex items-start gap-2">
+                        <Zap className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-[#909090]">{scanData.renovation_notes}</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                /* ── Pre-scan CTA ── */
+                <div className="rounded-2xl border-2 border-dashed border-brand-blue bg-[#EDF3FF] overflow-hidden">
+                  <div className="p-6 text-center">
+                    <div className="w-16 h-16 bg-brand-blue rounded-2xl flex items-center justify-center mx-auto mb-4">
+                      <ScanLine className="w-8 h-8 text-white" />
+                    </div>
+                    <h4 className="text-[18px] font-bold text-brand-navy mb-1">Scan Your Space with AI</h4>
+                    <p className="text-sm text-[#909090] mb-5 max-w-sm mx-auto">
+                      Take 2–5 photos of your room. Claude AI measures dimensions, detects materials and features, and gives contractors a much clearer picture — resulting in more accurate bids.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setShowScanModal(true)}
+                      className="inline-flex items-center gap-2.5 px-8 h-[54px] bg-brand-blue text-white font-semibold rounded-full hover:opacity-90 transition-opacity shadow-md"
+                    >
+                      <ScanLine className="w-5 h-5" />
+                      Start AI Scan
+                    </button>
+                    <div className="flex items-center justify-center gap-6 mt-4 text-xs text-[#909090]">
+                      <span>📏 Measures dimensions</span>
+                      <span>🔍 Detects features</span>
+                      <span>⚡ Under 15 sec</span>
+                    </div>
+                  </div>
+
+                  {/* Manual fallback footer */}
+                  <div className="border-t border-brand-blue/20 bg-white/60 px-6 py-3 flex items-center justify-between">
+                    <span className="text-xs text-[#909090]">Skip scan — enter manually</span>
+                    <div className="flex gap-3">
+                      <input
+                        type="number"
+                        value={formData.length}
+                        onChange={(e) => updateField('length', e.target.value)}
+                        placeholder="Length ft"
+                        className="w-24 px-3 py-1.5 border border-[#D9D9D9] rounded-full text-xs text-brand-navy focus:outline-none focus:border-brand-blue"
+                      />
+                      <input
+                        type="number"
+                        value={formData.width}
+                        onChange={(e) => updateField('width', e.target.value)}
+                        placeholder="Width ft"
+                        className="w-24 px-3 py-1.5 border border-[#D9D9D9] rounded-full text-xs text-brand-navy focus:outline-none focus:border-brand-blue"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -542,6 +666,16 @@ export function CreateProjectPage() {
                 <span className="font-medium text-brand-navy">
                   {TIMELINES.find((t) => t.value === formData.timeline)?.label}
                 </span>
+                {scanData && (
+                  <>
+                    <span className="text-[#909090]">Space Scan</span>
+                    <span className="font-medium text-green-700 flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" />
+                      {scanData.measured_area_sqft ? `${scanData.measured_area_sqft.toFixed(0)} sq ft · ` : ''}
+                      {scanData.estimated_complexity} complexity
+                    </span>
+                  </>
+                )}
               </div>
             </div>
 
@@ -612,6 +746,21 @@ export function CreateProjectPage() {
         </div>
 
       </div>
+
+      {showScanModal && (
+        <ScanSpaceModal
+          projectId={projectIdRef.current}
+          renovationType={formData.renovationType}
+          onConfirm={(result) => {
+            const m = result.measurements;
+            setScanData(m);
+            if (m.room_length_ft) updateField('length', String(m.room_length_ft));
+            if (m.room_width_ft)  updateField('width',  String(m.room_width_ft));
+            setShowScanModal(false);
+          }}
+          onClose={() => setShowScanModal(false)}
+        />
+      )}
     </div>
   );
 }

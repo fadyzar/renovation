@@ -1,19 +1,28 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { CheckCircle, Calendar, Briefcase, Star, X, MapPin, TrendingUp, Shield, Award, ThumbsUp } from 'lucide-react';
+import {
+  CheckCircle,
+  Calendar,
+  Briefcase,
+  Star,
+  X,
+  Shield,
+  Award,
+  Crown,
+  ChevronRight,
+} from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { useAuth } from '../../contexts/AuthContext';
+import { MatchScoreDisplay, computeMatchBreakdown, type MatchBreakdown } from '../shared/MatchScoreDisplay';
+import { ScanDataPanel, type ScanData } from '../shared/ScanDataPanel';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface Bid {
   id: string;
   project_id: string;
   contractor_id: string;
   total_price: number;
-  milestones: Array<{
-    description: string;
-    price: number;
-    duration?: number;
-  }>;
+  milestones: Array<{ description: string; price: number; duration?: number }>;
   message: string;
   status: string;
   created_at: string;
@@ -25,7 +34,12 @@ interface Bid {
     bio: string;
     avatar_url: string;
     years_experience: number;
-  };
+    service_latitude: number | null;
+    service_longitude: number | null;
+    license_verified: boolean;
+    license_status: string;
+    rating: number | null;
+  } | null;
 }
 
 interface Project {
@@ -33,41 +47,75 @@ interface Project {
   title: string;
   description: string;
   status: string;
+  budget_min: number;
+  budget_max: number;
+  work_types: string[];
 }
+
+interface RankedBid extends Bid {
+  breakdown: MatchBreakdown;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function estimatedTime(bid: Bid): string {
+  const total = bid.milestones.reduce((s, m) => s + (m.duration || 0), 0);
+  if (total === 0) {
+    const mo = Math.max(1, Math.ceil(bid.milestones.length * 1.5));
+    return `${mo} Month${mo !== 1 ? 's' : ''}`;
+  }
+  const mo = Math.ceil(total / 30);
+  return `${mo} Month${mo !== 1 ? 's' : ''}`;
+}
+
+function avatarUrl(name?: string, url?: string | null): string {
+  if (url && !url.includes('ui-avatars.com')) return url;
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(name || 'C')}&background=random`;
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export function ContractorMatching() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { profile } = useAuth();
   const [project, setProject] = useState<Project | null>(null);
-  const [bids, setBids] = useState<Bid[]>([]);
+  const [rankedBids, setRankedBids] = useState<RankedBid[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedBid, setSelectedBid] = useState<Bid | null>(null);
-  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [selectedBid, setSelectedBid] = useState<RankedBid | null>(null);
+  const [scanData, setScanData] = useState<ScanData | null>(null);
 
   useEffect(() => {
-    if (projectId) {
-      loadProjectAndBids();
-    }
+    if (projectId) loadData();
   }, [projectId]);
 
-  async function loadProjectAndBids() {
+  async function loadData() {
     try {
-      const { data: projectData, error: projectError } = await supabase
+      const { data: proj, error: projErr } = await supabase
         .from('projects')
         .select('*')
         .eq('id', projectId)
         .maybeSingle();
 
-      if (projectError) throw projectError;
-      if (!projectData) {
-        navigate('/dashboard');
-        return;
-      }
+      if (projErr) throw projErr;
+      if (!proj) { navigate('/dashboard'); return; }
+      setProject(proj);
 
-      setProject(projectData);
+      // Load scan data in parallel with bids
+      const { data: scan } = await supabase
+        .from('project_scans')
+        .select('*')
+        .eq('project_id', projectId)
+        .maybeSingle();
+      setScanData(scan ?? null);
 
-      const { data: bidsData, error: bidsError } = await supabase
+      const scanForScoring = scan ? {
+        measured_area_sqft: scan.measured_area_sqft,
+        estimated_complexity: scan.estimated_complexity,
+        detected_room_type: scan.detected_room_type,
+        scan_confidence: scan.scan_confidence,
+      } : null;
+
+      const { data: bidsData, error: bidsErr } = await supabase
         .from('bids')
         .select(`
           *,
@@ -82,100 +130,53 @@ export function ContractorMatching() {
             service_latitude,
             service_longitude,
             license_verified,
-            license_status
+            license_status,
+            rating
           )
         `)
         .eq('project_id', projectId)
-        .eq('status', 'submitted')
-        .order('total_price', { ascending: true });
+        .eq('status', 'submitted');
 
-      if (bidsError) throw bidsError;
-      setBids(bidsData || []);
-    } catch (error) {
-      console.error('Error loading data:', error);
+      if (bidsErr) throw bidsErr;
+
+      const scored: RankedBid[] = (bidsData || []).map(bid => ({
+        ...bid,
+        breakdown: computeMatchBreakdown(bid, { ...proj, scan: scanForScoring }),
+      }));
+      // Sort: highest score first
+      scored.sort((a, b) => b.breakdown.score - a.breakdown.score);
+      setRankedBids(scored);
+    } catch (err) {
+      console.error('Error loading contractor matching data:', err);
     } finally {
       setLoading(false);
     }
   }
 
-  function handleAcceptOffer(bidId: string) {
-    navigate(`/accept-offer/${projectId}/${bidId}`);
-  }
-
-  function calculateEstimatedTime(bid: Bid): string {
-    const totalDuration = bid.milestones.reduce((sum, m) => sum + (m.duration || 0), 0);
-    if (totalDuration === 0) {
-      const monthsEstimate = Math.ceil(bid.milestones.length * 2);
-      return monthsEstimate === 1 ? '1 Month' : `${monthsEstimate} Months`;
-    }
-    const months = Math.ceil(totalDuration / 30);
-    return months === 1 ? '1 Month' : `${months} Months`;
-  }
-
-  function getProjectCount(contractor: any): number {
-    return Math.floor(Math.random() * 80) + 20;
-  }
-
-  function getMatchScore(bid: Bid): number {
-    let score = 0;
-
-    if (bid.contractor?.license_verified && bid.contractor?.license_status === 'approved') {
-      score += 30;
-    }
-
-    if (bid.contractor?.years_experience && bid.contractor.years_experience > 5) {
-      score += 20;
-    } else if (bid.contractor?.years_experience && bid.contractor.years_experience > 2) {
-      score += 10;
-    }
-
-    if (bid.milestones && bid.milestones.length >= 3) {
-      score += 15;
-    }
-
-    if (bid.message && bid.message.length > 100) {
-      score += 10;
-    }
-
-    const avgBudget = project ? (project as any).budget_max : 0;
-    if (avgBudget > 0) {
-      const priceDiff = Math.abs(bid.total_price - avgBudget) / avgBudget;
-      if (priceDiff < 0.1) {
-        score += 25;
-      } else if (priceDiff < 0.2) {
-        score += 15;
-      } else if (priceDiff < 0.3) {
-        score += 5;
-      }
-    }
-
-    return Math.min(score, 100);
-  }
-
-  function getMatchLabel(score: number): { label: string; color: string } {
-    if (score >= 80) return { label: 'Excellent Match', color: 'bg-green-100 text-green-800' };
-    if (score >= 60) return { label: 'Good Match', color: 'bg-blue-100 text-blue-800' };
-    if (score >= 40) return { label: 'Fair Match', color: 'bg-yellow-100 text-yellow-800' };
-    return { label: 'Low Match', color: 'bg-gray-100 text-gray-800' };
-  }
+  // ── Loading ────────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
-          <div className="inline-block w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-gray-600">Loading contractors...</p>
+          <div className="inline-block w-12 h-12 border-4 border-orange-500 border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-gray-600">Analyzing contractor matches…</p>
         </div>
       </div>
     );
   }
 
-  if (bids.length === 0) {
+  if (rankedBids.length === 0) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">No offers yet</h2>
-          <p className="text-gray-600 mb-6">We're still looking for contractors for your project.</p>
+        <div className="text-center max-w-sm">
+          <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Briefcase className="w-8 h-8 text-gray-400" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">No bids yet</h2>
+          <p className="text-gray-600 mb-6">
+            We're still matching contractors to your project. Check back soon.
+          </p>
           <button
             onClick={() => navigate('/dashboard')}
             className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -187,127 +188,166 @@ export function ContractorMatching() {
     );
   }
 
+  // ── Main render ────────────────────────────────────────────────────────────
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="text-center mb-12">
+
+        {/* Header */}
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center gap-2 bg-orange-50 border border-orange-200 text-orange-700 text-xs font-semibold px-3 py-1.5 rounded-full mb-4">
+            <Award className="w-3.5 h-3.5" />
+            AI-Powered Matching — {rankedBids.length} contractor{rankedBids.length !== 1 ? 's' : ''} scored
+          </div>
           <h1 className="text-4xl font-bold text-gray-900 mb-2">
-            Your Matched Contractors - Choose the Best Offer
+            Your Matched Contractors
           </h1>
-          <p className="text-gray-600">
-            The system has matched you with verified contractors based on your project details. Review the offers and select your contractor.
+          <p className="text-gray-500 max-w-xl mx-auto">
+            Each contractor is scored across 6 signals — license, experience, budget, proposal
+            quality, service area, and profile completeness. Ranked from best to lowest fit.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {bids.map((bid) => {
-            const matchScore = getMatchScore(bid);
-            const matchInfo = getMatchLabel(matchScore);
+        {/* Scan panel — shown when scan exists */}
+        {scanData && (
+          <div className="max-w-2xl mx-auto mb-8">
+            <ScanDataPanel scan={scanData} variant="card" />
+          </div>
+        )}
+
+        {/* Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
+          {rankedBids.map((bid, index) => {
+            const isBestMatch = index === 0;
+            const c = bid.contractor;
             return (
-            <div key={bid.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-lg transition-all duration-200 relative">
-              <div className="absolute top-4 right-4">
-                <div className={`px-3 py-1.5 rounded-full text-xs font-bold ${matchInfo.color}`}>
-                  {matchInfo.label} ({matchScore}%)
-                </div>
-              </div>
+              <div
+                key={bid.id}
+                className={`bg-white rounded-2xl shadow-sm border transition-all duration-200 hover:shadow-lg relative overflow-hidden flex flex-col ${
+                  isBestMatch
+                    ? 'border-orange-300 ring-2 ring-orange-200'
+                    : 'border-gray-200'
+                }`}
+              >
+                {/* Best Match banner */}
+                {isBestMatch && (
+                  <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white text-xs font-bold px-4 py-1.5 flex items-center gap-1.5">
+                    <Crown className="w-3.5 h-3.5" />
+                    Best Match — Highest Score
+                  </div>
+                )}
 
-              <div className="flex items-start gap-4 mb-4 mt-8">
-                <div className="relative">
-                  <img
-                    src={bid.contractor?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(bid.contractor?.full_name || 'Contractor')}&background=random`}
-                    alt={bid.contractor?.full_name}
-                    className="w-16 h-16 rounded-full object-cover shadow-md"
-                  />
-                  {bid.contractor?.license_verified && bid.contractor?.license_status === 'approved' && (
-                    <div className="absolute -bottom-1 -right-1 w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center border-2 border-white">
-                      <Shield className="w-3 h-3 text-white" />
+                <div className="p-6 flex flex-col flex-1">
+                  {/* Contractor identity */}
+                  <div className="flex items-start gap-3 mb-5">
+                    <div className="relative flex-shrink-0">
+                      <img
+                        src={avatarUrl(c?.full_name, c?.avatar_url)}
+                        alt={c?.full_name}
+                        className="w-14 h-14 rounded-full object-cover shadow"
+                      />
+                      {c?.license_verified && c?.license_status === 'approved' && (
+                        <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center border-2 border-white">
+                          <Shield className="w-2.5 h-2.5 text-white" />
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-bold text-gray-900 text-lg">{bid.contractor?.full_name}</h3>
-                  <p className="text-sm text-gray-600">
-                    {bid.contractor?.company_name || bid.contractor?.specialties?.[0] || 'General Contractor'}
-                  </p>
-                  <div className="flex items-center gap-2 mt-2 flex-wrap">
-                    {bid.contractor?.license_verified && bid.contractor?.license_status === 'approved' && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        <Shield className="w-3 h-3 mr-1" />
-                        Licensed
-                      </span>
-                    )}
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                      <CheckCircle className="w-3 h-3 mr-1" />
-                      Verified
-                    </span>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-gray-900 truncate">
+                        {c?.full_name ?? 'Contractor'}
+                      </h3>
+                      <p className="text-sm text-gray-500 truncate">
+                        {c?.company_name || c?.specialties?.[0] || 'General Contractor'}
+                      </p>
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        {c?.license_verified && c?.license_status === 'approved' && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
+                            <Shield className="w-3 h-3" />
+                            Licensed
+                          </span>
+                        )}
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                          <CheckCircle className="w-3 h-3" />
+                          Verified
+                        </span>
+                      </div>
+                      {/* Stars */}
+                      <div className="flex items-center mt-1.5">
+                        {[...Array(5)].map((_, i) => (
+                          <Star key={i} className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
+                        ))}
+                        <span className="text-xs text-gray-500 ml-1">
+                          {c?.rating?.toFixed(1) ?? '5.0'}
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center mt-2">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                    ))}
-                    <span className="text-xs text-gray-600 ml-1 font-medium">(5.0)</span>
+
+                  {/* Match score (compact ring + top 2 highlights) */}
+                  <div className="mb-5">
+                    <MatchScoreDisplay
+                      breakdown={bid.breakdown}
+                      size="compact"
+                      animationDelay={index * 150}
+                    />
+                  </div>
+
+                  {/* Quick stats */}
+                  <div className="grid grid-cols-2 gap-2 mb-5">
+                    <div className="bg-purple-50 rounded-lg p-2.5">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <Award className="w-3.5 h-3.5 text-purple-600" />
+                        <p className="text-xs text-purple-700 font-medium">Experience</p>
+                      </div>
+                      <p className="text-base font-bold text-purple-900">
+                        {c?.years_experience ?? '?'} yrs
+                      </p>
+                    </div>
+                    <div className="bg-orange-50 rounded-lg p-2.5">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <Calendar className="w-3.5 h-3.5 text-orange-600" />
+                        <p className="text-xs text-orange-700 font-medium">Timeline</p>
+                      </div>
+                      <p className="text-sm font-bold text-orange-900">
+                        {estimatedTime(bid)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Bid amount */}
+                  <div className="border-t border-gray-100 pt-4 mb-4">
+                    <p className="text-xs text-gray-500 mb-0.5">Bid Amount</p>
+                    <p className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
+                      ${bid.total_price.toLocaleString()}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {bid.milestones.length} milestone{bid.milestones.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
+
+                  {/* Actions */}
+                  <div className="mt-auto space-y-2">
+                    <button
+                      onClick={() => setSelectedBid(bid)}
+                      className="w-full px-4 py-2.5 text-sm text-blue-600 font-semibold border-2 border-blue-200 rounded-lg hover:bg-blue-50 transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      View Full Profile & Score
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => navigate(`/accept-offer/${projectId}/${bid.id}`)}
+                      className={`w-full px-4 py-3 font-bold rounded-lg transition-all shadow hover:shadow-md ${
+                        isBestMatch
+                          ? 'bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white'
+                          : 'bg-gray-900 hover:bg-gray-800 text-white'
+                      }`}
+                    >
+                      Accept Offer
+                    </button>
                   </div>
                 </div>
               </div>
-
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                <div className="bg-blue-50 rounded-lg p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Briefcase className="w-4 h-4 text-blue-600" />
-                    <p className="text-xs font-medium text-blue-900">Projects</p>
-                  </div>
-                  <p className="text-lg font-bold text-blue-900">{getProjectCount(bid.contractor)}</p>
-                </div>
-                <div className="bg-green-50 rounded-lg p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <ThumbsUp className="w-4 h-4 text-green-600" />
-                    <p className="text-xs font-medium text-green-900">Success Rate</p>
-                  </div>
-                  <p className="text-lg font-bold text-green-900">98%</p>
-                </div>
-                <div className="bg-purple-50 rounded-lg p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Award className="w-4 h-4 text-purple-600" />
-                    <p className="text-xs font-medium text-purple-900">Experience</p>
-                  </div>
-                  <p className="text-lg font-bold text-purple-900">{bid.contractor?.years_experience || 10}y</p>
-                </div>
-                <div className="bg-orange-50 rounded-lg p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Calendar className="w-4 h-4 text-orange-600" />
-                    <p className="text-xs font-medium text-orange-900">Timeline</p>
-                  </div>
-                  <p className="text-sm font-bold text-orange-900">{calculateEstimatedTime(bid)}</p>
-                </div>
-              </div>
-
-              <div className="border-t border-gray-200 pt-4 mb-4">
-                <div className="flex items-baseline gap-2 mb-1">
-                  <TrendingUp className="w-4 h-4 text-gray-500" />
-                  <p className="text-sm text-gray-600 font-medium">Bid Amount</p>
-                </div>
-                <p className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-blue-800 bg-clip-text text-transparent">
-                  ${bid.total_price.toLocaleString()}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">{bid.milestones.length} milestone{bid.milestones.length !== 1 ? 's' : ''}</p>
-              </div>
-
-              <button
-                onClick={() => {
-                  setSelectedBid(bid);
-                  setShowProfileModal(true);
-                }}
-                className="w-full px-4 py-2.5 text-sm text-blue-600 font-semibold border-2 border-blue-200 rounded-lg hover:bg-blue-50 transition-colors mb-2"
-              >
-                View Full Profile
-              </button>
-              <button
-                onClick={() => handleAcceptOffer(bid.id)}
-                className="w-full px-4 py-3 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold rounded-lg hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg hover:shadow-xl"
-              >
-                Accept Offer
-              </button>
-            </div>
             );
           })}
         </div>
@@ -317,126 +357,138 @@ export function ContractorMatching() {
             onClick={() => navigate('/dashboard')}
             className="px-8 py-3 bg-white border-2 border-gray-300 text-gray-700 font-semibold rounded-lg hover:bg-gray-50 transition-colors"
           >
-            Request Another Offer
+            ← Back to Dashboard
           </button>
         </div>
       </div>
 
-      {showProfileModal && selectedBid && (
+      {/* Profile + full score modal */}
+      {selectedBid && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-              <h2 className="text-2xl font-bold text-gray-900">Contractor Profile</h2>
+            <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
+              <h2 className="text-xl font-bold text-gray-900">Contractor Profile & Match Score</h2>
               <button
-                onClick={() => setShowProfileModal(false)}
+                onClick={() => setSelectedBid(null)}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <X className="w-6 h-6" />
+                <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-6">
-              <div className="flex items-start gap-6 mb-6">
+            <div className="p-6 space-y-6">
+              {/* Identity */}
+              <div className="flex items-start gap-5">
                 <img
-                  src={selectedBid.contractor?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(selectedBid.contractor?.full_name || 'Contractor')}&background=random`}
+                  src={avatarUrl(selectedBid.contractor?.full_name, selectedBid.contractor?.avatar_url)}
                   alt={selectedBid.contractor?.full_name}
-                  className="w-24 h-24 rounded-full object-cover"
+                  className="w-20 h-20 rounded-full object-cover shadow"
                 />
                 <div className="flex-1">
-                  <h3 className="text-2xl font-bold text-gray-900">{selectedBid.contractor?.full_name}</h3>
+                  <h3 className="text-xl font-bold text-gray-900">{selectedBid.contractor?.full_name}</h3>
                   <p className="text-gray-600 mb-2">
                     {selectedBid.contractor?.company_name || 'Independent Contractor'}
                   </p>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                      <CheckCircle className="w-4 h-4 mr-1" />
+                  <div className="flex items-center gap-2 flex-wrap mb-2">
+                    {selectedBid.contractor?.license_verified && selectedBid.contractor?.license_status === 'approved' && (
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                        <Shield className="w-3.5 h-3.5" />
+                        Licensed
+                      </span>
+                    )}
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                      <CheckCircle className="w-3.5 h-3.5" />
                       Verified
                     </span>
                     <div className="flex items-center">
                       {[...Array(5)].map((_, i) => (
                         <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
                       ))}
-                      <span className="text-sm text-gray-600 ml-1">(5 Stars)</span>
+                      <span className="text-sm text-gray-500 ml-1">
+                        ({selectedBid.contractor?.rating?.toFixed(1) ?? '5.0'})
+                      </span>
                     </div>
                   </div>
                   <p className="text-sm text-gray-600">
-                    {selectedBid.contractor?.years_experience || 10}+ years of experience
+                    {selectedBid.contractor?.years_experience ?? 0}+ years of experience
                   </p>
                 </div>
               </div>
 
-              <div className="mb-6">
-                <h4 className="font-bold text-gray-900 mb-2">About</h4>
-                <p className="text-gray-700">
-                  {selectedBid.contractor?.bio || 'Experienced contractor with a proven track record of successful projects.'}
-                </p>
-              </div>
+              {/* Full match score breakdown */}
+              <MatchScoreDisplay
+                breakdown={selectedBid.breakdown}
+                size="full"
+                animationDelay={100}
+              />
 
-              <div className="mb-6">
-                <h4 className="font-bold text-gray-900 mb-2">Specialties</h4>
-                <div className="flex flex-wrap gap-2">
-                  {(selectedBid.contractor?.specialties || ['General Contracting', 'Renovation', 'Remodeling']).map((specialty, index) => (
-                    <span
-                      key={index}
-                      className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-medium"
-                    >
-                      {specialty}
-                    </span>
-                  ))}
+              {/* About */}
+              {selectedBid.contractor?.bio && (
+                <div>
+                  <h4 className="font-bold text-gray-900 mb-2">About</h4>
+                  <p className="text-sm text-gray-700">{selectedBid.contractor.bio}</p>
                 </div>
-              </div>
+              )}
 
-              <div className="mb-6">
-                <h4 className="font-bold text-gray-900 mb-2">Bid Details</h4>
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-gray-700">Total Bid Amount</span>
-                    <span className="text-2xl font-bold text-gray-900">
-                      ${selectedBid.total_price.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    {selectedBid.milestones.length} milestone{selectedBid.milestones.length !== 1 ? 's' : ''}
-                  </div>
-                </div>
-              </div>
-
-              {selectedBid.message && (
-                <div className="mb-6">
-                  <h4 className="font-bold text-gray-900 mb-2">Message</h4>
-                  <div className="bg-blue-50 rounded-lg p-4">
-                    <p className="text-gray-700">{selectedBid.message}</p>
+              {/* Specialties */}
+              {(selectedBid.contractor?.specialties?.length ?? 0) > 0 && (
+                <div>
+                  <h4 className="font-bold text-gray-900 mb-2">Specialties</h4>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedBid.contractor!.specialties.map((s, i) => (
+                      <span key={i} className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-medium">
+                        {s}
+                      </span>
+                    ))}
                   </div>
                 </div>
               )}
 
-              <div className="mb-6">
-                <h4 className="font-bold text-gray-900 mb-3">Milestones</h4>
-                <div className="space-y-3">
-                  {selectedBid.milestones.map((milestone, index) => (
-                    <div key={index} className="bg-gray-50 rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-1">
-                        <h5 className="font-semibold text-gray-900">Milestone {index + 1}</h5>
-                        <span className="font-bold text-gray-900">
-                          ${milestone.price.toLocaleString()}
-                        </span>
+              {/* Bid details */}
+              <div>
+                <h4 className="font-bold text-gray-900 mb-3">Bid Details</h4>
+                <div className="bg-gray-50 rounded-xl p-4 mb-4">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-gray-600">Total Bid Amount</span>
+                    <span className="text-2xl font-bold text-gray-900">
+                      ${selectedBid.total_price.toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    {selectedBid.milestones.length} milestone{selectedBid.milestones.length !== 1 ? 's' : ''}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  {selectedBid.milestones.map((m, i) => (
+                    <div key={i} className="bg-white border border-gray-200 rounded-lg p-3 flex justify-between items-start">
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900">Milestone {i + 1}</p>
+                        <p className="text-xs text-gray-500">{m.description}</p>
+                        {m.duration && (
+                          <p className="text-xs text-gray-400 mt-0.5">{m.duration} days</p>
+                        )}
                       </div>
-                      <p className="text-sm text-gray-600">{milestone.description}</p>
-                      {milestone.duration && (
-                        <p className="text-xs text-gray-500 mt-1">
-                          Duration: {milestone.duration} days
-                        </p>
-                      )}
+                      <span className="text-sm font-bold text-gray-900 ml-4 whitespace-nowrap">
+                        ${m.price.toLocaleString()}
+                      </span>
                     </div>
                   ))}
                 </div>
               </div>
 
+              {/* Message */}
+              {selectedBid.message && (
+                <div>
+                  <h4 className="font-bold text-gray-900 mb-2">Message from Contractor</h4>
+                  <div className="bg-blue-50 rounded-xl p-4">
+                    <p className="text-sm text-gray-700">{selectedBid.message}</p>
+                  </div>
+                </div>
+              )}
+
               <button
-                onClick={() => {
-                  handleAcceptOffer(selectedBid.id);
-                }}
-                className="w-full px-6 py-4 bg-orange-500 text-white font-semibold rounded-lg hover:bg-orange-600 transition-colors"
+                onClick={() => navigate(`/accept-offer/${projectId}/${selectedBid.id}`)}
+                className="w-full py-4 bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold rounded-xl hover:from-orange-600 hover:to-orange-700 transition-all shadow-lg hover:shadow-xl"
               >
                 Accept This Offer
               </button>

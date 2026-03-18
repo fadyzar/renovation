@@ -36,4 +36,9 @@ export interface Profile {
   service_longitude?: number;
   service_radius_km?: number;
   location_enabled?: boolean;
+  // Contractor-specific fields (added by license verification migration)
+  license_verified?: boolean;
+  license_status?: string;
+  years_experience?: number;
+  specialties?: string[];
 }

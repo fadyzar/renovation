@@ -1,7 +1,9 @@
-import { useState } from 'react';
-import { X, Plus, DollarSign, Calendar, FileText, Trash2, AlertCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { X, Plus, DollarSign, Calendar, FileText, Trash2, AlertCircle, CheckCircle, Ruler, Zap } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { ScanDataPanel, type ScanData } from '../shared/ScanDataPanel';
+import { estimateCost, checkBidDeviation, type CostEstimate } from '../../lib/costEstimator';
 
 interface Project {
   id: string;
@@ -28,10 +30,56 @@ interface BidBuilderProps {
 export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
   const { profile } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [alreadyBid, setAlreadyBid] = useState(false);
   const [message, setMessage] = useState('');
   const [milestones, setMilestones] = useState<Milestone[]>([
     { id: '1', description: '', price: '', duration: '' }
   ]);
+  const [scanData, setScanData] = useState<ScanData | null>(null);
+  const [costEstimate, setCostEstimate] = useState<CostEstimate | null>(null);
+
+  // Check for duplicate bid on mount — contractor can only bid once per project
+  useEffect(() => {
+    async function checkExistingBid() {
+      if (!profile?.id) return;
+      const { data } = await supabase
+        .from('bids')
+        .select('id')
+        .eq('project_id', project.id)
+        .eq('contractor_id', profile.id)
+        .maybeSingle();
+      if (data) setAlreadyBid(true);
+    }
+    checkExistingBid();
+  }, [project.id, profile?.id]);
+
+  // Load scan data and compute estimate on mount
+  useEffect(() => {
+    async function loadScan() {
+      const { data } = await supabase
+        .from('project_scans')
+        .select('*')
+        .eq('project_id', project.id)
+        .maybeSingle();
+      if (data) {
+        setScanData(data as ScanData);
+        const estimate = estimateCost(
+          {
+            measured_area_sqft: data.measured_area_sqft,
+            wall_area_sqft: data.wall_area_sqft,
+            room_height_ft: data.room_height_ft,
+            detected_room_type: data.detected_room_type,
+            estimated_complexity: data.estimated_complexity,
+            detected_features: data.detected_features ?? [],
+            scan_confidence: data.scan_confidence,
+          },
+          { work_types: project.work_types, budget_min: project.budget_min, budget_max: project.budget_max }
+        );
+        setCostEstimate(estimate);
+      }
+    }
+    loadScan();
+  }, [project.id, project.work_types, project.budget_min, project.budget_max]);
 
   const addMilestone = () => {
     setMilestones([
@@ -59,6 +107,19 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
     }, 0);
   };
 
+  // Populate milestones from AI cost estimate suggestions
+  const applyEstimateMilestones = () => {
+    if (!costEstimate) return;
+    const totalCost = (costEstimate.estimated_min + costEstimate.estimated_max) / 2;
+    const suggested = costEstimate.suggested_milestones.map((sm, i) => ({
+      id: `est_${i}`,
+      description: sm.description,
+      price: String(Math.round((sm.pct / 100) * totalCost / 100) * 100 || 0),
+      duration: String(sm.duration_days),
+    }));
+    setMilestones(suggested);
+  };
+
   const validateBid = () => {
     if (message.trim() === '') {
       return 'Please add a message to the property owner';
@@ -73,9 +134,9 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
       return 'Total price must be greater than 0';
     }
 
-    if (total < project.budget_min * 0.5 || total > project.budget_max * 2) {
-      return 'Your bid is significantly outside the budget range. Please review.';
-    }
+    // NOTE: Budget range is a RECOMMENDATION signal, not a hard gate.
+    // Contractors can bid any amount — the budget warning below is advisory only.
+    // Do NOT block submission based on budget here.
 
     return null;
   };
@@ -98,6 +159,8 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
         duration: parseInt(m.duration)
       }));
 
+      // status: 'submitted' — canonical status for a newly placed bid
+      // ContractorMatching queries this status to show owner all received bids
       const { error: insertError } = await supabase
         .from('bids')
         .insert({
@@ -106,7 +169,7 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
           total_price: calculateTotal(),
           milestones: milestonesData,
           message: message,
-          status: 'sent'
+          status: 'submitted'
         });
 
       if (insertError) throw insertError;
@@ -140,13 +203,90 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
           </button>
         </div>
 
+        {alreadyBid ? (
+          <div className="p-8 text-center">
+            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle className="w-8 h-8 text-green-600" />
+            </div>
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Bid Already Submitted</h3>
+            <p className="text-gray-600 mb-6">
+              You've already submitted a bid on this project. The owner will review all bids and contact you if selected.
+            </p>
+            <button
+              onClick={onClose}
+              className="px-6 py-3 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        ) : (
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
             <p className="text-sm text-blue-900 font-medium mb-2">Project Budget Range</p>
             <p className="text-2xl font-bold text-blue-700">
               ${(project.budget_min / 1000).toFixed(0)}k - ${(project.budget_max / 1000).toFixed(0)}k
             </p>
+            <p className="text-xs text-blue-700 mt-1">
+              You may bid above or below this range — it is a guideline, not a hard limit.
+            </p>
           </div>
+
+          {/* ── Space scan data ── */}
+          {scanData && (
+            <ScanDataPanel scan={scanData} variant="inline" expanded />
+          )}
+
+          {/* ── AI cost estimate ── */}
+          {costEstimate && (
+            <div className="border border-gray-200 rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-200">
+                <div className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-indigo-600" />
+                  <span className="text-sm font-semibold text-gray-900">AI Cost Estimate</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    costEstimate.confidence === 'high'     ? 'bg-green-100 text-green-700' :
+                    costEstimate.confidence === 'medium'   ? 'bg-blue-100 text-blue-700' :
+                    costEstimate.confidence === 'low'      ? 'bg-amber-100 text-amber-700' :
+                    'bg-gray-100 text-gray-600'
+                  }`}>
+                    {costEstimate.confidence === 'fallback' ? 'no scan — estimate only' : `${costEstimate.confidence} confidence`}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={applyEstimateMilestones}
+                  className="text-xs text-indigo-600 hover:text-indigo-800 font-semibold"
+                >
+                  Use suggested milestones →
+                </button>
+              </div>
+              <div className="px-4 py-3 space-y-3">
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xl font-bold text-gray-900">
+                    ${costEstimate.estimated_min.toLocaleString()} – ${costEstimate.estimated_max.toLocaleString()}
+                  </span>
+                  <span className="text-sm text-gray-500">estimated range</span>
+                </div>
+                <div className="flex gap-4 text-sm text-gray-600">
+                  <span>~{costEstimate.estimated_duration_days} days</span>
+                  <span>·</span>
+                  <span className="capitalize">complexity {costEstimate.complexity_score}/10</span>
+                </div>
+                <p className="text-xs text-gray-400">{costEstimate.basis}</p>
+
+                {/* Suggested milestone list */}
+                <div className="space-y-1 pt-1">
+                  <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Suggested Milestones</p>
+                  {costEstimate.suggested_milestones.map((sm, i) => (
+                    <div key={i} className="flex items-center justify-between text-xs py-1 border-b border-gray-50 last:border-0">
+                      <span className="text-gray-700">{sm.description}</span>
+                      <span className="text-gray-500 ml-2 whitespace-nowrap">{sm.pct}% · {sm.duration_days}d</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -268,10 +408,33 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
               <div className="mt-3 flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
                 <p className="text-sm text-yellow-800">
-                  Your bid is outside the project budget range. Consider adjusting your pricing.
+                  Your bid is outside the owner's budget range. You can still submit — the owner will review all bids.
                 </p>
               </div>
             )}
+
+            {/* AI estimate deviation — only when estimate exists and bid is non-zero */}
+            {costEstimate && totalPrice > 0 && (() => {
+              const dev = checkBidDeviation(totalPrice, costEstimate);
+              if (dev.level === 'on_target') return null;
+              return (
+                <div className={`mt-3 flex items-start gap-2 p-3 rounded-lg border ${
+                  dev.level === 'significantly_off'
+                    ? 'bg-orange-50 border-orange-200'
+                    : 'bg-blue-50 border-blue-200'
+                }`}>
+                  <Ruler className={`w-4 h-4 flex-shrink-0 mt-0.5 ${
+                    dev.level === 'significantly_off' ? 'text-orange-600' : 'text-blue-600'
+                  }`} />
+                  <p className={`text-sm ${
+                    dev.level === 'significantly_off' ? 'text-orange-800' : 'text-blue-800'
+                  }`}>
+                    <span className="font-semibold">AI estimate check: </span>
+                    {dev.message}
+                  </p>
+                </div>
+              );
+            })()}
 
             <div className="mt-3 text-sm text-gray-600">
               Total duration: {milestones.reduce((sum, m) => sum + (parseInt(m.duration) || 0), 0)} days
@@ -295,6 +458,7 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
             </button>
           </div>
         </form>
+        )}
       </div>
     </div>
   );
