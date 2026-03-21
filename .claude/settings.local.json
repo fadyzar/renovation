@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \":*)",
+      "Bash(node parse_figma.cjs)",
+      "Bash(node parse_figma2.cjs)",
+      "Bash(npx tsc --noEmit)",
+      "Bash(python3:*)",
+      "Bash(ls -lah *.json)",
+      "Bash(for id in \"108:22347\" \"108:22413\" \"108:22408\" \"108:22390\")",
+      "Bash(do)",
+      "Bash(echo \"GROUP ID: $id\")",
+      "Bash(done)"
+    ]
+  }
+}
