@@ -1,266 +1,274 @@
 import { useState } from 'react';
-import { X, ExternalLink, AlertCircle, Upload, CheckCircle } from 'lucide-react';
+import { X, ExternalLink, AlertCircle, Upload, CheckCircle, Shield, FileText } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
-interface LicenseVerificationModalProps {
+interface Props {
   onClose: () => void;
   onSuccess: () => void;
+  initialLicenseNumber?: string;
 }
 
-export function LicenseVerificationModal({ onClose, onSuccess }: LicenseVerificationModalProps) {
+export function LicenseVerificationModal({ onClose, onSuccess, initialLicenseNumber = '' }: Props) {
   const { profile } = useAuth();
   const [step, setStep] = useState<'instructions' | 'form' | 'success'>('instructions');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
   const [screenshotFile, setScreenshotFile] = useState<File | null>(null);
-  const [formData, setFormData] = useState({
-    licenseNumber: '',
-    businessName: '',
-    expirationDate: ''
+  const [form, setForm] = useState({
+    licenseNumber: initialLicenseNumber,
+    businessName: profile?.business_name || profile?.company_name || '',
+    expirationDate: '',
   });
 
-  const handleOpenCSLB = () => {
-    window.open('https://www.cslb.ca.gov/OnlineServices/CheckLicenseII/CheckLicense.aspx', '_blank');
-    setStep('form');
-  };
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (file) {
-      setScreenshotFile(file);
-    }
-  };
+    if (file) setScreenshotFile(file);
+  }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-
-    if (!screenshotFile || !profile?.id) {
-      alert('Please upload a screenshot of the CSLB verification page');
-      return;
-    }
+    if (!screenshotFile) { setError('Please upload a screenshot of the CSLB page'); return; }
+    if (!form.licenseNumber.trim()) { setError('License number is required'); return; }
+    if (!profile?.id) return;
 
     setLoading(true);
+    setError('');
 
     try {
-      const fileExt = screenshotFile.name.split('.').pop();
-      const fileName = `${profile.id}/license-screenshot-${Date.now()}.${fileExt}`;
+      const ext = screenshotFile.name.split('.').pop();
+      const fileName = `${profile.id}/license-${Date.now()}.${ext}`;
 
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadErr } = await supabase.storage
         .from('license-documents')
         .upload(fileName, screenshotFile);
-
-      if (uploadError) throw uploadError;
+      if (uploadErr) throw uploadErr;
 
       const { data: urlData } = supabase.storage
         .from('license-documents')
         .getPublicUrl(fileName);
 
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({
-          license_number: formData.licenseNumber,
-          business_name: formData.businessName,
-          license_expiration_date: formData.expirationDate || null,
-          license_screenshot_url: urlData.publicUrl,
-          verification_status: 'pending',
-          license_verified: false
-        })
-        .eq('id', profile.id);
+      const { error: updateErr } = await supabase.from('profiles').update({
+        license_number: form.licenseNumber.trim(),
+        business_name: form.businessName.trim() || null,
+        license_expiration_date: form.expirationDate || null,
+        license_screenshot_url: urlData.publicUrl,
+        verification_status: 'pending',
+        license_verified: false,
+      }).eq('id', profile.id);
+      if (updateErr) throw updateErr;
 
-      if (updateError) throw updateError;
-
-      await supabase
-        .from('verification_logs')
-        .insert({
-          profile_id: profile.id,
-          action: 'verification_requested',
-          old_status: 'not_verified',
-          new_status: 'pending',
-          notes: `License number: ${formData.licenseNumber}, Business: ${formData.businessName}`
-        });
+      await supabase.from('verification_logs').insert({
+        profile_id: profile.id,
+        action: 'verification_requested',
+        old_status: profile.verification_status || 'not_verified',
+        new_status: 'pending',
+        notes: `License: ${form.licenseNumber.trim()}, Business: ${form.businessName.trim()}`,
+      });
 
       setStep('success');
-    } catch (error) {
-      console.error('Error submitting verification:', error);
-      alert('Failed to submit verification. Please try again.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Submission failed — please try again');
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
-          <h2 className="text-2xl font-bold text-gray-900">
-            {step === 'instructions' && 'Verify Your CSLB License'}
-            {step === 'form' && 'Submit Verification Details'}
-            {step === 'success' && 'Verification Submitted'}
-          </h2>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-          >
-            <X className="w-5 h-5 text-gray-600" />
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto">
+
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-blue-100 rounded-xl flex items-center justify-center">
+              <Shield className="w-5 h-5 text-blue-600" />
+            </div>
+            <div>
+              <h2 className="font-bold text-gray-900 leading-tight">
+                {step === 'instructions' && 'License Verification'}
+                {step === 'form' && 'Submit Your Details'}
+                {step === 'success' && 'Submitted Successfully'}
+              </h2>
+              <p className="text-xs text-gray-400">CSLB · California Contractors State License Board</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
+            <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
 
         <div className="p-6">
+
+          {/* ── Step 1: Instructions ──────────────────────────── */}
           {step === 'instructions' && (
-            <div className="space-y-6">
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-                <div className="flex items-start gap-4">
-                  <AlertCircle className="w-6 h-6 text-blue-600 flex-shrink-0 mt-1" />
-                  <div>
-                    <h3 className="font-bold text-blue-900 mb-2">Official CSLB Verification Required</h3>
-                    <p className="text-blue-800 text-sm leading-relaxed">
-                      You will be redirected to the official California Contractors State License Board (CSLB) website.
-                      Please search your license number and confirm that your license status is <strong>ACTIVE</strong>.
-                    </p>
-                  </div>
+            <div className="space-y-5">
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                  <p className="text-sm text-blue-800">
+                    We verify your license directly via the official California CSLB database.
+                    Verified contractors appear first in owner searches and can bid on all projects.
+                  </p>
                 </div>
               </div>
 
-              <div className="space-y-4">
-                <h4 className="font-bold text-gray-900">Follow these steps:</h4>
-                <ol className="space-y-3 text-gray-700">
-                  <li className="flex items-start gap-3">
-                    <span className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">1</span>
-                    <span>Click <strong>"Continue to CSLB"</strong> below to open the official verification website</span>
-                  </li>
-                  <li className="flex items-start gap-3">
-                    <span className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">2</span>
-                    <span>Search for your license number on the CSLB website</span>
-                  </li>
-                  <li className="flex items-start gap-3">
-                    <span className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">3</span>
-                    <span>Verify that your license status shows as <strong>ACTIVE</strong></span>
-                  </li>
-                  <li className="flex items-start gap-3">
-                    <span className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">4</span>
-                    <span>Take a screenshot of the CSLB results page showing your license details</span>
-                  </li>
-                  <li className="flex items-start gap-3">
-                    <span className="w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">5</span>
-                    <span>Return here and submit your license information with the screenshot</span>
-                  </li>
+              <div>
+                <h4 className="font-semibold text-gray-900 mb-3">How it works</h4>
+                <ol className="space-y-3">
+                  {[
+                    'Click "Open CSLB Website" to visit the official California license lookup',
+                    'Search your license number and confirm status shows ACTIVE',
+                    'Take a screenshot clearly showing your license number, name, and status',
+                    'Come back here and submit the screenshot along with your license details',
+                    'Our team reviews your submission within 24–48 hours',
+                  ].map((step, i) => (
+                    <li key={i} className="flex items-start gap-3">
+                      <span className="w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 mt-0.5">
+                        {i + 1}
+                      </span>
+                      <span className="text-sm text-gray-700">{step}</span>
+                    </li>
+                  ))}
                 </ol>
               </div>
 
-              <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4">
-                <p className="text-yellow-800 text-sm">
-                  <strong>Important:</strong> Your verification will be reviewed by our admin team within 24-48 hours.
-                  You will be notified once your license is verified.
-                </p>
-              </div>
+              {initialLicenseNumber && (
+                <div className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-xl">
+                  <FileText className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                  <span className="text-sm text-gray-600">License on file: </span>
+                  <span className="text-sm font-mono font-semibold text-gray-900">{initialLicenseNumber}</span>
+                </div>
+              )}
 
               <div className="flex gap-3">
-                <button
-                  onClick={handleOpenCSLB}
-                  className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                <a
+                  href="https://www.cslb.ca.gov/OnlineServices/CheckLicenseII/CheckLicense.aspx"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => setTimeout(() => setStep('form'), 500)}
+                  className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors"
                 >
-                  Continue to CSLB
-                  <ExternalLink className="w-5 h-5" />
-                </button>
+                  Open CSLB Website
+                  <ExternalLink className="w-4 h-4" />
+                </a>
                 <button
-                  onClick={onClose}
-                  className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
+                  onClick={() => setStep('form')}
+                  className="px-5 py-3 border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-colors text-sm"
                 >
-                  Cancel
+                  I have the screenshot
                 </button>
               </div>
             </div>
           )}
 
+          {/* ── Step 2: Form ───────────────────────────────────── */}
           {step === 'form' && (
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-                <p className="text-green-800 text-sm">
-                  Great! Now please fill in your license details and upload the screenshot from the CSLB website.
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {error && (
+                <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  {error}
+                </div>
+              )}
+
+              <div className="bg-green-50 border border-green-200 rounded-xl p-3">
+                <p className="text-sm text-green-800">
+                  Fill in your license details exactly as shown on the CSLB results page, then upload your screenshot.
                 </p>
               </div>
 
+              {/* License number */}
               <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                <label className="block text-sm font-semibold text-gray-900 mb-1.5">
                   License Number <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
                   required
-                  value={formData.licenseNumber}
-                  onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })}
-                  placeholder="e.g., 123456"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  value={form.licenseNumber}
+                  onChange={e => setForm(f => ({ ...f, licenseNumber: e.target.value }))}
+                  placeholder="e.g. 1098765"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-mono"
                 />
               </div>
 
+              {/* Business name */}
               <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Business Name
+                <label className="block text-sm font-semibold text-gray-900 mb-1.5">
+                  Business Name on License
                 </label>
                 <input
                   type="text"
-                  value={formData.businessName}
-                  onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
-                  placeholder="Your business name as shown on CSLB"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  value={form.businessName}
+                  onChange={e => setForm(f => ({ ...f, businessName: e.target.value }))}
+                  placeholder="As shown on CSLB results"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                 />
               </div>
 
+              {/* Expiration date */}
               <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                <label className="block text-sm font-semibold text-gray-900 mb-1.5">
                   License Expiration Date
                 </label>
                 <input
                   type="date"
-                  value={formData.expirationDate}
-                  onChange={(e) => setFormData({ ...formData, expirationDate: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
+                  value={form.expirationDate}
+                  onChange={e => setForm(f => ({ ...f, expirationDate: e.target.value }))}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
                 />
               </div>
 
+              {/* Screenshot upload */}
               <div>
-                <label className="block text-sm font-semibold text-gray-900 mb-2">
-                  Upload CSLB Screenshot <span className="text-red-500">*</span>
+                <label className="block text-sm font-semibold text-gray-900 mb-1.5">
+                  CSLB Screenshot <span className="text-red-500">*</span>
                 </label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-green-500 transition-colors">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="hidden"
-                    id="screenshot-upload"
-                    required
-                  />
-                  <label htmlFor="screenshot-upload" className="cursor-pointer">
-                    <Upload className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                    {screenshotFile ? (
-                      <p className="text-green-600 font-semibold">{screenshotFile.name}</p>
-                    ) : (
-                      <>
-                        <p className="text-gray-700 font-semibold mb-1">Click to upload screenshot</p>
-                        <p className="text-gray-500 text-sm">PNG, JPG up to 10MB</p>
-                      </>
-                    )}
-                  </label>
-                </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  The screenshot must clearly show your license number, status, and business name
+                <label
+                  htmlFor="screenshot-upload"
+                  className={`flex flex-col items-center justify-center gap-2 border-2 border-dashed rounded-xl p-6 cursor-pointer transition-colors ${
+                    screenshotFile
+                      ? 'border-green-400 bg-green-50'
+                      : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'
+                  }`}
+                >
+                  <input id="screenshot-upload" type="file" accept="image/*" onChange={handleFileChange} className="hidden" required />
+                  {screenshotFile ? (
+                    <>
+                      <CheckCircle className="w-8 h-8 text-green-500" />
+                      <p className="text-sm font-semibold text-green-700">{screenshotFile.name}</p>
+                      <p className="text-xs text-green-600">Click to change</p>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="w-8 h-8 text-gray-400" />
+                      <p className="text-sm font-semibold text-gray-700">Click to upload screenshot</p>
+                      <p className="text-xs text-gray-400">PNG, JPG — max 10 MB</p>
+                    </>
+                  )}
+                </label>
+                <p className="text-xs text-gray-400 mt-1.5">
+                  Screenshot must clearly show: license number, licensee name, and ACTIVE status
                 </p>
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex gap-3 pt-2">
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="flex-1 flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-50"
                 >
-                  {loading ? 'Submitting...' : 'Submit for Verification'}
+                  {loading ? (
+                    <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Submitting…</>
+                  ) : (
+                    <><Shield className="w-4 h-4" /> Submit for Verification</>
+                  )}
                 </button>
                 <button
                   type="button"
                   onClick={() => setStep('instructions')}
-                  className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors"
+                  className="px-5 py-3 border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 transition-colors"
                 >
                   Back
                 </button>
@@ -268,63 +276,56 @@ export function LicenseVerificationModal({ onClose, onSuccess }: LicenseVerifica
             </form>
           )}
 
+          {/* ── Step 3: Success ────────────────────────────────── */}
           {step === 'success' && (
-            <div className="space-y-6 text-center py-8">
+            <div className="text-center space-y-6 py-4">
               <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
-                <CheckCircle className="w-12 h-12 text-blue-600" />
+                <CheckCircle className="w-11 h-11 text-blue-600" />
               </div>
 
               <div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-3">Thank You for Submitting</h3>
-                <p className="text-gray-700 text-lg leading-relaxed max-w-xl mx-auto">
-                  Your license verification is currently under review by our administrative team.
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Verification Submitted</h3>
+                <p className="text-gray-600 text-sm max-w-xs mx-auto">
+                  Our team will review your license details and confirm your status via the CSLB database.
                 </p>
               </div>
 
-              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-6 text-left max-w-xl mx-auto">
-                <h4 className="font-bold text-gray-900 mb-4 text-center">What's Next?</h4>
-                <div className="space-y-3 text-gray-700">
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">1</div>
-                    <div>
-                      <p className="font-semibold text-gray-900">Under Review</p>
-                      <p className="text-sm text-gray-600">Our team is currently reviewing your submission and verifying your credentials with the CSLB database.</p>
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5 text-left">
+                <h4 className="font-bold text-gray-900 mb-3 text-sm">What happens next</h4>
+                <div className="space-y-3">
+                  {[
+                    { step: '1', title: 'Under review', body: 'Our team cross-checks your submission with the official CSLB database.' },
+                    { step: '2', title: 'Profile updated', body: 'Once confirmed, your profile gets a verified badge and your match score improves.' },
+                    { step: '3', title: 'You\'re notified', body: 'You\'ll receive an email notification when the review is complete.' },
+                  ].map(item => (
+                    <div key={item.step} className="flex items-start gap-3">
+                      <div className="w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0">
+                        {item.step}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900 text-sm">{item.title}</p>
+                        <p className="text-xs text-gray-500">{item.body}</p>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">2</div>
-                    <div>
-                      <p className="font-semibold text-gray-900">Verification Process</p>
-                      <p className="text-sm text-gray-600">Once verified, your profile will be updated with a verified badge, and you'll gain full access to bid on projects.</p>
-                    </div>
-                  </div>
-                  <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0">3</div>
-                    <div>
-                      <p className="font-semibold text-gray-900">You'll Be Notified</p>
-                      <p className="text-sm text-gray-600">We'll send you an email notification as soon as your license has been verified.</p>
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
 
-              <div className="bg-yellow-50 border border-yellow-300 rounded-xl p-4 max-w-xl mx-auto">
-                <p className="text-yellow-900 text-sm font-medium">
-                  Please note: Verification typically takes 24-48 hours. You will be able to browse projects but cannot submit bids until verified.
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                <p className="text-amber-800 text-xs">
+                  Typically takes <strong>24–48 hours</strong>. You can browse projects in the meantime.
                 </p>
               </div>
 
               <button
-                onClick={() => {
-                  onSuccess();
-                  onClose();
-                }}
-                className="px-8 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-md hover:shadow-lg"
+                onClick={() => { onSuccess(); onClose(); }}
+                className="w-full px-6 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm"
               >
-                Return to Dashboard
+                Done — Back to Profile
               </button>
             </div>
           )}
+
         </div>
       </div>
     </div>

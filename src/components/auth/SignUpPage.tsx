@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Home, HardHat, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate, Link } from 'react-router-dom';
+import logo from '../../assets/logo.svg';
 
 export function SignUpPage() {
     const [fullName, setFullName] = useState('');
@@ -81,14 +82,8 @@ export function SignUpPage() {
             {/* Form Section */}
             <div className="flex-1 flex flex-col justify-center px-8 sm:px-12 lg:px-24 py-8 overflow-y-auto">
                 <div className="w-full max-w-[400px] mx-auto">
-                    <div className="flex items-center gap-2 mb-6">
-                        <div className="flex items-center gap-1.5">
-                            <div className="w-2.5 h-2.5 bg-[#FF5C5C] rounded-full"></div>
-                            <div className="w-2.5 h-2.5 bg-[#FFBD2E] rounded-full"></div>
-                            <div className="w-2.5 h-2.5 bg-[#27C93F] rounded-full"></div>
-                            <div className="w-2.5 h-2.5 bg-[#1336F6] rounded-full"></div>
-                        </div>
-                        <span className="text-2xl font-black text-brand-navy tracking-tight">M.G.BIT</span>
+                    <div className="mb-6">
+                        <img src={logo} alt="M.G.BIT" className="h-9 w-auto" />
                     </div>
 
                     <div className="mb-6">
@@ -171,7 +166,7 @@ export function SignUpPage() {
                                 <button
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-600 transition-colors"
+                                    className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors"
                                 >
                                     {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                                 </button>
@@ -194,7 +189,7 @@ export function SignUpPage() {
                                 <button
                                     type="button"
                                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                    className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 hover:text-slate-600 transition-colors"
+                                    className="absolute right-6 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-700 transition-colors"
                                 >
                                     {showConfirmPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                                 </button>
