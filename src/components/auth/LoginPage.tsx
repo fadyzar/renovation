@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate, Link } from 'react-router-dom';
+import logo from '../../assets/logo.svg';
 
 export function LoginPage() {
     const [email, setEmail] = useState('');
@@ -48,14 +49,8 @@ export function LoginPage() {
             {/* Form Section */}
             <div className="flex-1 flex flex-col justify-center px-8 sm:px-12 lg:px-24 py-12 overflow-y-auto">
                 <div className="w-full max-w-[400px] mx-auto">
-                    <div className="flex items-center gap-2 mb-10">
-                        <div className="flex items-center gap-1.5">
-                            <div className="w-2.5 h-2.5 bg-[#FF5C5C] rounded-full"></div>
-                            <div className="w-2.5 h-2.5 bg-[#FFBD2E] rounded-full"></div>
-                            <div className="w-2.5 h-2.5 bg-[#27C93F] rounded-full"></div>
-                            <div className="w-2.5 h-2.5 bg-[#1336F6] rounded-full"></div>
-                        </div>
-                        <span className="text-2xl font-black text-brand-navy tracking-tight">M.G.BIT</span>
+                    <div className="mb-10">
+                        <img src={logo} alt="M.G.BIT" className="h-9 w-auto" />
                     </div>
 
                     <div className="mb-8">

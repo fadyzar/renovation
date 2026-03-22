@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import { Shield, MapPin, DollarSign, Star, Briefcase, Award, CheckCircle, User } from 'lucide-react';
+import { Shield, MapPin, DollarSign, Star, Briefcase, Award, CheckCircle, User, Tag } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-export type MatchFactorKey = 'license' | 'experience' | 'budget' | 'proposal' | 'area' | 'rating' | 'profile';
+export type MatchFactorKey = 'license' | 'experience' | 'budget' | 'proposal' | 'area' | 'rating' | 'profile' | 'specialty';
 
 export interface MatchFactor {
   key: MatchFactorKey;
@@ -72,6 +72,7 @@ const FACTOR_ICONS: Record<MatchFactorKey, React.FC<React.SVGProps<SVGSVGElement
   area: MapPin,
   rating: Star,
   profile: User,
+  specialty: Tag,
 };
 
 const RING_RADIUS = 40;
@@ -336,17 +337,37 @@ export function computeContractorFit(
     met: true,
   });
 
-  // 4. Service Area (max 10)
+  // 4. Specialty Match (max 10)
+  const { earned: fitSpecialtyEarned, matched: fitSpecialtyMatched } = specialtyMatchLevel(
+    contractor.specialties,
+    project.work_types,
+    project.scan?.detected_room_type
+  );
+  factors.push({
+    key: 'specialty',
+    label: 'Specialty Match',
+    description: fitSpecialtyMatched
+      ? `You specialize in ${fitSpecialtyMatched}`
+      : fitSpecialtyEarned > 0
+      ? 'Your specialties are relevant'
+      : 'No matching specialty on file',
+    earned: fitSpecialtyEarned,
+    max: 10,
+    met: fitSpecialtyEarned >= 8,
+  });
+  if (fitSpecialtyMatched) highlights.push(`Your ${fitSpecialtyMatched} specialty matches this project`);
+
+  // 5. Service Area (max 7)
   let areaEarned: number;
   let areaDesc: string;
   if (distanceKm !== undefined) {
-    areaEarned = distanceKm <= 20 ? 10 : distanceKm <= 50 ? 8 : distanceKm <= 100 ? 5 : 3;
+    areaEarned = distanceKm <= 20 ? 7 : distanceKm <= 50 ? 5 : distanceKm <= 100 ? 3 : 1;
     areaDesc = `${Math.round(distanceKm)} km from project`;
   } else if (contractor.service_latitude && contractor.service_longitude) {
-    areaEarned = 7;
+    areaEarned = 5;
     areaDesc = 'Service area configured';
   } else {
-    areaEarned = 4;
+    areaEarned = 2;
     areaDesc = 'Location not specified';
   }
   factors.push({
@@ -354,15 +375,15 @@ export function computeContractorFit(
     label: 'Service Area',
     description: areaDesc,
     earned: areaEarned,
-    max: 10,
-    met: areaEarned >= 7,
+    max: 7,
+    met: areaEarned >= 5,
   });
-  if (areaEarned >= 8) highlights.push('Project is close to your service area');
+  if (areaEarned >= 5) highlights.push('Project is close to your service area');
 
-  // 5. Profile Completeness (max 5)
+  // 6. Profile Completeness (max 3)
   const hasCompany = !!contractor.company_name;
   const hasBio = (contractor.bio?.length ?? 0) > 20;
-  const profileEarned = (hasCompany ? 3 : 0) + (hasBio ? 2 : 0);
+  const profileEarned = (hasCompany ? 2 : 0) + (hasBio ? 1 : 0);
   factors.push({
     key: 'profile',
     label: 'Profile Completeness',
@@ -373,13 +394,13 @@ export function computeContractorFit(
         ? 'Business name on file'
         : 'Profile partially filled',
     earned: profileEarned,
-    max: 5,
-    met: profileEarned >= 3,
+    max: 3,
+    met: profileEarned >= 2,
   });
 
-  // Normalise: available max = 25+20+20+10+5 = 80, scale to 100
+  // Normalise: available max = 25+20+20+10+7+3 = 85, scale to 100
   const raw = factors.reduce((s, f) => s + f.earned, 0);
-  const score = Math.min(Math.round((raw / 80) * 100), 100);
+  const score = Math.min(Math.round((raw / 85) * 100), 100);
 
   const tier =
     score >= 80 ? 'excellent' : score >= 60 ? 'good' : score >= 40 ? 'fair' : 'low';
@@ -429,6 +450,33 @@ interface ProjectForScoring {
   } | null;
 }
 
+/** Returns true if any contractor specialty overlaps with the project's work types */
+function specialtyMatchLevel(
+  specialties: string[] | undefined,
+  workTypes: string[] | undefined,
+  roomType: string | null | undefined
+): { earned: number; matched: string | null } {
+  if (!specialties || specialties.length === 0) return { earned: 0, matched: null };
+
+  const targets = [
+    ...(workTypes ?? []).map(w => w.toLowerCase()),
+    ...(roomType ? [roomType.toLowerCase()] : []),
+  ];
+
+  const normalize = (s: string) => s.toLowerCase().replace(/[\s_-]+/g, '');
+  const normalizedTargets = targets.map(normalize);
+
+  for (const spec of specialties) {
+    const ns = normalize(spec);
+    if (normalizedTargets.some(t => ns.includes(t) || t.includes(ns))) {
+      return { earned: 10, matched: spec };
+    }
+  }
+
+  // Partial match — contractor has specialties but none align perfectly
+  return { earned: 3, matched: null };
+}
+
 /**
  * Deterministic, explainable match scoring.
  * Factors are weighted to reflect what owners actually care about.
@@ -437,9 +485,10 @@ interface ProjectForScoring {
  *  License & Verification   25
  *  Professional Experience  20
  *  Budget Alignment         20
- *  Proposal Quality         20
- *  Service Area             10
- *  Profile Completeness      5
+ *  Proposal Quality         15
+ *  Specialty Match          10
+ *  Service Area              7
+ *  Profile Completeness      3
  */
 export function computeMatchBreakdown(
   bid: BidForScoring,
@@ -518,40 +567,61 @@ export function computeMatchBreakdown(
   if (budgetEarned >= 18) highlights.push('Bid perfectly aligned with your budget');
   else if (budgetEarned >= 10) highlights.push('Budget expectations are compatible');
 
-  // 4. Proposal Quality (max 20)
+  // 4. Proposal Quality (max 15)
   const milestones = bid.milestones?.length ?? 0;
   const hasDetailedMessage = (bid.message?.length ?? 0) > 150;
-  let proposalEarned = milestones >= 4 ? 15 : milestones >= 3 ? 10 : milestones >= 2 ? 5 : 0;
-  if (hasDetailedMessage) proposalEarned = Math.min(proposalEarned + 5, 20);
+  let proposalEarned = milestones >= 4 ? 11 : milestones >= 3 ? 8 : milestones >= 2 ? 4 : 0;
+  if (hasDetailedMessage) proposalEarned = Math.min(proposalEarned + 4, 15);
   factors.push({
     key: 'proposal',
     label: 'Proposal Quality',
     description: `${milestones} milestone${milestones !== 1 ? 's' : ''}${hasDetailedMessage ? ', with detailed message' : ''}`,
     earned: proposalEarned,
-    max: 20,
-    met: proposalEarned >= 10,
+    max: 15,
+    met: proposalEarned >= 8,
   });
-  if (proposalEarned >= 15) highlights.push('Detailed, structured project proposal');
+  if (proposalEarned >= 11) highlights.push('Detailed, structured project proposal');
 
-  // 5. Service Area (max 10)
+  // 5. Specialty Match (max 10)
+  const { earned: specialtyEarned, matched: specialtyMatched } = specialtyMatchLevel(
+    bid.contractor?.specialties,
+    project.work_types,
+    project.scan?.detected_room_type
+  );
+  factors.push({
+    key: 'specialty',
+    label: 'Specialty Match',
+    description: specialtyMatched
+      ? `Specializes in ${specialtyMatched}`
+      : specialtyEarned > 0
+      ? 'Has relevant specialties'
+      : 'No specialty listed',
+    earned: specialtyEarned,
+    max: 10,
+    met: specialtyEarned >= 8,
+  });
+  if (specialtyMatched) highlights.push(`Specializes in ${specialtyMatched}`);
+  else if (specialtyEarned >= 8) highlights.push('Specialty aligns with your project');
+
+  // 6. Service Area (max 7)
   const hasLocation = !!(
     bid.contractor?.service_latitude && bid.contractor?.service_longitude
   );
-  const areaEarned = hasLocation ? 10 : 5;
+  const areaEarned = hasLocation ? 7 : 3;
   factors.push({
     key: 'area',
     label: 'Service Area',
     description: hasLocation ? 'Operates in your area' : 'Service area not specified',
     earned: areaEarned,
-    max: 10,
+    max: 7,
     met: hasLocation,
   });
   if (hasLocation) highlights.push('Confirmed to service your area');
 
-  // 6. Profile Completeness (max 5)
+  // 7. Profile Completeness (max 3)
   const hasCompany = !!bid.contractor?.company_name;
   const hasBio = (bid.contractor?.bio?.length ?? 0) > 20;
-  const profileEarned = (hasCompany ? 3 : 0) + (hasBio ? 2 : 0);
+  const profileEarned = (hasCompany ? 2 : 0) + (hasBio ? 1 : 0);
   factors.push({
     key: 'profile',
     label: 'Profile Completeness',
@@ -562,8 +632,8 @@ export function computeMatchBreakdown(
         ? 'Business name on file'
         : 'Profile partially filled',
     earned: profileEarned,
-    max: 5,
-    met: profileEarned >= 3,
+    max: 3,
+    met: profileEarned >= 2,
   });
   if (hasCompany) highlights.push(`Operating as ${bid.contractor!.company_name}`);
 

@@ -1,636 +1,706 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { Star, ChevronLeft, ChevronRight, Upload, Edit2, Check, X, Camera, ShieldCheck, AlertCircle, Clock } from 'lucide-react';
+import {
+  Upload, Edit2, Check, X, Camera, ShieldCheck, AlertCircle,
+  Clock, Phone, Briefcase, FileText, User, Tag, ChevronDown,
+  ChevronUp, BadgeCheck, CheckCircle2, Star, MapPin, Globe,
+  Award, TrendingUp,
+} from 'lucide-react';
 import { LicenseVerificationModal } from './LicenseVerificationModal';
 
-interface Specialization {
-  id: string;
-  name: string;
-  icon: string;
-  years: number;
-}
+// ─── Specialization options ───────────────────────────────────────────────────
 
-interface Project {
-  id: string;
-  title: string;
-  description: string;
-  location: string;
-  images: string[];
-  rating: number;
-}
-
-interface Review {
-  id: string;
-  customer_name: string;
-  project_title: string;
-  rating: number;
-  comment: string;
-  verified: boolean;
-}
-
-const specializationOptions = [
-  { id: 'kitchen', name: 'Kitchen Renovation', icon: '🏠', years: 5 },
-  { id: 'painting', name: 'Painting & Finishing', icon: '🎨', years: 3 },
-  { id: 'electrical', name: 'Electrical & Plumbing', icon: '🔌', years: 7 }
+const SPECIALTY_OPTIONS = [
+  { id: 'Kitchen Renovation', label: 'Kitchen Renovation', icon: '🍳' },
+  { id: 'Bathroom', label: 'Bathroom', icon: '🚿' },
+  { id: 'Painting & Finishing', label: 'Painting & Finishing', icon: '🎨' },
+  { id: 'Electrical', label: 'Electrical', icon: '⚡' },
+  { id: 'Plumbing', label: 'Plumbing', icon: '🔧' },
+  { id: 'Flooring', label: 'Flooring', icon: '🪵' },
+  { id: 'Roofing', label: 'Roofing', icon: '🏠' },
+  { id: 'Basement', label: 'Basement Finishing', icon: '🏗️' },
+  { id: 'Exterior', label: 'Exterior & Landscaping', icon: '🌿' },
+  { id: 'Full House', label: 'Full House Renovation', icon: '🏡' },
+  { id: 'HVAC', label: 'HVAC & Insulation', icon: '❄️' },
+  { id: 'Tile & Stone', label: 'Tile & Stone', icon: '🪨' },
 ];
 
+// ─── Profile completeness ─────────────────────────────────────────────────────
+
+function computeCompleteness(p: {
+  full_name?: string; company_name?: string; phone?: string; bio?: string;
+  license_number?: string; years_experience?: number; specialties?: string[];
+  avatar_url?: string; verification_status?: string; service_area?: string;
+}): { score: number; checks: { label: string; ok: boolean }[] } {
+  const checks = [
+    { label: 'Full name', ok: !!(p.full_name?.trim()) },
+    { label: 'Company name', ok: !!(p.company_name?.trim()) },
+    { label: 'Phone number', ok: !!(p.phone?.trim()) },
+    { label: 'Service area', ok: !!(p.service_area?.trim()) },
+    { label: 'About / bio', ok: (p.bio?.trim().length ?? 0) > 20 },
+    { label: 'License number', ok: !!(p.license_number?.trim()) },
+    { label: 'License verified', ok: p.verification_status === 'verified' },
+    { label: 'Years of experience', ok: (p.years_experience ?? 0) > 0 },
+    { label: 'Specialties (min 1)', ok: (p.specialties?.length ?? 0) > 0 },
+    { label: 'Profile photo', ok: !!(p.avatar_url) },
+  ];
+  return {
+    score: Math.round((checks.filter(c => c.ok).length / checks.length) * 100),
+    checks,
+  };
+}
+
+// ─── Toast ────────────────────────────────────────────────────────────────────
+
+function Toast({ message, type, onDismiss }: { message: string; type: 'success' | 'error'; onDismiss: () => void }) {
+  return (
+    <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-xl text-white text-sm font-semibold max-w-sm animate-slide-up ${type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
+      {type === 'success' ? <CheckCircle2 className="w-5 h-5 flex-shrink-0" /> : <AlertCircle className="w-5 h-5 flex-shrink-0" />}
+      <span className="flex-1">{message}</span>
+      <button onClick={onDismiss}><X className="w-4 h-4" /></button>
+    </div>
+  );
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
 export function ContractorProfile() {
-  const { profile } = useAuth();
-  const [editing, setEditing] = useState(false);
+  const { profile, refreshProfile } = useAuth();
+
+  const [editingMain, setEditingMain] = useState(false);
+  const [editingBio, setEditingBio] = useState(false);
   const [editingLicense, setEditingLicense] = useState(false);
-  const [currentProjectIndex, setCurrentProjectIndex] = useState(0);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [uploadingBackground, setUploadingBackground] = useState(false);
+  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [showChecklist, setShowChecklist] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
   const [avatarUrl, setAvatarUrl] = useState(profile?.avatar_url || '');
   const [backgroundUrl, setBackgroundUrl] = useState(profile?.background_url || '');
-  const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadingBackground, setUploadingBackground] = useState(false);
   const [verificationStatus, setVerificationStatus] = useState(profile?.verification_status || 'not_verified');
+
+  const [form, setForm] = useState({
+    full_name: profile?.full_name || '',
+    company_name: profile?.company_name || '',
+    phone: profile?.phone || '',
+    years_experience: profile?.years_experience ?? 0,
+    service_area: (profile as Record<string, unknown>)?.service_area as string || '',
+  });
+  const [bio, setBio] = useState(profile?.bio || '');
+  const [licenseNumber, setLicenseNumber] = useState(profile?.license_number || '');
+  const [licenseNumberEdit, setLicenseNumberEdit] = useState(profile?.license_number || '');
+  const [specialties, setSpecialties] = useState<string[]>(profile?.specialties ?? []);
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const backgroundInputRef = useRef<HTMLInputElement>(null);
 
-  const [formData, setFormData] = useState({
-    full_name: profile?.full_name || '',
-    company_name: profile?.company_name || '',
-    license_number: profile?.license_number || '',
-    specializations: [] as string[]
-  });
+  function showToast(message: string, type: 'success' | 'error' = 'success') {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  }
 
-  const [selectedSpecs, setSelectedSpecs] = useState<string[]>([]);
-  const [licenseNumber, setLicenseNumber] = useState('Your CSLB License Verification Link');
-
+  // Re-seed local state when profile changes in context
   useEffect(() => {
-    if (profile?.avatar_url) {
-      setAvatarUrl(profile.avatar_url);
-    }
-    if (profile?.background_url) {
-      setBackgroundUrl(profile.background_url);
-    }
-    if (profile?.verification_status) {
-      setVerificationStatus(profile.verification_status);
-    }
-
-    if (!profile?.id) return;
-
-    const channel = supabase
-      .channel(`profile-updates-${profile.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'profiles',
-          filter: `id=eq.${profile.id}`
-        },
-        (payload) => {
-          const newStatus = payload.new.verification_status;
-          if (newStatus) {
-            setVerificationStatus(newStatus);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    if (!profile) return;
+    setForm({
+      full_name: profile.full_name || '',
+      company_name: profile.company_name || '',
+      phone: profile.phone || '',
+      years_experience: profile.years_experience ?? 0,
+      service_area: (profile as Record<string, unknown>)?.service_area as string || '',
+    });
+    setBio(profile.bio || '');
+    setLicenseNumber(profile.license_number || '');
+    setLicenseNumberEdit(profile.license_number || '');
+    setSpecialties(profile.specialties ?? []);
+    setAvatarUrl(profile.avatar_url || '');
+    setBackgroundUrl(profile.background_url || '');
+    setVerificationStatus(profile.verification_status || 'not_verified');
   }, [profile]);
 
-  const handleVerificationSuccess = () => {
-    setVerificationStatus('pending');
-  };
-
-  const getVerificationBadge = () => {
-    switch (verificationStatus) {
-      case 'verified':
-        return (
-          <div className="group relative inline-block">
-            <span className="px-4 py-1 bg-green-100 text-green-700 text-sm font-semibold rounded-full flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4" />
-              Verified via CSLB
-            </span>
-            <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap">
-              This professional holds an active California contractor license verified through the official CSLB database.
-            </div>
-          </div>
-        );
-      case 'pending':
-        return (
-          <span className="px-4 py-1 bg-yellow-100 text-yellow-700 text-sm font-semibold rounded-full flex items-center gap-2">
-            <Clock className="w-4 h-4" />
-            Verification Pending
-          </span>
-        );
-      case 'rejected':
-      case 'expired':
-      case 'suspended':
-        return (
-          <span className="px-4 py-1 bg-red-100 text-red-700 text-sm font-semibold rounded-full flex items-center gap-2">
-            <AlertCircle className="w-4 h-4" />
-            {verificationStatus === 'rejected' ? 'Verification Failed' :
-             verificationStatus === 'expired' ? 'License Expired' : 'License Suspended'}
-          </span>
-        );
-      default:
-        return (
-          <span className="px-4 py-1 bg-gray-100 text-gray-700 text-sm font-semibold rounded-full flex items-center gap-2">
-            <AlertCircle className="w-4 h-4" />
-            Not Verified
-          </span>
-        );
-    }
-  };
-
-  const completedProjects: Project[] = [
-    {
-      id: '1',
-      title: 'Luxury Kitchen Upgrade',
-      description: 'This project involved a complete kitchen overhaul, turning an outdated space into a sleek, modern cooking area. We installed custom-built white shaker cabinets, complementing them with a stunning quartz waterfall countertop, a built-in wine cooler, and a farmhouse sink with a commercial-style platform. The lighting was upgraded with recessed LED fixtures and stylish pendant lights above the island, creating a bright and inviting atmosphere. High-end appliances, including a smart refrigerator and double oven, were integrated seamlessly, along with a gas cooktop featuring a pot-filler faucet and built-in oven, enhancing both functionality and design.',
-      location: 'Los Angeles, CA',
-      images: [
-        'https://images.pexels.com/photos/2724749/pexels-photo-2724749.jpeg?auto=compress&cs=tinysrgb&w=800',
-        'https://images.pexels.com/photos/2724748/pexels-photo-2724748.jpeg?auto=compress&cs=tinysrgb&w=800',
-        'https://images.pexels.com/photos/2724750/pexels-photo-2724750.jpeg?auto=compress&cs=tinysrgb&w=800'
-      ],
-      rating: 5
-    }
-  ];
-
-  const reviews: Review[] = [
-    {
-      id: '1',
-      customer_name: 'Sarah Thompson',
-      project_title: 'Kitchen Renovation',
-      rating: 5,
-      comment: 'John and his team did an outstanding job on our kitchen renovation. From the initial consultation to the final touches, everything was handled professionally. The attention to detail is in the cabinetry and quartz countertops was beyond our expectations. The project stayed on schedule and within budget, and we could not be happier!',
-      verified: true
-    },
-    {
-      id: '2',
-      customer_name: 'Michael Reynolds',
-      project_title: 'Bathroom Renovation',
-      rating: 5,
-      comment: 'I hired John for a complete bathroom renovation, and the results were amazing. The new walk-in shower, heated floors, and modern fixtures transformed the space completely. The workmanship was excellent, and any concerns I had throughout the process, any and minor issues were addressed immediately. Highly recommend him for any home improvement project.',
-      verified: true
-    },
-    {
-      id: '3',
-      customer_name: 'Emily Carter',
-      project_title: 'Living Room Upgrade',
-      rating: 5,
-      comment: 'John redesigned our living room to create an open, modern space with custom shelving and stylish lighting. He understood our vision perfectly and executed it flawlessly. The quality of work and materials used were top-notch, so to have everything within the timeline provided. We have received so many compliments from friends. John is the one to call!',
-      verified: true
-    }
-  ];
-
-  const handleUpdateProfile = async () => {
-    try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          full_name: formData.full_name,
-          company_name: formData.company_name,
-          license_number: formData.license_number
+  // Realtime: watch for admin verification updates
+  useEffect(() => {
+    if (!profile?.id) return;
+    const ch = supabase
+      .channel(`profile-${profile.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${profile.id}` },
+        (payload) => {
+          if (payload.new.verification_status) setVerificationStatus(payload.new.verification_status);
+          if (payload.new.license_number) setLicenseNumber(payload.new.license_number);
         })
-        .eq('id', profile?.id);
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [profile?.id]);
 
-      if (error) throw error;
-      setEditing(false);
-    } catch (error) {
-      console.error('Error updating profile:', error);
-    }
-  };
+  const { score, checks } = computeCompleteness({
+    ...form,
+    service_area: form.service_area,
+    bio, license_number: licenseNumber,
+    specialties, avatar_url: avatarUrl, verification_status: verificationStatus,
+  });
+  const missing = checks.filter(c => !c.ok);
 
-  const handleUpdateLicense = () => {
-    setEditingLicense(false);
-  };
-
-  const toggleSpecialization = (specId: string) => {
-    setSelectedSpecs(prev =>
-      prev.includes(specId)
-        ? prev.filter(id => id !== specId)
-        : [...prev, specId]
-    );
-  };
-
-  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  async function saveMainInfo() {
+    if (!profile?.id) return;
+    setSaving(true);
     try {
-      const file = event.target.files?.[0];
-      if (!file || !profile?.id) return;
+      const { error } = await supabase.from('profiles').update({
+        full_name: form.full_name,
+        company_name: form.company_name,
+        phone: form.phone,
+        years_experience: form.years_experience || null,
+        service_area: form.service_area || null,
+      } as Record<string, unknown>).eq('id', profile.id);
+      if (error) throw error;
+      await refreshProfile();
+      setEditingMain(false);
+      showToast('Profile updated');
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Save failed', 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
 
-      setUploadingAvatar(true);
+  async function saveBio() {
+    if (!profile?.id) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase.from('profiles').update({ bio }).eq('id', profile.id);
+      if (error) throw error;
+      await refreshProfile();
+      setEditingBio(false);
+      showToast('Bio saved');
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Save failed', 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
 
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${profile.id}/avatar.${fileExt}`;
-      const filePath = fileName;
+  async function saveLicenseNumber() {
+    if (!profile?.id) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase.from('profiles').update({ license_number: licenseNumberEdit }).eq('id', profile.id);
+      if (error) throw error;
+      setLicenseNumber(licenseNumberEdit);
+      await refreshProfile();
+      setEditingLicense(false);
+      showToast('License number saved');
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Save failed', 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
 
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true });
+  async function saveSpecialties(updated: string[]) {
+    if (!profile?.id) return;
+    setSpecialties(updated);
+    await supabase.from('profiles').update({ specialties: updated }).eq('id', profile.id);
+    await refreshProfile();
+  }
 
-      if (uploadError) throw uploadError;
+  function toggleSpecialty(id: string) {
+    const updated = specialties.includes(id)
+      ? specialties.filter(s => s !== id)
+      : [...specialties, id];
+    saveSpecialties(updated);
+  }
 
-      const { data: urlData } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
-
-      const publicUrl = urlData.publicUrl;
-
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: publicUrl })
-        .eq('id', profile.id);
-
-      if (updateError) throw updateError;
-
-      setAvatarUrl(publicUrl);
-    } catch (error) {
-      console.error('Error uploading avatar:', error);
-      alert('Failed to upload image. Please try again.');
+  async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !profile?.id) return;
+    setUploadingAvatar(true);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `${profile.id}/avatar.${ext}`;
+      await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+      const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+      await supabase.from('profiles').update({ avatar_url: data.publicUrl }).eq('id', profile.id);
+      setAvatarUrl(data.publicUrl);
+      await refreshProfile();
+      showToast('Photo updated');
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Upload failed', 'error');
     } finally {
       setUploadingAvatar(false);
     }
-  };
+  }
 
-  const handleBackgroundUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  async function handleBackgroundUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !profile?.id) return;
+    setUploadingBackground(true);
     try {
-      const file = event.target.files?.[0];
-      if (!file || !profile?.id) return;
-
-      setUploadingBackground(true);
-
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${profile.id}/background.${fileExt}`;
-      const filePath = fileName;
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true });
-
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
-
-      const publicUrl = urlData.publicUrl;
-
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ background_url: publicUrl })
-        .eq('id', profile.id);
-
-      if (updateError) throw updateError;
-
-      setBackgroundUrl(publicUrl);
-    } catch (error) {
-      console.error('Error uploading background:', error);
-      alert('Failed to upload image. Please try again.');
-    } finally {
+      const ext = file.name.split('.').pop();
+      const path = `${profile.id}/background.${ext}`;
+      await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+      const { data } = supabase.storage.from('avatars').getPublicUrl(path);
+      await supabase.from('profiles').update({ background_url: data.publicUrl }).eq('id', profile.id);
+      setBackgroundUrl(data.publicUrl);
+      await refreshProfile();
+    } catch { /* ignore */ } finally {
       setUploadingBackground(false);
     }
-  };
+  }
+
+  const scoreColor = score >= 80 ? 'text-green-600' : score >= 50 ? 'text-amber-600' : 'text-gray-500';
+  const barColor = score >= 80 ? 'bg-green-500' : score >= 50 ? 'bg-amber-400' : 'bg-red-400';
+
+  const verifiedBadge = (
+    <span className="group relative inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-full border border-emerald-200 cursor-help">
+      <ShieldCheck className="w-3.5 h-3.5" />
+      License Verified
+      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-1.5 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none whitespace-nowrap z-10">
+        Confirmed active via CSLB database
+      </span>
+    </span>
+  );
+
+  // ─── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-gray-900 mb-2">
-            Meet Your Contractor - Verified & Rated Professionals
-          </h2>
-          <p className="text-gray-600">
-            View experience, completed projects, and customer feedback before making your choice.
-          </p>
+    <div className="min-h-screen bg-gray-50 pb-20">
+      {toast && <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
+
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5">
+
+        {/* ── Profile Strength ────────────────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2.5">
+              <div className={`w-9 h-9 rounded-xl flex items-center justify-center ${score >= 80 ? 'bg-green-100' : score >= 50 ? 'bg-amber-100' : 'bg-gray-100'}`}>
+                <BadgeCheck className={`w-5 h-5 ${score >= 80 ? 'text-green-600' : score >= 50 ? 'text-amber-500' : 'text-gray-400'}`} />
+              </div>
+              <div>
+                <p className="font-bold text-gray-900 text-sm">Profile Strength</p>
+                <p className="text-xs text-gray-500">{score >= 80 ? 'Great — you appear higher in search' : score >= 50 ? 'Getting there' : 'Complete your profile to get more bids'}</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <span className={`text-2xl font-bold ${scoreColor}`}>{score}%</span>
+            </div>
+          </div>
+
+          {/* Progress bar with segments */}
+          <div className="relative h-2.5 bg-gray-100 rounded-full overflow-hidden mb-4">
+            <div className={`h-full rounded-full transition-all duration-700 ${barColor}`} style={{ width: `${score}%` }} />
+          </div>
+
+          {/* Checklist */}
+          <button
+            onClick={() => setShowChecklist(v => !v)}
+            className="flex items-center gap-1.5 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
+          >
+            {showChecklist ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            {missing.length > 0 ? `${missing.length} item${missing.length !== 1 ? 's' : ''} remaining` : 'Profile complete!'}
+          </button>
+
+          {showChecklist && (
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+              {checks.map(c => (
+                <div key={c.label} className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium ${c.ok ? 'bg-green-50 text-green-700' : 'bg-gray-50 text-gray-500'}`}>
+                  {c.ok
+                    ? <CheckCircle2 className="w-4 h-4 text-green-500 flex-shrink-0" />
+                    : <div className="w-4 h-4 rounded-full border-2 border-gray-300 flex-shrink-0" />
+                  }
+                  {c.label}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        <div className="relative mb-12">
-          <div className="h-48 bg-gradient-to-r from-green-400 to-blue-500 rounded-t-3xl overflow-hidden relative group">
-            <img
-              src={backgroundUrl || "https://images.pexels.com/photos/1396122/pexels-photo-1396122.jpeg?auto=compress&cs=tinysrgb&w=1200"}
-              alt="Background"
-              className="w-full h-full object-cover opacity-60"
-            />
-            <input
-              ref={backgroundInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleBackgroundUpload}
-              className="hidden"
-            />
+        {/* ── Hero Card ─────────────────────────────────────────────── */}
+        <div className="rounded-3xl overflow-hidden shadow-sm border border-gray-200 bg-white">
+          {/* Cover */}
+          <div className="h-52 relative group">
+            {backgroundUrl
+              ? <img src={backgroundUrl} alt="" className="w-full h-full object-cover" />
+              : <div className="w-full h-full bg-gradient-to-br from-blue-600 via-indigo-600 to-purple-700" />
+            }
+            {/* Dark overlay for readability */}
+            <div className="absolute inset-0 bg-black/20" />
             <button
               onClick={() => backgroundInputRef.current?.click()}
               disabled={uploadingBackground}
-              className="absolute top-4 right-4 px-4 py-2 bg-white/90 backdrop-blur-sm border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-white transition-all flex items-center gap-2 shadow-lg opacity-0 group-hover:opacity-100"
+              className="absolute top-4 right-4 px-3 py-1.5 bg-black/50 hover:bg-black/70 text-white text-xs font-medium rounded-lg flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-sm"
             >
-              <Camera className="w-4 h-4" />
-              {uploadingBackground ? 'Uploading...' : 'Change Background'}
+              <Camera className="w-3.5 h-3.5" />
+              {uploadingBackground ? 'Uploading…' : 'Change Cover'}
             </button>
+            <input ref={backgroundInputRef} type="file" accept="image/*" onChange={handleBackgroundUpload} className="hidden" />
           </div>
 
-          <div className="bg-white rounded-3xl shadow-lg border border-gray-200 -mt-24 pt-20 pb-8 px-8 relative">
-            <div className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-              <div className="relative">
-                <img
-                  src={avatarUrl || `https://ui-avatars.com/api/?name=${profile?.full_name || 'John Mitchell'}&size=150&background=random`}
-                  alt={profile?.full_name}
-                  className="w-36 h-36 rounded-full border-4 border-white shadow-xl object-cover"
-                />
-                <input
-                  ref={avatarInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleAvatarUpload}
-                  className="hidden"
-                />
-                <button
-                  onClick={() => avatarInputRef.current?.click()}
-                  disabled={uploadingAvatar}
-                  className="absolute bottom-0 right-0 px-4 py-2 bg-white border border-gray-300 rounded-full text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors flex items-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Upload className="w-4 h-4" />
-                  {uploadingAvatar ? 'Uploading...' : 'Upload New Photo'}
-                </button>
-              </div>
+          <div className="px-8 pb-8 -mt-14 relative">
+            {/* Avatar */}
+            <div className="relative inline-block mb-4">
+              <img
+                src={avatarUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(form.full_name || 'Pro')}&size=200&background=3b82f6&color=fff`}
+                alt={form.full_name}
+                className="w-28 h-28 rounded-2xl border-4 border-white shadow-xl object-cover"
+              />
+              <button
+                onClick={() => avatarInputRef.current?.click()}
+                disabled={uploadingAvatar}
+                className="absolute -bottom-2 -right-2 w-8 h-8 bg-blue-600 rounded-xl flex items-center justify-center border-2 border-white shadow-lg hover:bg-blue-700 transition-colors"
+              >
+                {uploadingAvatar
+                  ? <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  : <Upload className="w-3.5 h-3.5 text-white" />
+                }
+              </button>
+              <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleAvatarUpload} className="hidden" />
             </div>
 
-            <div className="text-center mb-6">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                {editing ? (
-                  <input
-                    type="text"
-                    value={formData.full_name}
-                    onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-                    className="text-2xl font-bold text-gray-900 border-b-2 border-blue-500 focus:outline-none text-center"
-                  />
-                ) : (
-                  <h3 className="text-2xl font-bold text-gray-900">{profile?.full_name || 'John Mitchell'}</h3>
-                )}
-                <button
-                  onClick={() => editing ? handleUpdateProfile() : setEditing(true)}
-                  className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                >
-                  {editing ? <Check className="w-5 h-5 text-green-600" /> : <Edit2 className="w-4 h-4 text-gray-600" />}
-                </button>
-                {editing && (
-                  <button
-                    onClick={() => setEditing(false)}
-                    className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-                  >
-                    <X className="w-5 h-5 text-red-600" />
-                  </button>
-                )}
-              </div>
-
-              {editing ? (
-                <input
-                  type="text"
-                  value={formData.company_name}
-                  onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                  placeholder="Company Name"
-                  className="text-gray-600 border-b-2 border-blue-500 focus:outline-none text-center mb-3"
-                />
-              ) : (
-                <p className="text-gray-600 mb-3">{profile?.company_name || 'Licensed General Contractor'}</p>
-              )}
-
-              <div className="flex flex-col items-center gap-3">
-                <div className="flex items-center gap-3">
-                  {getVerificationBadge()}
-                  <div className="flex items-center gap-1">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-5 h-5 fill-yellow-400 text-yellow-400" />
-                    ))}
-                    <span className="ml-2 text-gray-600 font-medium">(5 Stars)</span>
-                  </div>
-                </div>
-
-                {verificationStatus === 'not_verified' && (
-                  <button
-                    onClick={() => setShowVerificationModal(true)}
-                    className="px-6 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center gap-2"
-                  >
-                    <ShieldCheck className="w-5 h-5" />
-                    Verify License via CSLB
-                  </button>
-                )}
-
-                {verificationStatus === 'pending' && (
-                  <p className="text-sm text-yellow-700 bg-yellow-50 px-4 py-2 rounded-lg">
-                    Your verification is under review. You will be notified within 24-48 hours.
-                  </p>
-                )}
-
-                {(verificationStatus === 'rejected' || verificationStatus === 'expired' || verificationStatus === 'suspended') && (
-                  <div className="text-sm text-red-700 bg-red-50 px-4 py-2 rounded-lg">
-                    <p className="font-semibold mb-1">License verification issue detected</p>
-                    <button
-                      onClick={() => setShowVerificationModal(true)}
-                      className="text-red-600 hover:text-red-700 underline"
-                    >
-                      Resubmit verification
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="max-w-md mx-auto mb-8">
-              <label className="block text-sm font-medium text-gray-700 mb-2">CSLB License</label>
-              <div className="flex items-center gap-2">
-                {editingLicense ? (
-                  <>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                {editingMain ? (
+                  <div className="space-y-2 mb-3">
                     <input
-                      type="text"
-                      value={licenseNumber}
-                      onChange={(e) => setLicenseNumber(e.target.value)}
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      value={form.full_name}
+                      onChange={e => setForm(f => ({ ...f, full_name: e.target.value }))}
+                      placeholder="Full name"
+                      className="w-full text-2xl font-bold border-b-2 border-blue-500 focus:outline-none bg-transparent text-gray-900 pb-1"
                     />
-                    <button
-                      onClick={handleUpdateLicense}
-                      className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors"
-                    >
-                      <Check className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => setEditingLicense(false)}
-                      className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </>
-                ) : (
-                  <>
                     <input
-                      type="text"
-                      value={licenseNumber}
-                      disabled
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500"
+                      value={form.company_name}
+                      onChange={e => setForm(f => ({ ...f, company_name: e.target.value }))}
+                      placeholder="Company / business name"
+                      className="w-full text-base text-gray-600 border-b border-gray-300 focus:outline-none bg-transparent pb-1"
                     />
-                    <button
-                      onClick={() => setEditingLicense(true)}
-                      className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-                    >
-                      <Edit2 className="w-5 h-5 text-gray-600" />
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-
-            <div className="mb-8">
-              <h4 className="text-xl font-bold text-gray-900 mb-4 text-center">
-                Choose Your Experience & Specializations
-              </h4>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {specializationOptions.map((spec) => (
-                  <div
-                    key={spec.id}
-                    onClick={() => toggleSpecialization(spec.id)}
-                    className={`relative p-6 border-2 rounded-2xl cursor-pointer transition-all ${
-                      selectedSpecs.includes(spec.id)
-                        ? 'border-green-500 bg-green-50'
-                        : 'border-gray-300 hover:border-gray-400 bg-white'
-                    }`}
-                  >
-                    {selectedSpecs.includes(spec.id) && (
-                      <div className="absolute top-3 right-3 w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
-                        <Check className="w-5 h-5 text-white" />
-                      </div>
-                    )}
-                    <div className="text-center">
-                      <div className="text-4xl mb-3">{spec.icon}</div>
-                      <h5 className="font-bold text-gray-900 mb-1">{spec.name}</h5>
-                      <p className="text-sm text-gray-600">{spec.years} Years of experience</p>
-                    </div>
                   </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-3xl shadow-lg border border-gray-200 p-8 mb-12">
-          <h3 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-            Completed Projects Showcase
-          </h3>
-
-          <div className="relative">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="grid grid-cols-2 gap-2">
-                <div className="col-span-2 row-span-2">
-                  <img
-                    src="https://images.pexels.com/photos/2724749/pexels-photo-2724749.jpeg?auto=compress&cs=tinysrgb&w=800"
-                    alt="Project main"
-                    className="w-full h-full object-cover rounded-xl"
-                  />
-                </div>
-                {completedProjects[0].images.slice(1, 4).map((img, idx) => (
-                  <img
-                    key={idx}
-                    src={img}
-                    alt={`Project ${idx + 2}`}
-                    className="w-full h-32 object-cover rounded-xl"
-                  />
-                ))}
-              </div>
-
-              <div>
-                <div className="flex items-start gap-3 mb-4">
-                  <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <span className="text-2xl">🏠</span>
-                  </div>
-                  <div>
-                    <h4 className="text-xl font-bold text-gray-900 mb-2">
-                      {completedProjects[0].title}
-                    </h4>
-                    <p className="text-sm text-gray-600 leading-relaxed">
-                      {completedProjects[0].description}
+                ) : (
+                  <div className="mb-2">
+                    <h2 className="text-2xl font-bold text-gray-900">
+                      {form.full_name || <span className="text-gray-400">Your Name</span>}
+                    </h2>
+                    <p className="text-gray-500 text-sm mt-0.5">
+                      {form.company_name || <span className="italic text-gray-400">Add company name</span>}
                     </p>
                   </div>
+                )}
+
+                {/* Badges */}
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  {verificationStatus === 'verified' && verifiedBadge}
+                  {verificationStatus === 'pending' && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-amber-100 text-amber-700 text-xs font-semibold rounded-full border border-amber-200">
+                      <Clock className="w-3.5 h-3.5" />Verification Pending
+                    </span>
+                  )}
+                  {verificationStatus === 'rejected' && (
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-red-100 text-red-700 text-xs font-semibold rounded-full border border-red-200">
+                      <AlertCircle className="w-3.5 h-3.5" />Verification Failed
+                    </span>
+                  )}
+                  {(form.years_experience ?? 0) > 0 && (
+                    <span className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-semibold rounded-full border border-blue-100">
+                      <Briefcase className="w-3 h-3" />
+                      {form.years_experience} yrs experience
+                    </span>
+                  )}
                 </div>
 
-                <div className="mt-4 pt-4 border-t border-gray-200">
-                  <p className="text-sm font-semibold text-gray-900 mb-1">
-                    {completedProjects[0].location}
-                  </p>
-                  <div className="flex items-center gap-1">
-                    {[...Array(5)].map((_, i) => (
-                      <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                    ))}
-                    <span className="ml-2 text-sm text-gray-600">(5 Stars)</span>
+                {/* Info pills (display mode) */}
+                {!editingMain && (
+                  <div className="flex flex-wrap gap-3 text-sm text-gray-500">
+                    {form.phone && (
+                      <span className="flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-gray-400" />{form.phone}</span>
+                    )}
+                    {form.service_area && (
+                      <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-gray-400" />{form.service_area}</span>
+                    )}
                   </div>
-                </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {editingMain ? (
+                  <>
+                    <button
+                      onClick={saveMainInfo}
+                      disabled={saving}
+                      className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                    >
+                      <Check className="w-4 h-4" />
+                      {saving ? 'Saving…' : 'Save'}
+                    </button>
+                    <button onClick={() => setEditingMain(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-colors">
+                      <X className="w-4 h-4 text-gray-500" />
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    onClick={() => setEditingMain(true)}
+                    className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />Edit
+                  </button>
+                )}
               </div>
             </div>
 
-            <button className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 transition-colors">
-              <ChevronLeft className="w-6 h-6 text-gray-600" />
-            </button>
-            <button className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-white rounded-full shadow-lg flex items-center justify-center hover:bg-gray-50 transition-colors">
-              <ChevronRight className="w-6 h-6 text-gray-600" />
-            </button>
-          </div>
-
-          <div className="flex items-center justify-center gap-2 mt-6">
-            {[...Array(5)].map((_, i) => (
-              <div
-                key={i}
-                className={`w-2 h-2 rounded-full ${
-                  i === currentProjectIndex ? 'bg-blue-600 w-8' : 'bg-gray-300'
-                }`}
-              />
-            ))}
-          </div>
-        </div>
-
-        <div className="bg-white rounded-3xl shadow-lg border border-gray-200 p-8 mb-12">
-          <h3 className="text-2xl font-bold text-gray-900 mb-6 text-center">
-            Customer Reviews & Ratings
-          </h3>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {reviews.map((review) => (
-              <div key={review.id} className="bg-gray-50 rounded-2xl p-6 border border-gray-200">
-                <div className="flex items-start gap-4 mb-4">
-                  <img
-                    src={`https://ui-avatars.com/api/?name=${review.customer_name}&size=60&background=random`}
-                    alt={review.customer_name}
-                    className="w-14 h-14 rounded-full"
-                  />
-                  <div className="flex-1">
-                    <div className="flex items-center justify-between mb-1">
-                      <h4 className="font-bold text-gray-900">{review.customer_name}</h4>
-                      {review.verified && (
-                        <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-semibold rounded-full">
-                          Verified
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-sm text-gray-600">{review.project_title}</p>
+            {/* Edit form expanded */}
+            {editingMain && (
+              <div className="mt-4 grid grid-cols-2 gap-3 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">Phone</label>
+                  <div className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 rounded-xl">
+                    <Phone className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                    <input type="tel" value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} placeholder="(555) 123-4567" className="flex-1 text-sm focus:outline-none bg-transparent" />
                   </div>
                 </div>
-
-                <p className="text-sm text-gray-700 leading-relaxed mb-4">
-                  {review.comment}
-                </p>
-
-                <div className="flex items-center gap-1">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                  ))}
-                  <span className="ml-2 text-sm text-gray-600">(5 Stars)</span>
+                <div>
+                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">Years of Experience</label>
+                  <div className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 rounded-xl">
+                    <Briefcase className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                    <input type="number" min="0" max="60" value={form.years_experience || ''} onChange={e => setForm(f => ({ ...f, years_experience: parseInt(e.target.value) || 0 }))} placeholder="0" className="flex-1 text-sm focus:outline-none bg-transparent" />
+                    <span className="text-xs text-gray-400">yrs</span>
+                  </div>
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-xs font-semibold text-gray-500 mb-1.5">Service Area</label>
+                  <div className="flex items-center gap-2 px-3 py-2.5 bg-white border border-gray-200 rounded-xl">
+                    <Globe className="w-3.5 h-3.5 text-gray-400 flex-shrink-0" />
+                    <input type="text" value={form.service_area} onChange={e => setForm(f => ({ ...f, service_area: e.target.value }))} placeholder="e.g. Los Angeles, CA · Orange County" className="flex-1 text-sm focus:outline-none bg-transparent" />
+                  </div>
+                  <p className="text-xs text-gray-400 mt-1">Cities or regions where you accept projects</p>
                 </div>
               </div>
-            ))}
+            )}
           </div>
         </div>
+
+        {/* ── Stats Row ────────────────────────────────────────────── */}
+        <div className="grid grid-cols-4 gap-3">
+          {[
+            { label: 'Rating', value: profile?.rating ? `${profile.rating.toFixed(1)}` : '—', sub: '/ 5.0', icon: Star, color: 'text-amber-500', bg: 'bg-amber-50' },
+            { label: 'Projects', value: String(profile?.total_projects ?? 0), sub: 'completed', icon: TrendingUp, color: 'text-blue-600', bg: 'bg-blue-50' },
+            { label: 'Experience', value: (form.years_experience ?? 0) > 0 ? String(form.years_experience) : '—', sub: 'years', icon: Award, color: 'text-purple-600', bg: 'bg-purple-50' },
+            { label: 'Specialties', value: String(specialties.length), sub: 'selected', icon: Tag, color: 'text-green-600', bg: 'bg-green-50' },
+          ].map(({ label, value, sub, icon: Icon, color, bg }) => (
+            <div key={label} className="bg-white rounded-2xl border border-gray-200 shadow-sm p-4 text-center">
+              <div className={`w-8 h-8 ${bg} rounded-lg flex items-center justify-center mx-auto mb-2`}>
+                <Icon className={`w-4 h-4 ${color}`} />
+              </div>
+              <p className={`text-xl font-bold ${color}`}>{value}</p>
+              <p className="text-xs text-gray-500 mt-0.5">{sub}</p>
+              <p className="text-xs font-medium text-gray-400 mt-0.5">{label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* ── License & Verification ───────────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-5 border-b border-gray-100 flex items-center gap-2">
+            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+              <FileText className="w-4 h-4 text-blue-600" />
+            </div>
+            <div>
+              <h3 className="font-bold text-gray-900">License & Verification</h3>
+              <p className="text-xs text-gray-500">Verified contractors get priority placement in search results</p>
+            </div>
+          </div>
+
+          {verificationStatus === 'verified' ? (
+            /* ── Verified state ─── */
+            <div className="p-6">
+              <div className="flex items-center gap-4 p-4 bg-gradient-to-r from-emerald-50 to-green-50 border border-emerald-200 rounded-2xl">
+                <div className="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center flex-shrink-0">
+                  <ShieldCheck className="w-8 h-8 text-emerald-600" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="font-bold text-emerald-800 text-lg">Verified Contractor</p>
+                    <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                  </div>
+                  <p className="text-sm text-emerald-700">License confirmed active via California CSLB database</p>
+                  {licenseNumber && (
+                    <p className="text-xs text-emerald-600 mt-1 font-mono">License #{licenseNumber}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="p-6 space-y-5">
+              {/* License number field */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">CSLB License Number</label>
+                {editingLicense ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={licenseNumberEdit}
+                      onChange={e => setLicenseNumberEdit(e.target.value)}
+                      placeholder="e.g. 1098765"
+                      className="flex-1 px-4 py-3 border-2 border-blue-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm font-mono"
+                      autoFocus
+                    />
+                    <button onClick={saveLicenseNumber} disabled={saving} className="flex items-center gap-1.5 px-4 py-3 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 disabled:opacity-50">
+                      <Check className="w-4 h-4" />{saving ? 'Saving…' : 'Save'}
+                    </button>
+                    <button onClick={() => { setLicenseNumberEdit(licenseNumber); setEditingLicense(false); }} className="p-3 hover:bg-gray-100 rounded-xl">
+                      <X className="w-4 h-4 text-gray-500" />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-3">
+                    <div className={`flex-1 flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-mono ${licenseNumber ? 'bg-gray-50 border-gray-200 text-gray-900' : 'bg-amber-50 border-amber-200 text-amber-700'}`}>
+                      <FileText className="w-4 h-4 flex-shrink-0 text-gray-400" />
+                      {licenseNumber || 'No license number on file'}
+                    </div>
+                    <button onClick={() => { setLicenseNumberEdit(licenseNumber); setEditingLicense(true); }} className="flex items-center gap-1.5 px-4 py-3 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 whitespace-nowrap font-medium">
+                      <Edit2 className="w-3.5 h-3.5" />{licenseNumber ? 'Edit' : 'Add'}
+                    </button>
+                  </div>
+                )}
+                <p className="text-xs text-gray-400 mt-1.5">Your California Contractors State License Board (CSLB) number</p>
+              </div>
+
+              {/* Verification CTA */}
+              <div className={`rounded-xl p-5 border ${verificationStatus === 'pending' ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'}`}>
+                <div className="flex items-start justify-between gap-4 flex-wrap">
+                  <div>
+                    <p className="font-semibold text-gray-900 mb-1">
+                      {verificationStatus === 'pending' ? 'Verification in Progress' : 'Get Your License Verified'}
+                    </p>
+                    {verificationStatus === 'pending' && (
+                      <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-amber-500" />
+                        <p className="text-sm text-amber-700">Under review — typically 24–48 hours</p>
+                      </div>
+                    )}
+                    {!['verified', 'pending'].includes(verificationStatus) && (
+                      <p className="text-sm text-blue-700">Appear first in search results and unlock all project bids</p>
+                    )}
+                    {verificationStatus === 'rejected' && (
+                      <p className="text-sm text-red-600">Your previous submission was rejected. Please resubmit with correct details.</p>
+                    )}
+                  </div>
+
+                  {!['verified', 'pending'].includes(verificationStatus) && (
+                    <button
+                      onClick={() => setShowVerificationModal(true)}
+                      className="flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-bold rounded-xl hover:bg-blue-700 transition-colors shadow-sm whitespace-nowrap"
+                    >
+                      <ShieldCheck className="w-4 h-4" />
+                      {verificationStatus === 'rejected' || verificationStatus === 'expired' ? 'Resubmit' : 'Verify Now'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── About / Bio ─────────────────────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center">
+                <User className="w-4 h-4 text-indigo-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900">About</h3>
+                <p className="text-xs text-gray-500">Shown to property owners reviewing your profile</p>
+              </div>
+            </div>
+            <button
+              onClick={() => editingBio ? saveBio() : setEditingBio(true)}
+              disabled={saving && editingBio}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 font-medium"
+            >
+              {editingBio
+                ? <><Check className="w-3.5 h-3.5 text-green-600" />{saving ? 'Saving…' : 'Save'}</>
+                : <><Edit2 className="w-3.5 h-3.5" />Edit</>}
+            </button>
+          </div>
+          <div className="p-6">
+            {editingBio ? (
+              <div>
+                <textarea
+                  value={bio}
+                  onChange={e => setBio(e.target.value)}
+                  placeholder="Describe your experience, specialties, and what makes your work stand out. Property owners read this before deciding who to contact."
+                  rows={5}
+                  className="w-full px-4 py-3 border-2 border-blue-500 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-sm text-gray-800 resize-none"
+                  autoFocus
+                />
+                <div className="flex items-center justify-between mt-2">
+                  <span className="text-xs text-gray-400">{bio.length} characters {bio.length < 100 ? '· aim for 100+' : '✓'}</span>
+                  <button onClick={() => setEditingBio(false)} className="text-xs text-gray-400 hover:text-gray-600">Cancel</button>
+                </div>
+              </div>
+            ) : bio ? (
+              <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">{bio}</p>
+            ) : (
+              <button onClick={() => setEditingBio(true)} className="w-full text-left p-4 rounded-xl border-2 border-dashed border-gray-200 hover:border-blue-300 hover:bg-blue-50 transition-all group">
+                <p className="text-sm text-gray-400 group-hover:text-blue-600 italic">Click to add a bio — tell owners about your experience and what makes your work stand out…</p>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ── Specialties ─────────────────────────────────────────── */}
+        <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
+          <div className="px-6 py-5 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                <Tag className="w-4 h-4 text-green-600" />
+              </div>
+              <div>
+                <h3 className="font-bold text-gray-900">Specialties</h3>
+                <p className="text-xs text-gray-500">Select all that apply — used for matching you to relevant projects</p>
+              </div>
+            </div>
+            {specialties.length > 0 && (
+              <span className="px-2.5 py-1 bg-blue-100 text-blue-700 text-xs font-bold rounded-full">
+                {specialties.length} selected
+              </span>
+            )}
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              {SPECIALTY_OPTIONS.map(opt => {
+                const active = specialties.includes(opt.id);
+                return (
+                  <button
+                    key={opt.id}
+                    onClick={() => toggleSpecialty(opt.id)}
+                    className={`relative flex items-center gap-2.5 px-4 py-3.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                      active
+                        ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
+                        : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    <span className="text-xl">{opt.icon}</span>
+                    <span className="text-left leading-tight flex-1">{opt.label}</span>
+                    {active && (
+                      <span className="absolute top-2 right-2 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                        <Check className="w-2.5 h-2.5 text-white" />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-xs text-gray-400 mt-3">Changes are saved automatically</p>
+          </div>
+        </div>
+
       </div>
 
       {showVerificationModal && (
         <LicenseVerificationModal
+          initialLicenseNumber={licenseNumber}
           onClose={() => setShowVerificationModal(false)}
-          onSuccess={handleVerificationSuccess}
+          onSuccess={() => { setVerificationStatus('pending'); refreshProfile(); }}
         />
       )}
     </div>

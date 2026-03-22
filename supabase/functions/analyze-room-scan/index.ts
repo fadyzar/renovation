@@ -11,6 +11,15 @@ interface ScanRequest {
   room_type_hint?: string; // e.g. "Kitchen", "Bathroom" — from renovation type
 }
 
+interface AiQuote {
+  estimated_min: number;          // USD, rounded to nearest $500
+  estimated_max: number;          // USD, rounded to nearest $500
+  currency: "USD";
+  breakdown: string[];            // 3–6 line items: "Flooring: $2,000–$4,000"
+  key_cost_drivers: string[];     // 2–4 main factors driving cost
+  rationale: string;              // 2–3 sentence explanation referencing what you see
+}
+
 interface RoomMeasurements {
   room_length_ft: number | null;
   room_width_ft: number | null;
@@ -26,12 +35,12 @@ interface RoomMeasurements {
   scan_confidence: number;  // 0-100
   scan_summary: string;
   renovation_notes: string;
+  ai_quote: AiQuote | null;
 }
 
-const ANALYSIS_PROMPT = `You are an expert renovation estimator analyzing photos of a residential space.
-Your job is to extract measurement data and renovation-relevant observations from these photos.
+const ANALYSIS_PROMPT = `You are an expert renovation estimator with 20+ years of experience analyzing residential spaces.
+Analyze the photos and return a single JSON object with EXACTLY these fields (use null for anything you cannot determine):
 
-Return a JSON object with EXACTLY these fields (use null for anything you cannot determine):
 {
   "room_length_ft": <number or null — estimated room length in feet>,
   "room_width_ft": <number or null — estimated room width in feet>,
@@ -42,19 +51,40 @@ Return a JSON object with EXACTLY these fields (use null for anything you cannot
   "door_count": <integer or null>,
   "room_count": <integer, default 1>,
   "detected_room_type": <string — e.g. "kitchen", "bathroom", "bedroom", "living_room", "basement">,
-  "detected_features": <array of strings — e.g. ["hardwood_floor", "popcorn_ceiling", "crown_molding", "tile_backsplash", "recessed_lighting", "exposed_brick", "built_in_cabinets", "fireplace", "skylight"]>,
+  "detected_features": <array of strings from this list only: ["hardwood_floor", "tile_floor", "carpet", "popcorn_ceiling", "crown_molding", "recessed_lighting", "exposed_brick", "built_in_cabinets", "fireplace", "skylight", "tile_backsplash", "bay_window", "vaulted_ceiling"]>,
   "estimated_complexity": <"low" | "medium" | "high" — based on visible condition and renovation scope>,
   "scan_confidence": <number 0-100 — your confidence in these estimates based on photo quality and visibility>,
   "scan_summary": <1-2 sentence plain English summary of what you see>,
-  "renovation_notes": <1-3 sentences of renovation-specific observations — materials, condition, access challenges, anything useful for a contractor bidding on this space>
+  "renovation_notes": <1-3 sentences of renovation-specific observations — materials, condition, access challenges, anything useful for a contractor bidding on this space>,
+  "ai_quote": {
+    "estimated_min": <integer — minimum renovation cost in USD, rounded to nearest 500>,
+    "estimated_max": <integer — maximum renovation cost in USD, rounded to nearest 500>,
+    "currency": "USD",
+    "breakdown": <array of 3-6 strings, each a cost line item like "Cabinetry & countertops: $8,000–$15,000">,
+    "key_cost_drivers": <array of 2-4 short strings naming what drives the cost, e.g. ["custom cabinetry", "full gut renovation", "high-end finishes"]>,
+    "rationale": <2-3 sentences explaining the estimate based on what you actually see in the photos — reference specific visible elements>
+  }
 }
 
-Be conservative with measurements — if you cannot clearly estimate a dimension, return null rather than guessing.
-High confidence (80-100): clear photos, reference objects visible, multiple angles.
-Medium confidence (50-79): one photo, partial view, or obstructions present.
-Low confidence (0-49): dark, blurry, or minimal visual information.
+MEASUREMENT RULES:
+- Be conservative — return null rather than guessing a dimension you cannot see clearly
+- High confidence (80-100): clear photos, reference objects visible, multiple angles
+- Medium confidence (50-79): one photo, partial view, or obstructions present
+- Low confidence (0-49): dark, blurry, or minimal visual information
 
-Return ONLY valid JSON, no extra text.`;
+PRICING RULES (US national averages, adjust for visible quality level):
+- Kitchen full renovation: $15,000–$80,000 depending on size, materials, layout changes
+- Bathroom full renovation: $8,000–$35,000
+- Bedroom renovation: $3,000–$15,000
+- Living room: $4,000–$20,000
+- Basement finish: $10,000–$35,000
+- Painting only: $1,500–$5,000
+- Flooring only: $2,000–$8,000
+- Factor in detected features: built-in cabinets add $5k–$12k, fireplace $3k–$8k, vaulted ceiling $4k–$8k
+- Complexity multipliers: low = 0.7x, medium = 1.0x, high = 1.4x
+- If photo quality is too low to estimate cost reliably, set ai_quote to null
+
+Return ONLY valid JSON, no extra text, no markdown fences.`;
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -119,7 +149,7 @@ Deno.serve(async (req: Request) => {
       },
       body: JSON.stringify({
         model: "claude-opus-4-6",
-        max_tokens: 1024,
+        max_tokens: 2048,
         messages: [{ role: "user", content: contentBlocks }],
       }),
     });
@@ -156,9 +186,13 @@ Deno.serve(async (req: Request) => {
     );
   }
 
+  // Extract ai_quote from measurements before storing measurements separately
+  const { ai_quote, ...measurementsOnly } = measurements;
+
   return new Response(
     JSON.stringify({
-      measurements,
+      measurements: measurementsOnly,
+      ai_quote: ai_quote ?? null,
       ai_analysis_payload: aiData,  // Full response stored for audit/debugging
       photo_count: photoUrls.length,
     }),

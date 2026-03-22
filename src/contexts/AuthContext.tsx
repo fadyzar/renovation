@@ -6,6 +6,7 @@ interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
+  refreshProfile: () => Promise<void>;
   signUp: (email: string, password: string, fullName: string, role: 'property_owner' | 'contractor') => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -60,34 +61,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  async function signUp(email: string, password: string, fullName: string, role: 'property_owner' | 'contractor') {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-    });
+  async function refreshProfile() {
+    if (!user?.id) return;
+    await loadProfile(user.id);
+  }
 
+  async function signUp(email: string, password: string, fullName: string, role: 'property_owner' | 'contractor') {
+    const { data, error } = await supabase.auth.signUp({ email, password });
     if (error) throw error;
 
     if (data.user) {
       const { error: profileError } = await supabase
         .from('profiles')
-        .insert({
-          id: data.user.id,
-          email,
-          full_name: fullName,
-          role,
-        });
-
+        .insert({ id: data.user.id, email, full_name: fullName, role });
       if (profileError) throw profileError;
     }
   }
 
   async function signIn(email: string, password: string) {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
   }
 
@@ -97,7 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, profile, loading, refreshProfile, signUp, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );

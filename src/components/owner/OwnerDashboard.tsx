@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Home, Clock, CheckCircle, AlertCircle, Send, Eye, Hourglass, Users } from 'lucide-react';
+import { Plus, Home, Clock, CheckCircle, AlertCircle, Send, Eye, Hourglass, Users, DollarSign } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { PublishProjectModal } from './PublishProjectModal';
@@ -258,6 +258,18 @@ export function OwnerDashboard() {
                     >
                       <Users className="w-4 h-4" />
                       View Bids &amp; Select Contractor
+                    </button>
+                  </div>
+                )}
+
+                {project.status === 'in_progress' && (
+                  <div className="mt-4 pt-4 border-t border-gray-100">
+                    <button
+                      onClick={() => navigate(`/project/${project.id}/payments`)}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors"
+                    >
+                      <DollarSign className="w-4 h-4" />
+                      View &amp; Approve Payments
                     </button>
                   </div>
                 )}

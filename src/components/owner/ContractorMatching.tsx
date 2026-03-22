@@ -204,8 +204,8 @@ export function ContractorMatching() {
             Your Matched Contractors
           </h1>
           <p className="text-gray-500 max-w-xl mx-auto">
-            Each contractor is scored across 6 signals — license, experience, budget, proposal
-            quality, service area, and profile completeness. Ranked from best to lowest fit.
+            Each contractor is scored across 7 signals — license, experience, budget, proposal
+            quality, specialty match, service area, and profile. Ranked from best to lowest fit.
           </p>
         </div>
 
@@ -314,6 +314,30 @@ export function ContractorMatching() {
                       </p>
                     </div>
                   </div>
+
+                  {/* Specialties */}
+                  {c?.specialties && c.specialties.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                      {c.specialties.slice(0, 3).map((s) => {
+                        const projectTypes = (project?.work_types ?? []).map(w => w.toLowerCase());
+                        const isMatch = projectTypes.some(t =>
+                          s.toLowerCase().includes(t) || t.includes(s.toLowerCase())
+                        );
+                        return (
+                          <span
+                            key={s}
+                            className={`px-2 py-0.5 text-xs font-medium rounded-full border ${
+                              isMatch
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-gray-50 text-gray-500 border-gray-200'
+                            }`}
+                          >
+                            {isMatch && '✓ '}{s}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  )}
 
                   {/* Bid amount */}
                   <div className="border-t border-gray-100 pt-4 mb-4">

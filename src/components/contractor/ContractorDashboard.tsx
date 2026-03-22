@@ -451,8 +451,12 @@ export function ContractorDashboard() {
                         </div>
                       </div>
 
-                      <button className="px-6 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-lg transition-all duration-200">
-                        Submit a Bid
+                      <button
+                        onClick={() => navigate(`/project/${project.id}/payments`)}
+                        className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold rounded-lg transition-all duration-200"
+                      >
+                        <DollarSign className="w-4 h-4" />
+                        Manage Payments
                       </button>
                     </div>
                   </div>

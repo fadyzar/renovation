@@ -41,9 +41,19 @@ export interface RoomMeasurements {
   renovation_notes: string;
 }
 
+export interface AiQuote {
+  estimated_min: number;
+  estimated_max: number;
+  currency: string;
+  breakdown: string[];
+  key_cost_drivers: string[];
+  rationale: string;
+}
+
 export interface ScanResult {
   measurements: RoomMeasurements;
   photo_urls: string[];
+  ai_quote?: AiQuote | null;
 }
 
 interface ScanSpaceModalProps {
@@ -93,6 +103,7 @@ export function ScanSpaceModal({ projectId, renovationType, onConfirm, onClose }
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [uploadedUrls, setUploadedUrls] = useState<string[]>([]);
   const [scanResult, setScanResult] = useState<RoomMeasurements | null>(null);
+  const [aiQuote, setAiQuote] = useState<AiQuote | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [cameraState, setCameraState] = useState<'starting' | 'active' | 'denied' | 'unavailable'>('starting');
@@ -114,7 +125,7 @@ export function ScanSpaceModal({ projectId, renovationType, onConfirm, onClose }
   // Animate processing stages
   useEffect(() => {
     if (step !== 'processing') return;
-    const stages = [0, 800, 2200, 4000];
+    const stages = [0, 800, 2200, 3600, 5200];
     const timers = stages.map((delay, i) =>
       setTimeout(() => setProcessingStage(i), delay)
     );
@@ -244,6 +255,7 @@ export function ScanSpaceModal({ projectId, renovationType, onConfirm, onClose }
 
       const result = await res.json();
       setScanResult(result.measurements);
+      setAiQuote(result.ai_quote ?? null);
 
       await supabase.from('project_scans').upsert({
         project_id: projectId,
@@ -274,7 +286,7 @@ export function ScanSpaceModal({ projectId, renovationType, onConfirm, onClose }
         is_confirmed: true,
         confirmed_at: new Date().toISOString(),
       }).eq('project_id', projectId);
-      onConfirm({ measurements: scanResult, photo_urls: uploadedUrls });
+      onConfirm({ measurements: scanResult, photo_urls: uploadedUrls, ai_quote: aiQuote });
     } finally {
       setIsSaving(false);
     }
@@ -503,7 +515,7 @@ export function ScanSpaceModal({ projectId, renovationType, onConfirm, onClose }
                   className="w-full flex items-center justify-center gap-2 py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <Zap className="w-4 h-4" />
-                  Analyze Space — Get AI Measurements
+                  Analyze Space — Get AI Measurements & Quote
                   <ArrowRight className="w-4 h-4" />
                 </button>
                 {!canAnalyze && (
@@ -539,6 +551,7 @@ export function ScanSpaceModal({ projectId, renovationType, onConfirm, onClose }
                   'Detecting room geometry',
                   'Measuring dimensions',
                   'Identifying features & materials',
+                  'Generating price estimate',
                 ].map((label, i) => (
                   <div key={i} className={`flex items-center gap-3 transition-all duration-300 ${processingStage >= i ? 'opacity-100' : 'opacity-30'}`}>
                     <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 ${
@@ -640,6 +653,54 @@ export function ScanSpaceModal({ projectId, renovationType, onConfirm, onClose }
                       </span>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {/* AI Price Quote — key differentiator */}
+              {aiQuote && (
+                <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl p-5 text-white">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Zap className="w-4 h-4 text-emerald-200" />
+                    <p className="text-emerald-100 text-xs font-semibold uppercase tracking-wide">AI Price Estimate</p>
+                  </div>
+
+                  {/* Price range */}
+                  <div className="mb-4">
+                    <p className="text-3xl font-bold">
+                      ${aiQuote.estimated_min.toLocaleString()}
+                      <span className="text-emerald-200 text-xl font-medium mx-2">–</span>
+                      ${aiQuote.estimated_max.toLocaleString()}
+                    </p>
+                    <p className="text-emerald-200 text-xs mt-0.5">Estimated renovation cost · {aiQuote.currency}</p>
+                  </div>
+
+                  {/* Cost breakdown */}
+                  {aiQuote.breakdown.length > 0 && (
+                    <div className="mb-4 space-y-1.5">
+                      {aiQuote.breakdown.map((item, i) => (
+                        <div key={i} className="flex items-start gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-300 flex-shrink-0 mt-1.5" />
+                          <p className="text-sm text-white/90">{item}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Key cost drivers */}
+                  {aiQuote.key_cost_drivers.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                      {aiQuote.key_cost_drivers.map((driver, i) => (
+                        <span key={i} className="px-2 py-0.5 bg-white/20 text-white text-xs font-medium rounded-full">
+                          {driver}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Rationale */}
+                  <p className="text-emerald-100 text-xs leading-relaxed border-t border-white/20 pt-3">
+                    {aiQuote.rationale}
+                  </p>
                 </div>
               )}
 
