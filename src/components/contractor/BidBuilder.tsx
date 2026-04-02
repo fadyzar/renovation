@@ -221,6 +221,31 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
           </div>
         ) : (
         <form onSubmit={handleSubmit} className="p-6 space-y-6">
+          <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-5">
+            <h3 className="text-lg font-bold text-gray-900 mb-3 flex items-center gap-2">
+              <FileText className="w-5 h-5 text-blue-600" />
+              How Bid Submission Works
+            </h3>
+            <div className="space-y-2 text-sm text-gray-700">
+              <div className="flex items-start gap-2">
+                <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">1</span>
+                <p><span className="font-semibold">Break down your work</span> - Divide the project into clear milestones with descriptions, prices, and timelines</p>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">2</span>
+                <p><span className="font-semibold">Add your message</span> - Introduce yourself and explain your approach to the property owner</p>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="flex-shrink-0 w-6 h-6 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs font-bold">3</span>
+                <p><span className="font-semibold">Submit your bid</span> - Once submitted, the owner will review and may contact you for questions or acceptance</p>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="flex-shrink-0 w-6 h-6 bg-green-600 text-white rounded-full flex items-center justify-center text-xs font-bold">✓</span>
+                <p><span className="font-semibold">Get notified</span> - You'll receive updates when the owner views or responds to your bid</p>
+              </div>
+            </div>
+          </div>
+
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
             <p className="text-sm text-blue-900 font-medium mb-2">Project Budget Range</p>
             <p className="text-2xl font-bold text-blue-700">
@@ -306,12 +331,21 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-lg font-bold text-gray-900">Project Milestones</h3>
-                <p className="text-sm text-gray-600">Break down your work into phases</p>
+                <p className="text-sm text-gray-600 mb-2">Break down your work into phases with clear deliverables</p>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900">
+                  <p className="font-semibold mb-1">💡 Milestone Tips:</p>
+                  <ul className="space-y-1 list-disc list-inside">
+                    <li>Each milestone represents a distinct phase of work (e.g., "Demo & Prep", "Installation", "Finishing")</li>
+                    <li>Include the cost and estimated days needed for each phase</li>
+                    <li>Property owners will release payment when each milestone is completed and approved</li>
+                    <li>Clear milestones help build trust and set expectations</li>
+                  </ul>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={addMilestone}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex-shrink-0"
               >
                 <Plus className="w-5 h-5" />
                 Add Milestone
@@ -436,9 +470,39 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
               );
             })()}
 
-            <div className="mt-3 text-sm text-gray-600">
-              Total duration: {milestones.reduce((sum, m) => sum + (parseInt(m.duration) || 0), 0)} days
+            <div className="mt-3 flex items-center justify-between text-sm">
+              <span className="text-gray-600">
+                Total duration: <span className="font-semibold text-gray-900">{milestones.reduce((sum, m) => sum + (parseInt(m.duration) || 0), 0)} days</span>
+              </span>
+              <span className="text-gray-600">
+                Milestones: <span className="font-semibold text-gray-900">{milestones.length}</span>
+              </span>
             </div>
+          </div>
+
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4">
+            <h4 className="font-semibold text-green-900 mb-2 flex items-center gap-2">
+              <CheckCircle className="w-5 h-5" />
+              What happens after you submit?
+            </h4>
+            <ul className="space-y-1.5 text-sm text-green-800">
+              <li className="flex items-start gap-2">
+                <span className="text-green-600 mt-0.5">•</span>
+                <span>Your bid will be sent to the property owner immediately</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-green-600 mt-0.5">•</span>
+                <span>The owner will review all submitted bids and may contact you with questions</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-green-600 mt-0.5">•</span>
+                <span>If your bid is accepted, you'll receive a notification and can start the project</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-green-600 mt-0.5">•</span>
+                <span>You can track your bid status in the "My Bids" section of your dashboard</span>
+              </li>
+            </ul>
           </div>
 
           <div className="flex gap-3 pt-4">

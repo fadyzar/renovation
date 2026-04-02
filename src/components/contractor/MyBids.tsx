@@ -15,7 +15,7 @@ interface Bid {
   total_price: number;
   milestones: Milestone[];
   message: string;
-  status: 'sent' | 'viewed' | 'accepted' | 'rejected';
+  status: 'submitted' | 'viewed' | 'accepted' | 'rejected';
   viewed_at: string | null;
   responded_at: string | null;
   created_at: string;
@@ -83,15 +83,15 @@ export function MyBids() {
 
   const getStatusConfig = (status: string) => {
     switch (status) {
-      case 'sent':
+      case 'submitted':
         return {
           label: 'Pending Bid',
           className: 'bg-gray-500 text-white'
         };
       case 'viewed':
         return {
-          label: 'Pending Bid',
-          className: 'bg-gray-500 text-white'
+          label: 'Viewed by Owner',
+          className: 'bg-blue-500 text-white'
         };
       case 'accepted':
         return {
