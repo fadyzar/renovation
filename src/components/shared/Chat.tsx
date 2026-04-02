@@ -287,6 +287,56 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
     if ((!newMessage.trim() && !selectedFile) || !conversation?.id || !profile?.id) return;
 
     const messageContent = newMessage.trim();
+
+    if (messageContent) {
+      try {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+        const checkResponse = await fetch(
+          `${supabaseUrl}/functions/v1/monitor-chat-message`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${supabaseKey}`,
+            },
+            body: JSON.stringify({
+              message: messageContent,
+              conversationId: conversation.id,
+              senderId: profile.id,
+            }),
+          }
+        );
+
+        if (checkResponse.ok) {
+          const result = await checkResponse.json();
+
+          if (result.hasViolation) {
+            const severity = result.severity || 'medium';
+
+            if (severity === 'high' || severity === 'critical') {
+              alert(
+                `Message blocked: ${result.explanation}\n\n` +
+                `Please keep all communication within the platform. ` +
+                `Sharing contact information violates our terms of service.`
+              );
+              return;
+            } else {
+              const proceed = confirm(
+                `Warning: ${result.explanation}\n\n` +
+                `We detected potentially sensitive information. ` +
+                `Do you want to continue sending this message?`
+              );
+              if (!proceed) return;
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error checking message:', error);
+      }
+    }
+
     let attachmentUrl: string | null = null;
     let attachmentType: string | null = null;
     let attachmentName: string | null = null;

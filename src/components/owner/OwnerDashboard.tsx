@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Home, Clock, CheckCircle, AlertCircle, Send, Eye, Hourglass, Users, DollarSign } from 'lucide-react';
+import { Plus, Home, Clock, CheckCircle, AlertCircle, Send, Eye, Hourglass, Users, DollarSign, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { PublishProjectModal } from './PublishProjectModal';
+import { ProjectTimeline } from '../shared/ProjectTimeline';
 
 interface Project {
   id: string;
@@ -13,8 +14,16 @@ interface Project {
   budget_min: number;
   budget_max: number;
   created_at: string;
+  started_at?: string;
+  completed_at?: string;
   work_types: string[];
   selected_contractor_id?: string | null;
+  selected_contractor?: {
+    full_name: string;
+  };
+  transactions?: Array<{
+    initial_deposit_paid: boolean;
+  }>;
   ai_analysis?: {
     estimated_cost?: number;
     complexity?: string;
@@ -29,6 +38,7 @@ export function OwnerDashboard() {
   const [loading, setLoading] = useState(true);
   const [publishingProject, setPublishingProject] = useState<Project | null>(null);
   const [publishingLoading, setPublishingLoading] = useState(false);
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadProjects();
@@ -38,7 +48,11 @@ export function OwnerDashboard() {
     try {
       const { data, error } = await supabase
         .from('projects')
-        .select('*')
+        .select(`
+          *,
+          selected_contractor:profiles!projects_selected_contractor_id_fkey(full_name),
+          transactions(initial_deposit_paid)
+        `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -48,6 +62,18 @@ export function OwnerDashboard() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function toggleProjectExpanded(projectId: string) {
+    setExpandedProjects(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(projectId)) {
+        newSet.delete(projectId);
+      } else {
+        newSet.add(projectId);
+      }
+      return newSet;
+    });
   }
 
   async function publishProject(project: Project) {
@@ -290,6 +316,32 @@ export function OwnerDashboard() {
                     </div>
                   </div>
                 )}
+
+                <div className="mt-4 pt-4 border-t border-gray-100">
+                  <button
+                    onClick={() => toggleProjectExpanded(project.id)}
+                    className="w-full flex items-center justify-between px-4 py-2.5 text-sm text-gray-700 font-medium bg-gray-50 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <span>View Project Timeline</span>
+                    {expandedProjects.has(project.id) ? (
+                      <ChevronUp className="w-4 h-4" />
+                    ) : (
+                      <ChevronDown className="w-4 h-4" />
+                    )}
+                  </button>
+
+                  {expandedProjects.has(project.id) && (
+                    <div className="mt-4">
+                      <ProjectTimeline
+                        projectStatus={project.status}
+                        selectedContractorName={project.selected_contractor?.full_name}
+                        depositPaid={project.transactions?.[0]?.initial_deposit_paid || false}
+                        startedAt={project.started_at}
+                        completedAt={project.completed_at}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}

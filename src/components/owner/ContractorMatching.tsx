@@ -123,7 +123,8 @@ export function ContractorMatching() {
           )
         `)
         .eq('project_id', projectId)
-        .eq('status', 'submitted');
+        .in('status', ['submitted', 'viewed', 'accepted', 'rejected'])
+        .order('created_at', { ascending: false });
 
       if (bidsErr) throw bidsErr;
 
@@ -207,24 +208,40 @@ export function ContractorMatching() {
         {/* Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-10">
           {rankedBids.map((bid, index) => {
-            const isBestMatch = index === 0;
+            const isBestMatch = index === 0 && bid.status === 'submitted';
+            const isAccepted = bid.status === 'accepted';
+            const isRejected = bid.status === 'rejected';
             const c = bid.contractor;
             return (
               <div
                 key={bid.id}
                 className={`bg-white rounded-2xl shadow-sm border transition-all duration-200 hover:shadow-lg relative overflow-hidden flex flex-col ${
-                  isBestMatch
+                  isAccepted
+                    ? 'border-green-300 ring-2 ring-green-200'
+                    : isRejected
+                    ? 'border-gray-300 opacity-75'
+                    : isBestMatch
                     ? 'border-orange-300 ring-2 ring-orange-200'
                     : 'border-gray-200'
                 }`}
               >
-                {/* Best Match banner */}
-                {isBestMatch && (
+                {/* Status banner */}
+                {isAccepted ? (
+                  <div className="bg-gradient-to-r from-green-500 to-green-600 text-white text-xs font-bold px-4 py-1.5 flex items-center gap-1.5">
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Accepted — Project In Progress
+                  </div>
+                ) : isRejected ? (
+                  <div className="bg-gradient-to-r from-gray-400 to-gray-500 text-white text-xs font-bold px-4 py-1.5 flex items-center gap-1.5">
+                    <X className="w-3.5 h-3.5" />
+                    Not Selected
+                  </div>
+                ) : isBestMatch ? (
                   <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white text-xs font-bold px-4 py-1.5 flex items-center gap-1.5">
                     <Crown className="w-3.5 h-3.5" />
                     Best Match — Highest Score
                   </div>
-                )}
+                ) : null}
 
                 <div className="p-6 flex flex-col flex-1">
                   {/* Contractor identity */}
@@ -347,16 +364,23 @@ export function ContractorMatching() {
                       View Full Profile & Score
                       <ChevronRight className="w-4 h-4" />
                     </button>
-                    <button
-                      onClick={() => navigate(`/accept-offer/${projectId}/${bid.id}`)}
-                      className={`w-full px-4 py-3 font-bold rounded-lg transition-all shadow hover:shadow-md ${
-                        isBestMatch
-                          ? 'bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white'
-                          : 'bg-gray-900 hover:bg-gray-800 text-white'
-                      }`}
-                    >
-                      Accept Offer
-                    </button>
+                    {!isAccepted && !isRejected && (
+                      <button
+                        onClick={() => navigate(`/accept-offer/${projectId}/${bid.id}`)}
+                        className={`w-full px-4 py-3 font-bold rounded-lg transition-all shadow hover:shadow-md ${
+                          isBestMatch
+                            ? 'bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white'
+                            : 'bg-gray-900 hover:bg-gray-800 text-white'
+                        }`}
+                      >
+                        Accept Offer
+                      </button>
+                    )}
+                    {isAccepted && (
+                      <div className="w-full px-4 py-3 text-center bg-green-50 border-2 border-green-200 text-green-700 font-bold rounded-lg">
+                        ✓ Project Active
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

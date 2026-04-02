@@ -164,7 +164,7 @@ export function DepositPaymentModal({
     // Persist mock transaction + update project status
     try {
       // 1. Create transaction record
-      const { error: transactionError } = await supabase.from('transactions').insert({
+      const { data: transaction, error: transactionError } = await supabase.from('transactions').insert({
         project_id: projectId,
         owner_id: ownerId,
         contractor_id: contractorId,
@@ -177,24 +177,81 @@ export function DepositPaymentModal({
         initial_deposit_paid: true,
         status: 'active',
         stripe_payment_id: result.transactionId,
-      });
+      }).select().single();
 
-      if (transactionError) throw transactionError;
+      if (transactionError) {
+        console.error('Transaction creation failed:', transactionError);
+        setPaymentResult({
+          success: false,
+          transactionId: '',
+          last4: '',
+          timestamp: new Date().toISOString(),
+          error: 'Failed to save transaction. Please try again.'
+        });
+        setState('error');
+        return;
+      }
 
-      // 2. Advance project to in_progress
+      // 2. Create milestones from bid
+      const { data: bidData } = await supabase
+        .from('bids')
+        .select('milestones')
+        .eq('id', bidId)
+        .single();
+
+      if (bidData?.milestones && Array.isArray(bidData.milestones)) {
+        const milestones = bidData.milestones.map((m: any, index: number) => ({
+          project_id: projectId,
+          transaction_id: transaction.id,
+          title: m.description || `Milestone ${index + 1}`,
+          description: m.description,
+          amount: m.price,
+          status: 'pending',
+          order_index: index,
+        }));
+
+        await supabase.from('milestones').insert(milestones);
+      }
+
+      // 3. Advance project to in_progress
       const { error: projectError } = await supabase
         .from('projects')
         .update({ status: 'in_progress', started_at: new Date().toISOString() })
         .eq('id', projectId);
 
-      if (projectError) throw projectError;
+      if (projectError) {
+        console.error('Project update failed:', projectError);
+        setPaymentResult({
+          success: false,
+          transactionId: '',
+          last4: '',
+          timestamp: new Date().toISOString(),
+          error: 'Failed to update project status. Please contact support.'
+        });
+        setState('error');
+        return;
+      }
+
+      // 4. Create notification for owner
+      await supabase.from('notifications').insert({
+        user_id: ownerId,
+        type: 'payment_received',
+        title: 'Contractor Deposit Received',
+        message: `Your contractor has paid the security deposit. The project "${projectTitle}" is now in progress.`,
+        link: `/project/${projectId}/payments`,
+      });
 
       setState('success');
     } catch (err) {
       console.error('Failed to persist transaction record:', err);
-      // Payment was mock-successful but DB write failed — still show success
-      // in production, this would trigger a reconciliation job
-      setState('success');
+      setPaymentResult({
+        success: false,
+        transactionId: '',
+        last4: '',
+        timestamp: new Date().toISOString(),
+        error: 'An unexpected error occurred. Please try again.'
+      });
+      setState('error');
     }
   }
 
