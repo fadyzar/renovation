@@ -17,6 +17,7 @@ import {
   AlertCircle,
   CreditCard,
   Building2,
+  MessageCircle,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import {
@@ -508,12 +509,24 @@ export function DepositPaymentModal({
           </div>
         )}
 
-        <button
-          onClick={onSuccess}
-          className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition-colors"
-        >
-          Continue to Dashboard
-        </button>
+        <div className="w-full space-y-3">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <p className="text-sm text-blue-900 font-medium mb-1">
+              Chat is now unlocked
+            </p>
+            <p className="text-xs text-blue-700">
+              Coordinate with the property owner to schedule a site visit and finalize project details.
+            </p>
+          </div>
+
+          <button
+            onClick={onSuccess}
+            className="w-full py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold rounded-xl transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+          >
+            <MessageCircle className="w-5 h-5" />
+            Open Messages
+          </button>
+        </div>
       </div>
     );
   }

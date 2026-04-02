@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MessageCircle, Search, Circle } from 'lucide-react';
+import { MessageCircle, Search, Circle, Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Chat } from '../shared/Chat';
@@ -25,6 +25,7 @@ interface Conversation {
     content: string;
     is_read: boolean;
   };
+  has_deposit?: boolean;
 }
 
 export function Messages() {
@@ -176,7 +177,18 @@ export function Messages() {
             .limit(1)
             .maybeSingle();
 
-          return { ...conv, last_message: lastMsg };
+          const { data: depositData } = await supabase
+            .from('transactions')
+            .select('initial_deposit_paid')
+            .eq('project_id', conv.project_id)
+            .eq('initial_deposit_paid', true)
+            .maybeSingle();
+
+          return {
+            ...conv,
+            last_message: lastMsg,
+            has_deposit: !!depositData
+          };
         })
       );
 
@@ -266,6 +278,7 @@ export function Messages() {
                   const isSelected = selectedConversation === conv.id;
                   const hasUnread = conv.last_message && !conv.last_message.is_read && (conv.last_message as any).sender_id !== profile?.id;
                   const timeSince = conv.last_message_at ? new Date(conv.last_message_at).toLocaleDateString() : '';
+                  const isLocked = !conv.has_deposit;
 
                   return (
                     <button
@@ -276,6 +289,8 @@ export function Messages() {
                           ? 'bg-blue-50 border-l-blue-600'
                           : hasUnread
                           ? 'bg-green-50/50 border-l-green-500 hover:bg-green-50'
+                          : isLocked
+                          ? 'bg-amber-50/30 border-l-amber-400 hover:bg-amber-50'
                           : 'border-l-transparent hover:bg-gray-50'
                       }`}
                     >
@@ -285,16 +300,21 @@ export function Messages() {
                             <img
                               src={otherPersonAvatar}
                               alt={otherPerson || 'User'}
-                              className="w-12 h-12 rounded-full object-cover flex-shrink-0 shadow-md"
+                              className={`w-12 h-12 rounded-full object-cover flex-shrink-0 shadow-md ${isLocked ? 'opacity-50' : ''}`}
                             />
                           ) : (
-                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-md">
+                            <div className={`w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center flex-shrink-0 shadow-md ${isLocked ? 'opacity-50' : ''}`}>
                               <span className="text-white font-bold text-lg">
                                 {otherPerson?.charAt(0)}
                               </span>
                             </div>
                           )}
-                          {hasUnread && (
+                          {isLocked && (
+                            <div className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center border-2 border-white">
+                              <Lock className="w-3 h-3 text-white" />
+                            </div>
+                          )}
+                          {!isLocked && hasUnread && (
                             <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center border-2 border-white">
                               <span className="text-white text-xs font-bold">●</span>
                             </div>
@@ -308,7 +328,12 @@ export function Messages() {
                             <span className="text-xs text-gray-500 flex-shrink-0">{timeSince}</span>
                           </div>
                           <p className="text-xs text-blue-600 mb-1 font-medium">{conv.project?.title}</p>
-                          {typingUsers[conv.id] ? (
+                          {isLocked ? (
+                            <div className="flex items-center gap-1.5">
+                              <Lock className="w-3 h-3 text-amber-600" />
+                              <p className="text-xs text-amber-700 font-medium">Deposit required</p>
+                            </div>
+                          ) : typingUsers[conv.id] ? (
                             <p className="text-sm text-blue-600 font-medium italic">typing...</p>
                           ) : conv.last_message ? (
                             <p className={`text-sm truncate ${hasUnread ? 'text-gray-900 font-medium' : 'text-gray-600'}`}>
@@ -326,7 +351,35 @@ export function Messages() {
 
           <div className="lg:col-span-2">
             {selectedConversation ? (
-              <Chat conversationId={selectedConversation} />
+              (() => {
+                const selectedConv = conversations.find(c => c.id === selectedConversation);
+                if (!selectedConv?.has_deposit) {
+                  return (
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 h-[600px] flex items-center justify-center">
+                      <div className="text-center max-w-md px-6">
+                        <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Lock className="w-10 h-10 text-amber-600" />
+                        </div>
+                        <h3 className="text-xl font-bold text-gray-900 mb-2">
+                          Deposit Required
+                        </h3>
+                        <p className="text-gray-600 mb-4">
+                          Messages are locked until the contractor pays the 10% security deposit. This ensures commitment before sharing contact details.
+                        </p>
+                        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-left">
+                          <p className="text-sm text-blue-900 font-medium mb-1">
+                            Why is this required?
+                          </p>
+                          <p className="text-xs text-blue-700">
+                            The deposit protects both parties and unlocks full communication to coordinate site visits, finalize details, and start the project.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                return <Chat conversationId={selectedConversation} />;
+              })()
             ) : (
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 h-[600px] flex items-center justify-center">
                 <div className="text-center">

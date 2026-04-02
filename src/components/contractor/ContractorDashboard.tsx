@@ -492,6 +492,7 @@ export function ContractorDashboard() {
           onSuccess={() => {
             setDepositModalBid(null);
             loadData();
+            navigate('/messages');
           }}
           onClose={() => setDepositModalBid(null)}
         />
