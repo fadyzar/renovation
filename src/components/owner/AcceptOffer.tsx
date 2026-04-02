@@ -21,10 +21,8 @@ interface Bid {
     id: string;
     full_name: string;
     company_name: string;
-    specialties: string[];
     bio: string;
     avatar_url: string;
-    years_experience: number;
   };
 }
 
@@ -79,14 +77,12 @@ export function AcceptOffer() {
         .from('bids')
         .select(`
           *,
-          contractor:profiles!contractor_id (
+          contractor:profiles!bids_contractor_id_fkey (
             id,
             full_name,
             company_name,
-            specialties,
             bio,
-            avatar_url,
-            years_experience
+            avatar_url
           )
         `)
         .eq('id', bidId)

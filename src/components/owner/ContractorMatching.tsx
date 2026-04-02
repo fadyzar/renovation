@@ -30,14 +30,8 @@ interface Bid {
     id: string;
     full_name: string;
     company_name: string;
-    specialties: string[];
     bio: string;
     avatar_url: string;
-    years_experience: number;
-    service_latitude: number | null;
-    service_longitude: number | null;
-    license_verified: boolean;
-    license_status: string;
     rating: number | null;
   } | null;
 }
@@ -119,18 +113,12 @@ export function ContractorMatching() {
         .from('bids')
         .select(`
           *,
-          contractor:profiles!contractor_id (
+          contractor:profiles!bids_contractor_id_fkey (
             id,
             full_name,
             company_name,
-            specialties,
             bio,
             avatar_url,
-            years_experience,
-            service_latitude,
-            service_longitude,
-            license_verified,
-            license_status,
             rating
           )
         `)
