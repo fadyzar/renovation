@@ -14,11 +14,13 @@ export function SignUpPage() {
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [success, setSuccess] = useState('');
     const navigate = useNavigate();
 
     async function handleSignUp(e: React.FormEvent) {
         e.preventDefault();
         setError('');
+        setSuccess('');
 
         if (password !== confirmPassword) {
             setError('Passwords do not match');
@@ -33,7 +35,7 @@ export function SignUpPage() {
         setLoading(true);
 
         try {
-            const { error: authError } = await supabase.auth.signUp({
+            const { data, error: authError } = await supabase.auth.signUp({
                 email,
                 password,
                 options: {
@@ -46,7 +48,11 @@ export function SignUpPage() {
 
             if (authError) throw authError;
 
-            navigate('/dashboard');
+            if (data?.user && !data.session) {
+                setSuccess('Please check your email to confirm your account before logging in.');
+            } else {
+                navigate('/dashboard');
+            }
         } catch (err: any) {
             setError(err.message || 'Failed to create account');
         } finally {
@@ -185,6 +191,12 @@ export function SignUpPage() {
                         {error && (
                             <div className="p-4 bg-red-50 border border-red-100 rounded-2xl">
                                 <p className="text-sm text-red-600 font-medium">{error}</p>
+                            </div>
+                        )}
+
+                        {success && (
+                            <div className="p-4 bg-green-50 border border-green-100 rounded-2xl">
+                                <p className="text-sm text-green-600 font-medium">{success}</p>
                             </div>
                         )}
 
