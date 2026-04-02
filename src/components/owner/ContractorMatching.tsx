@@ -211,6 +211,8 @@ export function ContractorMatching() {
             const isBestMatch = index === 0 && bid.status === 'submitted';
             const isAccepted = bid.status === 'accepted';
             const isRejected = bid.status === 'rejected';
+            const isAwaitingDeposit = isAccepted && project?.status === 'awaiting_deposit';
+            const isActive = isAccepted && project?.status === 'in_progress';
             const c = bid.contractor;
             return (
               <div
@@ -226,10 +228,15 @@ export function ContractorMatching() {
                 }`}
               >
                 {/* Status banner */}
-                {isAccepted ? (
+                {isActive ? (
                   <div className="bg-gradient-to-r from-green-500 to-green-600 text-white text-xs font-bold px-4 py-1.5 flex items-center gap-1.5">
                     <CheckCircle className="w-3.5 h-3.5" />
                     Accepted — Project In Progress
+                  </div>
+                ) : isAwaitingDeposit ? (
+                  <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white text-xs font-bold px-4 py-1.5 flex items-center gap-1.5">
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    Accepted — Waiting for Deposit
                   </div>
                 ) : isRejected ? (
                   <div className="bg-gradient-to-r from-gray-400 to-gray-500 text-white text-xs font-bold px-4 py-1.5 flex items-center gap-1.5">
@@ -376,9 +383,14 @@ export function ContractorMatching() {
                         Accept Offer
                       </button>
                     )}
-                    {isAccepted && (
+                    {isActive && (
                       <div className="w-full px-4 py-3 text-center bg-green-50 border-2 border-green-200 text-green-700 font-bold rounded-lg">
                         ✓ Project Active
+                      </div>
+                    )}
+                    {isAwaitingDeposit && (
+                      <div className="w-full px-4 py-3 text-center bg-amber-50 border-2 border-amber-300 text-amber-700 font-bold rounded-lg">
+                        ⏳ Waiting for Contractor Deposit
                       </div>
                     )}
                   </div>

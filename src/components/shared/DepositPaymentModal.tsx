@@ -411,10 +411,18 @@ export function DepositPaymentModal({
           </div>
         </div>
 
+        {/* Demo hint */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-4 text-xs">
+          <p className="text-blue-900 font-medium mb-1">Demo Mode - Testing</p>
+          <p className="text-blue-700">
+            Use card <span className="font-mono font-bold">4242 4242 4242 4242</span> with any future date and CVV for successful payment.
+          </p>
+        </div>
+
         {/* Pay button */}
         <button
           onClick={handlePay}
-          className="w-full mt-6 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold text-base rounded-xl transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
+          className="w-full mt-4 py-4 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold text-base rounded-xl transition-all shadow-lg hover:shadow-xl flex items-center justify-center gap-2"
         >
           <Lock className="w-4 h-4" />
           Pay ${depositAmount.toLocaleString()} Deposit Securely

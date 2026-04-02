@@ -14,6 +14,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  *
  * TESTING SHORTCUTS:
+ *  - 4242 4242 4242 4242 → always succeeds (recommended for testing)
  *  - Card ending in 0000  → always declined
  *  - Card ending in 1111  → insufficient funds
  *  - Any other valid card → success
