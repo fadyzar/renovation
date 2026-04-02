@@ -163,22 +163,23 @@ export function DepositPaymentModal({
 
     // Persist mock transaction + update project status
     try {
-      // 1. Create payment record
-      const { error: paymentError } = await supabase.from('payments').insert({
+      // 1. Create transaction record
+      const { error: transactionError } = await supabase.from('transactions').insert({
         project_id: projectId,
-        bid_id: bidId,
         owner_id: ownerId,
         contractor_id: contractorId,
-        total_amount: depositAmount,
-        is_deposit: true,
-        deposit_percentage: DEPOSIT_PERCENTAGE,
-        status: 'escrowed',
-        mock_transaction_id: result.transactionId,
-        paid_at: result.timestamp,
-        payment_method_last4: result.last4,
+        total_amount: totalBidAmount,
+        amount: depositAmount,
+        platform_fee: 0,
+        platform_fee_amount: 0,
+        net_amount: depositAmount,
+        initial_deposit_amount: depositAmount,
+        initial_deposit_paid: true,
+        status: 'active',
+        stripe_payment_id: result.transactionId,
       });
 
-      if (paymentError) throw paymentError;
+      if (transactionError) throw transactionError;
 
       // 2. Advance project to in_progress
       const { error: projectError } = await supabase
@@ -190,7 +191,7 @@ export function DepositPaymentModal({
 
       setState('success');
     } catch (err) {
-      console.error('Failed to persist payment record:', err);
+      console.error('Failed to persist transaction record:', err);
       // Payment was mock-successful but DB write failed — still show success
       // in production, this would trigger a reconciliation job
       setState('success');
