@@ -11,12 +11,19 @@ export function Header() {
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  const isOwner = profile?.role === 'property_owner';
+  const isContractor = profile?.role === 'contractor';
+
   const navItems = [
-    { label: 'Home', path: '/' },
     { label: 'Dashboard', path: '/dashboard' },
-    { label: 'Available Projects', path: '/projects' },
+    ...(isContractor
+      ? [{ label: 'Available Projects', path: '/projects' }]
+      : isOwner
+      ? [{ label: 'Project History', path: '/project-history' }]
+      : []
+    ),
     { label: 'Messages', path: '/messages' },
-    { label: 'Profile', path: '/settings' },
+    { label: 'My Profile', path: '/profile' },
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -48,7 +55,10 @@ export function Header() {
           <div className="flex items-center gap-3">
             <NotificationDropdown />
 
-            <button className="hidden sm:block p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors">
+            <button
+              onClick={() => navigate('/account-settings')}
+              className="hidden sm:block p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+            >
               <Settings className="w-5 h-5" />
             </button>
 
@@ -65,7 +75,7 @@ export function Header() {
             </button>
 
             <button
-              onClick={() => navigate('/settings')}
+              onClick={() => navigate('/profile')}
               className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-teal-400 flex items-center justify-center text-white text-sm font-bold hover:shadow-lg transition-shadow"
             >
               {profile?.full_name?.charAt(0) || 'U'}

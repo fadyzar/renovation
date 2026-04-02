@@ -10,6 +10,9 @@ import { CreateProjectPage } from "./screens/CreateProjectPage";
 import { ContractorMatching } from "./components/owner/ContractorMatching";
 import { AcceptOffer } from "./components/owner/AcceptOffer";
 import Settings from "./components/screens/Settings";
+import Profile from "./components/screens/Profile";
+import AccountSettingsPage from "./components/screens/AccountSettingsPage";
+import ProjectHistory from "./components/screens/ProjectHistory";
 import Support from "./components/screens/Support";
 import { Messages } from "./components/screens/Messages";
 import { ProjectPayments } from "./components/screens/ProjectPayments";
@@ -102,6 +105,9 @@ function App() {
         <Route path="/submit-bid/:projectId" element={<SubmitBidPage />} />
         <Route path="/project/:projectId/payments" element={<ProjectPayments />} />
         <Route path="/messages" element={<Messages />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/account-settings" element={<AccountSettingsPage />} />
+        <Route path="/project-history" element={<ProjectHistory />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/support" element={<Support />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
