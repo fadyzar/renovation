@@ -33,7 +33,7 @@ export function SignUpPage() {
         setLoading(true);
 
         try {
-            const { data: authData, error: authError } = await supabase.auth.signUp({
+            const { error: authError } = await supabase.auth.signUp({
                 email,
                 password,
                 options: {
@@ -46,21 +46,7 @@ export function SignUpPage() {
 
             if (authError) throw authError;
 
-            if (authData.user) {
-                const { error: profileError } = await supabase
-                    .from('profiles')
-                    .insert({
-                        id: authData.user.id,
-                        email,
-                        full_name: fullName,
-                        role,
-                    });
-
-                if (profileError) throw profileError;
-
-                // Redirect to dashboard after signup
-                navigate('/dashboard');
-            }
+            navigate('/dashboard');
         } catch (err: any) {
             setError(err.message || 'Failed to create account');
         } finally {
