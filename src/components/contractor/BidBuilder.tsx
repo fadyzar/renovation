@@ -210,7 +210,7 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
           type: 'bid_received',
           title: 'New Bid Received',
           message: `You received a new bid of $${calculateTotal().toLocaleString()} for "${project.title}"`,
-          data: {
+          metadata: {
             project_id: project.id,
             bid_id: bidData?.id,
             contractor_id: profile?.id,

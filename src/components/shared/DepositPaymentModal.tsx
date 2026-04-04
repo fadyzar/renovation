@@ -147,7 +147,7 @@ export function DepositPaymentModal({
         type: 'deposit_paid',
         title: 'Contractor Deposit Paid',
         message: `Contractor paid the ${DEPOSIT_PCT}% deposit for "${projectTitle}". Project is now active!`,
-        data: {
+        metadata: {
           project_id: projectId,
           bid_id: bidId,
           contractor_id: contractorId,

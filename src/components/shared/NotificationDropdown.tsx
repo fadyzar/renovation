@@ -12,7 +12,7 @@ interface Notification {
   link?: string;
   is_read: boolean;
   created_at: string;
-  data?: any;
+  metadata?: any;
 }
 
 export function NotificationDropdown() {
@@ -81,14 +81,14 @@ export function NotificationDropdown() {
     setIsOpen(false);
 
     // Handle navigation based on notification type
-    if (notification.type === 'deposit_paid' && notification.data?.conversation_id) {
-      navigate('/messages', { state: { conversationId: notification.data.conversation_id } });
-    } else if (notification.type === 'new_message' && notification.data?.conversation_id) {
-      navigate('/messages', { state: { conversationId: notification.data.conversation_id } });
-    } else if (notification.type === 'bid_accepted' && notification.data?.project_id) {
-      navigate(`/projects/${notification.data.project_id}`);
-    } else if (notification.type === 'new_bid' && notification.data?.project_id) {
-      navigate(`/projects/${notification.data.project_id}`);
+    if (notification.type === 'deposit_paid' && notification.metadata?.conversation_id) {
+      navigate('/messages', { state: { conversationId: notification.metadata.conversation_id } });
+    } else if (notification.type === 'new_message' && notification.metadata?.conversation_id) {
+      navigate('/messages', { state: { conversationId: notification.metadata.conversation_id } });
+    } else if (notification.type === 'bid_accepted' && notification.metadata?.project_id) {
+      navigate(`/projects/${notification.metadata.project_id}`);
+    } else if (notification.type === 'new_bid' && notification.metadata?.project_id) {
+      navigate(`/projects/${notification.metadata.project_id}`);
     }
   }
 

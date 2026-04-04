@@ -154,7 +154,7 @@ export function AcceptOffer() {
           type: 'bid_accepted',
           title: 'Bid Accepted!',
           message: `Your bid of $${bid.total_price.toLocaleString()} for "${project?.title}" was accepted! Pay the deposit to start.`,
-          data: {
+          metadata: {
             project_id: projectId,
             bid_id: bidId,
             deposit_amount: bid.total_price * 0.1,
