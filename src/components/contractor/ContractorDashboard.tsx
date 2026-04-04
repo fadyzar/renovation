@@ -76,10 +76,19 @@ export function ContractorDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (profile?.id) {
+      loadData();
+    }
+  }, [profile?.id]);
 
   async function loadData() {
+    if (!profile?.id) {
+      console.error('Profile not loaded yet');
+      return;
+    }
+
+    console.log('Loading data for contractor:', profile.id);
+
     try {
       const { data: bidsData } = await supabase
         .from('bids')
@@ -93,7 +102,7 @@ export function ContractorDashboard() {
             owner:profiles!projects_owner_id_fkey(full_name)
           )
         `)
-        .eq('contractor_id', profile?.id)
+        .eq('contractor_id', profile.id)
         .in('status', ['submitted', 'viewed'])
         .order('created_at', { ascending: false })
         .limit(3);
@@ -105,7 +114,7 @@ export function ContractorDashboard() {
           properties(address, city, state),
           owner:profiles!projects_owner_id_fkey(full_name)
         `)
-        .eq('selected_contractor_id', profile?.id)
+        .eq('selected_contractor_id', profile.id)
         .eq('status', 'in_progress')
         .order('created_at', { ascending: false })
         .limit(3);
@@ -113,29 +122,65 @@ export function ContractorDashboard() {
       const { data: allBidsData } = await supabase
         .from('bids')
         .select('*')
-        .eq('contractor_id', profile?.id);
+        .eq('contractor_id', profile.id);
 
       // Fetch accepted bids where project is awaiting deposit payment from this contractor
-      const { data: acceptedBidsWithProject } = await supabase
+      const { data: acceptedBidsRaw, error: acceptedBidsError } = await supabase
         .from('bids')
-        .select(`
-          id,
-          total_price,
-          project:projects!bids_project_id_fkey(
-            id,
-            title,
-            description,
-            status,
-            owner_id,
-            owner:profiles!projects_owner_id_fkey(full_name)
-          )
-        `)
-        .eq('contractor_id', profile?.id)
+        .select('id, total_price, status, project_id')
+        .eq('contractor_id', profile.id)
         .eq('status', 'accepted');
 
-      const pendingDeposit = (acceptedBidsWithProject || []).filter(
-        (b: any) => b.project?.status === 'awaiting_deposit'
-      ) as DepositPendingBid[];
+      if (acceptedBidsError) {
+        console.error('Error fetching accepted bids:', acceptedBidsError);
+      }
+
+      console.log('=== ACCEPTED BIDS RAW ===');
+      console.log('Raw accepted bids:', acceptedBidsRaw);
+
+      // Now fetch project details for each accepted bid
+      const acceptedBidsWithProject: DepositPendingBid[] = [];
+
+      if (acceptedBidsRaw && acceptedBidsRaw.length > 0) {
+        for (const bid of acceptedBidsRaw) {
+          const { data: projectData, error: projectError } = await supabase
+            .from('projects')
+            .select(`
+              id,
+              title,
+              description,
+              status,
+              owner_id,
+              owner:profiles!projects_owner_id_fkey(full_name)
+            `)
+            .eq('id', bid.project_id)
+            .maybeSingle();
+
+          if (projectError) {
+            console.error(`Error fetching project ${bid.project_id}:`, projectError);
+            continue;
+          }
+
+          if (projectData) {
+            acceptedBidsWithProject.push({
+              id: bid.id,
+              total_price: bid.total_price,
+              project: projectData as any,
+            });
+          }
+        }
+      }
+
+      console.log('=== BIDS WITH PROJECT DATA ===');
+      console.log('Accepted bids with projects:', acceptedBidsWithProject);
+
+      const pendingDeposit = acceptedBidsWithProject.filter(
+        (b) => b.project?.status === 'awaiting_deposit'
+      );
+
+      console.log('=== PENDING DEPOSIT ===');
+      console.log('Filtered pending deposit bids:', pendingDeposit);
+      console.log('===================================');
 
       const acceptedBids = allBidsData?.filter(b => b.status === 'accepted') || [];
 
