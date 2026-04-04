@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MessageCircle, Search, Circle } from 'lucide-react';
+import { MessageCircle, Search, Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Chat } from '../shared/Chat';
@@ -12,6 +12,7 @@ interface Conversation {
   last_message_at: string;
   project?: {
     title: string;
+    status: string;
   };
   owner?: {
     full_name: string;
@@ -157,7 +158,7 @@ export function Messages() {
         .from('conversations')
         .select(`
           *,
-          project:projects(title),
+          project:projects(title, status),
           owner:profiles!conversations_owner_id_fkey(full_name, avatar_url),
           contractor:profiles!conversations_contractor_id_fkey(full_name, avatar_url)
         `)
@@ -308,7 +309,12 @@ export function Messages() {
                             <span className="text-xs text-gray-500 flex-shrink-0">{timeSince}</span>
                           </div>
                           <p className="text-xs text-blue-600 mb-1 font-medium">{conv.project?.title}</p>
-                          {typingUsers[conv.id] ? (
+                          {conv.project?.status !== 'in_progress' && conv.project?.status !== 'completed' ? (
+                            <div className="flex items-center gap-1">
+                              <Lock className="w-3 h-3 text-amber-500" />
+                              <span className="text-xs text-amber-600 font-medium">Locked — awaiting deposit</span>
+                            </div>
+                          ) : typingUsers[conv.id] ? (
                             <p className="text-sm text-blue-600 font-medium italic">typing...</p>
                           ) : conv.last_message ? (
                             <p className={`text-sm truncate ${hasUnread ? 'text-gray-900 font-medium' : 'text-gray-600'}`}>
@@ -326,7 +332,36 @@ export function Messages() {
 
           <div className="lg:col-span-2">
             {selectedConversation ? (
-              <Chat conversationId={selectedConversation} />
+              (() => {
+                const conv = conversations.find(c => c.id === selectedConversation);
+                const projectStatus = conv?.project?.status;
+                const isLocked = projectStatus !== 'in_progress' && projectStatus !== 'completed';
+
+                if (isLocked) {
+                  return (
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 h-[600px] flex items-center justify-center">
+                      <div className="text-center max-w-xs px-4">
+                        <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                          <Lock className="w-8 h-8 text-amber-600" />
+                        </div>
+                        <h3 className="text-xl font-semibold text-gray-900 mb-2">Chat Locked</h3>
+                        <p className="text-gray-600 text-sm leading-relaxed">
+                          {projectStatus === 'awaiting_deposit'
+                            ? 'The contractor needs to pay the 10% security deposit before chat is unlocked. This ensures commitment before sharing contact details.'
+                            : 'Chat will be available once the project is active.'}
+                        </p>
+                        {projectStatus === 'awaiting_deposit' && (
+                          <div className="mt-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                            <p className="text-xs font-semibold text-amber-700">Waiting for contractor deposit</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+
+                return <Chat conversationId={selectedConversation} />;
+              })()
             ) : (
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 h-[600px] flex items-center justify-center">
                 <div className="text-center">

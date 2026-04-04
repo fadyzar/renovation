@@ -33,6 +33,9 @@ import {
   FileText,
   CircleDot,
   X,
+  Navigation,
+  MessageCircle,
+  MapPin,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -90,6 +93,10 @@ interface ProjectInfo {
   status: string;
   owner_id: string;
   selected_contractor_id?: string;
+  property_address?: string;
+  property_city?: string;
+  property_state?: string;
+  property_zip?: string;
 }
 
 interface BidInfo {
@@ -450,6 +457,7 @@ export function ProjectPayments() {
   const [milestones, setMilestones] = useState<PaymentMilestone[]>([]);
   const [approveModal, setApproveModal] = useState<PaymentMilestone | null>(null);
   const [submitModal, setSubmitModal] = useState<PaymentMilestone | null>(null);
+  const [completing, setCompleting] = useState(false);
 
   const isOwner = profile?.id === project?.owner_id;
   const isContractor = profile?.id === project?.selected_contractor_id;
@@ -463,7 +471,7 @@ export function ProjectPayments() {
       // 1. Load project
       const { data: proj } = await supabase
         .from('projects')
-        .select('id, title, status, owner_id, selected_contractor_id')
+        .select('id, title, status, owner_id, selected_contractor_id, property_address, property_city, property_state, property_zip')
         .eq('id', projectId)
         .maybeSingle();
 
@@ -563,6 +571,41 @@ export function ProjectPayments() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  // ── Helpers ─────────────────────────────────────────────────────────────────
+
+  function handleNavigate() {
+    if (!project) return;
+    const parts = [
+      project.property_address,
+      project.property_city,
+      project.property_state,
+      project.property_zip,
+    ].filter(Boolean);
+    if (parts.length === 0) {
+      alert('No address available for this project.');
+      return;
+    }
+    const query = encodeURIComponent(parts.join(', '));
+    window.open(`https://www.google.com/maps?q=${query}`, '_blank', 'noopener,noreferrer');
+  }
+
+  function handleOpenChat() {
+    navigate('/messages');
+  }
+
+  async function handleCompleteProject() {
+    if (!project || !isOwner) return;
+    setCompleting(true);
+    const { error } = await supabase
+      .from('projects')
+      .update({ status: 'completed', completed_at: new Date().toISOString() })
+      .eq('id', project.id);
+    setCompleting(false);
+    if (!error) {
+      loadData();
+    }
+  }
+
   // ── Derived stats ───────────────────────────────────────────────────────────
 
   const totalBid = bid?.total_price ?? 0;
@@ -605,11 +648,46 @@ export function ProjectPayments() {
         </button>
 
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">{project.title}</h1>
-          <p className="text-gray-600 mt-1">
-            {isOwner ? 'Approve milestone completions and release payments to contractor.' : 'Submit milestones for owner approval to receive payment.'}
-          </p>
+        <div className="mb-6">
+          <div className="flex items-start justify-between flex-wrap gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">{project.title}</h1>
+              <p className="text-gray-600 mt-1">
+                {isOwner ? 'Approve milestone completions and release payments to contractor.' : 'Submit milestones for owner approval to receive payment.'}
+              </p>
+              {(project.property_city || project.property_address) && (
+                <div className="flex items-center gap-1.5 mt-2 text-sm text-gray-500">
+                  <MapPin className="w-4 h-4 text-gray-400" />
+                  {[project.property_address, project.property_city, project.property_state]
+                    .filter(Boolean)
+                    .join(', ')}
+                </div>
+              )}
+            </div>
+
+            {/* Action buttons */}
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Navigate to client — contractor only */}
+              {isContractor && (
+                <button
+                  onClick={handleNavigate}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors shadow-sm text-sm"
+                >
+                  <Navigation className="w-4 h-4" />
+                  Navigate to Client
+                </button>
+              )}
+
+              {/* Open Chat */}
+              <button
+                onClick={handleOpenChat}
+                className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors shadow-sm text-sm"
+              >
+                <MessageCircle className="w-4 h-4" />
+                Open Chat
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Payment Summary */}
@@ -803,10 +881,42 @@ export function ProjectPayments() {
         {milestones.length > 0 && milestones.every(m => m.status === 'released') && (
           <div className="mt-6 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl p-6 text-center text-white shadow-lg">
             <CheckCircle className="w-12 h-12 mx-auto mb-3 opacity-90" />
-            <h3 className="text-xl font-bold mb-1">Project Complete!</h3>
-            <p className="text-green-100 text-sm">
+            <h3 className="text-xl font-bold mb-1">
+              {project.status === 'completed' ? 'Project Completed!' : 'All Milestones Paid!'}
+            </h3>
+            <p className="text-green-100 text-sm mb-4">
               All {milestones.length} milestones have been paid. Total released: {formatILS(releasedAmount)}.
             </p>
+            {isOwner && project.status !== 'completed' && (
+              <button
+                onClick={handleCompleteProject}
+                disabled={completing}
+                className="mx-auto flex items-center gap-2 px-6 py-3 bg-white text-green-700 font-bold rounded-xl hover:bg-green-50 transition-colors shadow disabled:opacity-50"
+              >
+                <CheckCircle className="w-5 h-5" />
+                {completing ? 'Marking...' : 'Mark Project as Completed'}
+              </button>
+            )}
+            {project.status === 'completed' && (
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/20 rounded-full text-sm font-semibold">
+                <CheckCircle className="w-4 h-4" />
+                Project officially closed
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Owner: complete project even if some milestones pending */}
+        {isOwner && project.status === 'in_progress' && milestones.some(m => m.status !== 'released') && (
+          <div className="mt-4 flex justify-end">
+            <button
+              onClick={handleCompleteProject}
+              disabled={completing}
+              className="flex items-center gap-2 px-5 py-2.5 bg-white border-2 border-green-300 text-green-700 font-semibold rounded-xl hover:bg-green-50 transition-colors text-sm disabled:opacity-50"
+            >
+              <CheckCircle className="w-4 h-4" />
+              {completing ? 'Marking...' : 'Mark Project as Completed'}
+            </button>
           </div>
         )}
       </div>

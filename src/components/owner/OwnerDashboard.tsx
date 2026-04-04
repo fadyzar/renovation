@@ -263,13 +263,20 @@ export function OwnerDashboard() {
                 )}
 
                 {project.status === 'in_progress' && (
-                  <div className="mt-4 pt-4 border-t border-gray-100">
+                  <div className="mt-4 pt-4 border-t border-gray-100 flex gap-2 flex-wrap">
                     <button
                       onClick={() => navigate(`/project/${project.id}/payments`)}
                       className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors"
                     >
                       <DollarSign className="w-4 h-4" />
                       View &amp; Approve Payments
+                    </button>
+                    <button
+                      onClick={() => navigate('/messages')}
+                      className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors"
+                    >
+                      <Send className="w-4 h-4" />
+                      Messages
                     </button>
                   </div>
                 )}

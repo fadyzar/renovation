@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star, DollarSign, Briefcase, FileText, MapPin, Mail, Phone, Home, Calendar, ChevronRight, AlertCircle, Lock } from 'lucide-react';
+import { Star, DollarSign, Briefcase, FileText, MapPin, Calendar, ChevronRight, AlertCircle, Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { BidBuilder } from './BidBuilder';
@@ -26,8 +26,6 @@ interface Bid {
     };
     owner: {
       full_name: string;
-      email: string;
-      phone?: string;
     };
   };
 }
@@ -59,7 +57,6 @@ interface Project {
   };
   owner: {
     full_name: string;
-    email: string;
   };
 }
 
@@ -93,7 +90,7 @@ export function ContractorDashboard() {
             title,
             description,
             properties(address, city, state, zip_code),
-            owner:profiles!projects_owner_id_fkey(full_name, email, phone)
+            owner:profiles!projects_owner_id_fkey(full_name)
           )
         `)
         .eq('contractor_id', profile?.id)
@@ -106,7 +103,7 @@ export function ContractorDashboard() {
         .select(`
           *,
           properties(address, city, state),
-          owner:profiles!projects_owner_id_fkey(full_name, email)
+          owner:profiles!projects_owner_id_fkey(full_name)
         `)
         .eq('selected_contractor_id', profile?.id)
         .eq('status', 'in_progress')
@@ -187,18 +184,25 @@ export function ContractorDashboard() {
                     {profile?.full_name?.charAt(0) || 'C'}
                   </div>
                 </div>
-                <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full">
-                  Verified
+                <div className={`absolute -bottom-2 left-1/2 -translate-x-1/2 text-white text-xs font-bold px-3 py-1 rounded-full ${
+                  profile?.verification_status === 'verified' ? 'bg-green-500' : 'bg-amber-500'
+                }`}>
+                  {profile?.verification_status === 'verified' ? 'Verified' : 'Pending Verification'}
                 </div>
               </div>
-              <div className="flex items-center justify-center gap-2 mb-1">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <Star key={star} className="w-5 h-5 text-yellow-400 fill-yellow-400" />
-                ))}
-                <span className="text-white font-semibold ml-1">
-                  {profile?.rating?.toFixed(1) || '5.0'}/5.0
-                </span>
-              </div>
+              {(profile?.rating ?? 0) > 0 && (
+                <div className="flex items-center justify-center gap-2 mb-1">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <Star
+                      key={star}
+                      className={`w-5 h-5 ${star <= Math.round(profile?.rating ?? 0) ? 'text-yellow-400 fill-yellow-400' : 'text-gray-400'}`}
+                    />
+                  ))}
+                  <span className="text-white font-semibold ml-1">
+                    {profile?.rating?.toFixed(1)}/5.0
+                  </span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -343,39 +347,14 @@ export function ContractorDashboard() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-4 border-y border-gray-200">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <Star className="w-4 h-4 text-blue-500" />
-                          <span className="text-xs text-gray-500">Full Name</span>
-                        </div>
+                    <div className="py-4 border-y border-gray-200">
+                      <div className="flex items-center gap-2">
+                        <Star className="w-4 h-4 text-blue-500" />
+                        <span className="text-xs text-gray-500">Owner:</span>
                         <p className="text-sm font-semibold text-gray-900">{bid.project.owner.full_name}</p>
-                      </div>
-
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <Mail className="w-4 h-4 text-blue-500" />
-                          <span className="text-xs text-gray-500">Your Mail</span>
-                        </div>
-                        <p className="text-sm font-semibold text-gray-900">{bid.project.owner.email}</p>
-                      </div>
-
-                      {bid.project.owner.phone && (
-                        <div>
-                          <div className="flex items-center gap-2 mb-1">
-                            <Phone className="w-4 h-4 text-blue-500" />
-                            <span className="text-xs text-gray-500">Phone Number</span>
-                          </div>
-                          <p className="text-sm font-semibold text-gray-900">{bid.project.owner.phone}</p>
-                        </div>
-                      )}
-
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <Home className="w-4 h-4 text-blue-500" />
-                          <span className="text-xs text-gray-500">Finish Level</span>
-                        </div>
-                        <p className="text-sm font-semibold text-gray-900">Standard</p>
+                        <span className="ml-2 text-xs text-amber-600 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                          Contact info available after deposit is paid
+                        </span>
                       </div>
                     </div>
 
