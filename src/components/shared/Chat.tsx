@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, X, MessageCircle, FileText, Image as ImageIcon, CheckCheck, Check, Paperclip } from 'lucide-react';
+import { Send, X, MessageCircle, FileText, Image as ImageIcon, CheckCheck, Check, Paperclip, Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -51,6 +51,8 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [depositPaid, setDepositPaid] = useState(false);
+  const [checkingDeposit, setCheckingDeposit] = useState(true);
   const [otherUserTyping, setOtherUserTyping] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -155,9 +157,27 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
     scrollToBottom();
   }, [messages]);
 
+  async function checkDepositStatus(projId: string): Promise<boolean> {
+    try {
+      const { data } = await supabase
+        .from('payments')
+        .select('id')
+        .eq('project_id', projId)
+        .eq('is_deposit', true)
+        .in('status', ['escrowed', 'partially_released', 'completed'])
+        .maybeSingle();
+
+      return !!data;
+    } catch (error) {
+      console.error('Error checking deposit:', error);
+      return false;
+    }
+  }
+
   async function loadConversation() {
     try {
       let loadedConversationId: string | null = null;
+      let loadedProjectId: string | null = projectId || null;
 
       if (conversationId) {
         const { data, error } = await supabase
@@ -174,7 +194,10 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
         if (error) throw error;
         setConversation(data);
         loadedConversationId = data?.id || null;
+        loadedProjectId = data?.project_id || null;
       } else if (projectId && contractorId) {
+        loadedProjectId = projectId;
+
         let { data, error } = await supabase
           .from('conversations')
           .select(`
@@ -189,41 +212,24 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
 
         if (error && error.code !== 'PGRST116') throw error;
 
-        if (!data && profile) {
-          const { data: project } = await supabase
-            .from('projects')
-            .select('owner_id')
-            .eq('id', projectId)
-            .maybeSingle();
-
-          const { data: newConv, error: createError } = await supabase
-            .from('conversations')
-            .insert({
-              project_id: projectId,
-              contractor_id: contractorId,
-              owner_id: project?.owner_id,
-            })
-            .select(`
-              *,
-              project:projects(title),
-              owner:profiles!conversations_owner_id_fkey(full_name, avatar_url),
-              contractor:profiles!conversations_contractor_id_fkey(full_name, avatar_url)
-            `)
-            .single();
-
-          if (createError) throw createError;
-          data = newConv;
-        }
-
         setConversation(data);
         loadedConversationId = data?.id || null;
       }
 
-      if (loadedConversationId) {
-        await loadMessages(loadedConversationId);
+      if (loadedProjectId) {
+        const isPaid = await checkDepositStatus(loadedProjectId);
+        setDepositPaid(isPaid);
+        setCheckingDeposit(false);
+
+        if (loadedConversationId && isPaid) {
+          await loadMessages(loadedConversationId);
+        }
+      } else {
+        setCheckingDeposit(false);
       }
     } catch (error) {
       console.error('Error loading conversation:', error);
+      setCheckingDeposit(false);
     } finally {
       setLoading(false);
     }
@@ -403,10 +409,57 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
       ? conversation?.contractor?.full_name
       : conversation?.owner?.full_name;
 
-  if (loading) {
+  if (loading || checkingDeposit) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (!depositPaid) {
+    return (
+      <div className="flex flex-col h-full bg-white rounded-2xl shadow-lg border border-gray-200">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-amber-500 to-amber-600 rounded-t-2xl">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
+              <Lock className="w-5 h-5 text-amber-600" />
+            </div>
+            <div>
+              <h3 className="font-bold text-white">Chat Locked</h3>
+              <p className="text-xs text-amber-100">Deposit payment required</p>
+            </div>
+          </div>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-amber-700 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5 text-white" />
+            </button>
+          )}
+        </div>
+
+        <div className="flex-1 flex items-center justify-center p-8">
+          <div className="text-center max-w-md">
+            <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Lock className="w-10 h-10 text-amber-600" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">Deposit Payment Required</h3>
+            <p className="text-gray-600 mb-4">
+              The contractor must pay the 10% security deposit before communication is enabled. This protects both parties and ensures commitment to the project.
+            </p>
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-left">
+              <p className="text-sm text-amber-900 font-medium mb-2">What happens next:</p>
+              <ul className="text-sm text-amber-800 space-y-1">
+                <li>• Contractor pays security deposit (held in escrow)</li>
+                <li>• Project status changes to "Active"</li>
+                <li>• Chat unlocks automatically</li>
+                <li>• You can coordinate project details</li>
+              </ul>
+            </div>
+          </div>
+        </div>
       </div>
     );
   }
