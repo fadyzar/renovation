@@ -24,6 +24,12 @@ interface Project {
   transactions?: Array<{
     initial_deposit_paid: boolean;
   }>;
+  payments?: Array<{
+    id: string;
+    status: string;
+    is_deposit: boolean;
+    paid_at: string;
+  }>;
   ai_analysis?: {
     estimated_cost?: number;
     complexity?: string;
@@ -42,6 +48,37 @@ export function OwnerDashboard() {
 
   useEffect(() => {
     loadProjects();
+
+    // Subscribe to project changes for real-time updates
+    const channel = supabase
+      .channel('projects-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'projects',
+        },
+        () => {
+          loadProjects();
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'payments',
+        },
+        () => {
+          loadProjects();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   async function loadProjects() {
@@ -51,7 +88,8 @@ export function OwnerDashboard() {
         .select(`
           *,
           selected_contractor:profiles!projects_selected_contractor_id_fkey(full_name),
-          transactions(initial_deposit_paid)
+          transactions(initial_deposit_paid),
+          payments(id, status, is_deposit, paid_at)
         `)
         .order('created_at', { ascending: false });
 
@@ -342,7 +380,11 @@ export function OwnerDashboard() {
                       <ProjectTimeline
                         projectStatus={project.status}
                         selectedContractorName={project.selected_contractor?.full_name}
-                        depositPaid={project.transactions?.[0]?.initial_deposit_paid || false}
+                        depositPaid={
+                          project.payments?.some(p => p.is_deposit && p.status === 'escrowed') ||
+                          project.transactions?.[0]?.initial_deposit_paid ||
+                          false
+                        }
                         startedAt={project.started_at}
                         completedAt={project.completed_at}
                       />

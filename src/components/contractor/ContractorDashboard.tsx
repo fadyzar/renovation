@@ -146,7 +146,17 @@ export function ContractorDashboard() {
             .eq('id', bid.project_id)
             .maybeSingle();
 
-          if (projectData) {
+          // Check if deposit already paid for this bid
+          const { data: existingPayment } = await supabase
+            .from('payments')
+            .select('id, status')
+            .eq('project_id', bid.project_id)
+            .eq('bid_id', bid.id)
+            .eq('is_deposit', true)
+            .maybeSingle();
+
+          // Only include if project exists, is awaiting_deposit, AND no payment exists yet
+          if (projectData && projectData.status === 'awaiting_deposit' && !existingPayment) {
             acceptedBidsWithProject.push({
               id: bid.id,
               total_price: bid.total_price,
@@ -156,9 +166,7 @@ export function ContractorDashboard() {
         }
       }
 
-      const pendingDeposit = acceptedBidsWithProject.filter(
-        (b) => b.project?.status === 'awaiting_deposit'
-      );
+      const pendingDeposit = acceptedBidsWithProject;
 
       const acceptedBids = allBidsData?.filter(b => b.status === 'accepted') || [];
 
