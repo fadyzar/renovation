@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Star, DollarSign, Briefcase, FileText, MapPin, Calendar, ChevronRight, AlertCircle, Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -74,22 +74,18 @@ export function ContractorDashboard() {
   const [selectedProject, setSelectedProject] = useState<any>(null);
   const [depositModalBid, setDepositModalBid] = useState<DepositPendingBid | null>(null);
   const [loading, setLoading] = useState(true);
+  const loadingRef = useRef(false);
 
-  useEffect(() => {
-    if (profile?.id) {
-      loadData();
-    } else {
-      setLoading(false);
-    }
-  }, [profile?.id]);
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     if (!profile?.id) {
-      console.error('Profile not loaded yet');
       return;
     }
 
-    console.log('Loading data for contractor:', profile.id);
+    if (loadingRef.current) {
+      return;
+    }
+
+    loadingRef.current = true;
 
     try {
       const { data: bidsData } = await supabase
@@ -127,25 +123,17 @@ export function ContractorDashboard() {
         .eq('contractor_id', profile.id);
 
       // Fetch accepted bids where project is awaiting deposit payment from this contractor
-      const { data: acceptedBidsRaw, error: acceptedBidsError } = await supabase
+      const { data: acceptedBidsRaw } = await supabase
         .from('bids')
         .select('id, total_price, status, project_id')
         .eq('contractor_id', profile.id)
         .eq('status', 'accepted');
 
-      if (acceptedBidsError) {
-        console.error('Error fetching accepted bids:', acceptedBidsError);
-      }
-
-      console.log('=== ACCEPTED BIDS RAW ===');
-      console.log('Raw accepted bids:', acceptedBidsRaw);
-
-      // Now fetch project details for each accepted bid
       const acceptedBidsWithProject: DepositPendingBid[] = [];
 
       if (acceptedBidsRaw && acceptedBidsRaw.length > 0) {
         for (const bid of acceptedBidsRaw) {
-          const { data: projectData, error: projectError } = await supabase
+          const { data: projectData } = await supabase
             .from('projects')
             .select(`
               id,
@@ -158,11 +146,6 @@ export function ContractorDashboard() {
             .eq('id', bid.project_id)
             .maybeSingle();
 
-          if (projectError) {
-            console.error(`Error fetching project ${bid.project_id}:`, projectError);
-            continue;
-          }
-
           if (projectData) {
             acceptedBidsWithProject.push({
               id: bid.id,
@@ -173,16 +156,9 @@ export function ContractorDashboard() {
         }
       }
 
-      console.log('=== BIDS WITH PROJECT DATA ===');
-      console.log('Accepted bids with projects:', acceptedBidsWithProject);
-
       const pendingDeposit = acceptedBidsWithProject.filter(
         (b) => b.project?.status === 'awaiting_deposit'
       );
-
-      console.log('=== PENDING DEPOSIT ===');
-      console.log('Filtered pending deposit bids:', pendingDeposit);
-      console.log('===================================');
 
       const acceptedBids = allBidsData?.filter(b => b.status === 'accepted') || [];
 
@@ -194,21 +170,32 @@ export function ContractorDashboard() {
         totalProjects: acceptedBids.length,
         totalBids: allBidsData?.length || 0,
       });
+      loadingRef.current = false;
     } catch (error) {
       console.error('Error loading data:', error);
+      loadingRef.current = false;
     } finally {
       setLoading(false);
     }
-  }
+  }, [profile?.id]);
+
+  useEffect(() => {
+    if (profile?.id && !loadingRef.current) {
+      loadData();
+    } else if (!profile?.id) {
+      setLoading(false);
+    }
+  }, [profile?.id, loadData]);
 
   const handleBrowseProjects = () => {
     navigate('/projects');
   };
 
-  console.log('=== RENDER STATE ===');
-  console.log('depositPendingBids.length:', depositPendingBids.length);
-  console.log('depositPendingBids:', depositPendingBids);
-  console.log('loading:', loading);
+  const handleDepositSuccess = useCallback(() => {
+    setDepositModalBid(null);
+    loadingRef.current = false;
+    loadData();
+  }, [loadData]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -319,14 +306,7 @@ export function ContractorDashboard() {
         <LocationSettings />
 
         {/* ── Deposit Required Alert ───────────────────────────────────────── */}
-        {(() => {
-          console.log('=== CHECKING DEPOSIT RENDER ===');
-          console.log('depositPendingBids.length:', depositPendingBids.length);
-          console.log('Should render?', depositPendingBids.length > 0);
-          return null;
-        })()}
-
-        {depositPendingBids.length > 0 ? (
+        {depositPendingBids.length > 0 && (
           <div className="mb-8">
             <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl overflow-hidden">
               <div className="bg-amber-500 px-6 py-3 flex items-center gap-2">
@@ -377,12 +357,6 @@ export function ContractorDashboard() {
                 })}
               </div>
             </div>
-          </div>
-        ) : (
-          <div className="mb-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-            <p className="text-blue-700 text-sm">
-              DEBUG: No deposit pending bids (depositPendingBids.length = {depositPendingBids.length})
-            </p>
           </div>
         )}
 
