@@ -191,11 +191,15 @@ export function ContractorDashboard() {
     navigate('/projects');
   };
 
-  const handleDepositSuccess = useCallback(() => {
+  const handleDepositSuccess = useCallback((conversationId?: string) => {
     setDepositModalBid(null);
     loadingRef.current = false;
-    loadData();
-  }, [loadData]);
+    if (conversationId) {
+      navigate('/messages', { state: { conversationId } });
+    } else {
+      loadData();
+    }
+  }, [loadData, navigate]);
 
   return (
     <div className="min-h-screen bg-gray-50">

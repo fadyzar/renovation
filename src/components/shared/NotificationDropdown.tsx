@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Bell, Check, X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -11,10 +12,12 @@ interface Notification {
   link?: string;
   is_read: boolean;
   created_at: string;
+  data?: any;
 }
 
 export function NotificationDropdown() {
   const { profile } = useAuth();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -73,6 +76,22 @@ export function NotificationDropdown() {
     }
   }
 
+  function handleNotificationClick(notification: Notification) {
+    markAsRead(notification.id);
+    setIsOpen(false);
+
+    // Handle navigation based on notification type
+    if (notification.type === 'deposit_paid' && notification.data?.conversation_id) {
+      navigate('/messages', { state: { conversationId: notification.data.conversation_id } });
+    } else if (notification.type === 'new_message' && notification.data?.conversation_id) {
+      navigate('/messages', { state: { conversationId: notification.data.conversation_id } });
+    } else if (notification.type === 'bid_accepted' && notification.data?.project_id) {
+      navigate(`/projects/${notification.data.project_id}`);
+    } else if (notification.type === 'new_bid' && notification.data?.project_id) {
+      navigate(`/projects/${notification.data.project_id}`);
+    }
+  }
+
   async function markAllAsRead() {
     if (!profile) return;
 
@@ -102,6 +121,8 @@ export function NotificationDropdown() {
         return '🔔';
       case 'payment_received':
         return '💰';
+      case 'deposit_paid':
+        return '🔐';
       default:
         return '📋';
     }
@@ -158,9 +179,10 @@ export function NotificationDropdown() {
               ) : (
                 <div className="divide-y divide-gray-100">
                   {notifications.map((notification) => (
-                    <div
+                    <button
                       key={notification.id}
-                      className={`p-4 hover:bg-gray-50 transition-colors ${
+                      onClick={() => handleNotificationClick(notification)}
+                      className={`w-full p-4 hover:bg-gray-50 transition-colors text-left ${
                         !notification.is_read ? 'bg-blue-50' : ''
                       }`}
                     >
@@ -172,12 +194,7 @@ export function NotificationDropdown() {
                               {notification.title}
                             </h4>
                             {!notification.is_read && (
-                              <button
-                                onClick={() => markAsRead(notification.id)}
-                                className="p-1 hover:bg-gray-200 rounded-full transition-colors flex-shrink-0"
-                              >
-                                <Check className="w-4 h-4 text-blue-600" />
-                              </button>
+                              <div className="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0 mt-1.5" />
                             )}
                           </div>
                           <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
@@ -186,7 +203,7 @@ export function NotificationDropdown() {
                           </p>
                         </div>
                       </div>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}

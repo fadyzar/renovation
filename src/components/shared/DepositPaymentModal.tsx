@@ -24,7 +24,7 @@ interface Props {
   contractorId: string;
   projectTitle: string;
   totalBidAmount: number;
-  onSuccess: () => void;
+  onSuccess: (conversationId?: string) => void;
   onClose: () => void;
 }
 
@@ -155,6 +155,9 @@ export function DepositPaymentModal({
           conversation_id: convId,
         }
       });
+
+      // Store conversation ID to pass to onSuccess
+      (window as any).__lastConversationId = convId;
 
       setState('success');
     } catch (err) {
@@ -322,10 +325,14 @@ export function DepositPaymentModal({
               </div>
 
               <button
-                onClick={onSuccess}
+                onClick={() => {
+                  const convId = (window as any).__lastConversationId;
+                  delete (window as any).__lastConversationId;
+                  onSuccess(convId);
+                }}
                 className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition-colors"
               >
-                Continue to Dashboard
+                Open Chat with Owner
               </button>
             </div>
           )}

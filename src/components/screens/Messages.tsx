@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { MessageCircle, Search, Lock } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -30,12 +31,21 @@ interface Conversation {
 
 export function Messages() {
   const { profile } = useAuth();
+  const location = useLocation();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
   const [typingUsers, setTypingUsers] = useState<Record<string, boolean>>({});
+
+  // Auto-select conversation from navigation state
+  useEffect(() => {
+    const state = location.state as any;
+    if (state?.conversationId) {
+      setSelectedConversation(state.conversationId);
+    }
+  }, [location.state]);
 
   useEffect(() => {
     if (profile) {
