@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Send, X, MessageCircle, FileText, Image as ImageIcon, CheckCheck, Check, Paperclip, Lock } from 'lucide-react';
+import { Send, X, MessageCircle, FileText, Image as ImageIcon, CheckCheck, Check, Paperclip, Lock, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -50,6 +50,7 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
+  const [messageError, setMessageError] = useState('');
   const [loading, setLoading] = useState(true);
   const [depositPaid, setDepositPaid] = useState(false);
   const [checkingDeposit, setCheckingDeposit] = useState(true);
@@ -300,7 +301,7 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
         const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
         const checkResponse = await fetch(
-          `${supabaseUrl}/functions/v1/monitor-chat-message`,
+          `${supabaseUrl}/functions/v1/validate-message`,
           {
             method: 'POST',
             headers: {
@@ -309,8 +310,10 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
             },
             body: JSON.stringify({
               message: messageContent,
+              userId: profile.id,
+              projectId: conversation.project_id,
               conversationId: conversation.id,
-              senderId: profile.id,
+              type: 'chat',
             }),
           }
         );
@@ -318,24 +321,9 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
         if (checkResponse.ok) {
           const result = await checkResponse.json();
 
-          if (result.hasViolation) {
-            const severity = result.severity || 'medium';
-
-            if (severity === 'high' || severity === 'critical') {
-              alert(
-                `Message blocked: ${result.explanation}\n\n` +
-                `Please keep all communication within the platform. ` +
-                `Sharing contact information violates our terms of service.`
-              );
-              return;
-            } else {
-              const proceed = confirm(
-                `Warning: ${result.explanation}\n\n` +
-                `We detected potentially sensitive information. ` +
-                `Do you want to continue sending this message?`
-              );
-              if (!proceed) return;
-            }
+          if (!result.isValid && result.shouldBlock) {
+            setMessageError(result.message);
+            return;
           }
         }
       } catch (error) {
@@ -632,6 +620,20 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
       </div>
 
       <div className="p-4 border-t border-gray-200 bg-gray-50">
+        {messageError && (
+          <div className="mb-3 flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+            <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm text-red-700 font-medium">{messageError}</p>
+              <button
+                onClick={() => setMessageError('')}
+                className="text-xs text-red-600 hover:text-red-800 underline mt-1"
+              >
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
         {selectedFile && (
           <div className="mb-3 p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
             <div className="flex items-center gap-2">
@@ -675,6 +677,7 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
             onChange={(e) => {
               const value = e.target.value;
               setNewMessage(value);
+              setMessageError('');
               handleTyping(value.trim().length > 0 || selectedFile !== null);
             }}
             onKeyPress={(e) => {
@@ -685,7 +688,11 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
             }}
             placeholder="Type a message... (Shift+Enter for new line)"
             rows={1}
-            className="flex-1 px-4 py-3 border border-gray-300 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+            className={`flex-1 px-4 py-3 border rounded-2xl focus:outline-none focus:ring-2 resize-none ${
+              messageError
+                ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                : 'border-gray-300 focus:ring-blue-500 focus:border-transparent'
+            }`}
             style={{
               minHeight: '44px',
               maxHeight: '120px',

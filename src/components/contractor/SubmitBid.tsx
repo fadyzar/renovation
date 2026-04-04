@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { Plus, ArrowRight } from 'lucide-react';
+import { Plus, ArrowRight, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { validateMessage, getViolationMessage } from '../../utils/contactDetection';
 
 interface Milestone {
   id: string;
@@ -24,6 +25,7 @@ export function SubmitBid({ projectId, onSuccess, onCancel }: SubmitBidProps) {
     { id: '4', name: '', cost: '' }
   ]);
   const [message, setMessage] = useState('');
+  const [messageError, setMessageError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const addMilestone = () => {
@@ -64,6 +66,21 @@ export function SubmitBid({ projectId, onSuccess, onCancel }: SubmitBidProps) {
     updateMilestone(id, 'cost', formatted);
   };
 
+  const handleMessageChange = (value: string) => {
+    setMessage(value);
+
+    if (value.trim()) {
+      const validation = validateMessage(value);
+      if (!validation.isValid) {
+        setMessageError(getViolationMessage(validation));
+      } else {
+        setMessageError('');
+      }
+    } else {
+      setMessageError('');
+    }
+  };
+
   const handleSubmit = async () => {
     if (!profile) return;
 
@@ -78,6 +95,14 @@ export function SubmitBid({ projectId, onSuccess, onCancel }: SubmitBidProps) {
     if (totalPrice <= 0) {
       alert('Total price must be greater than 0');
       return;
+    }
+
+    if (message.trim()) {
+      const validation = validateMessage(message);
+      if (!validation.isValid && (validation.severity === 'critical' || validation.severity === 'high')) {
+        setMessageError(getViolationMessage(validation));
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -191,11 +216,24 @@ export function SubmitBid({ projectId, onSuccess, onCancel }: SubmitBidProps) {
             </label>
             <textarea
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
+              onChange={(e) => handleMessageChange(e.target.value)}
               placeholder="Add any additional information or questions for the project owner..."
               rows={4}
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent text-gray-700 placeholder-gray-400 resize-none"
+              className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 text-gray-700 placeholder-gray-400 resize-none ${
+                messageError
+                  ? 'border-red-300 focus:ring-red-500 focus:border-red-500'
+                  : 'border-gray-300 focus:ring-orange-500 focus:border-transparent'
+              }`}
             />
+            {messageError && (
+              <div className="mt-2 flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-red-700">{messageError}</p>
+              </div>
+            )}
+            <p className="mt-2 text-xs text-gray-500">
+              Contact information can only be shared after the security deposit is paid.
+            </p>
           </div>
 
           <div className="flex gap-4">

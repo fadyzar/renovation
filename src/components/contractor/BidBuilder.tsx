@@ -4,6 +4,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { ScanDataPanel, type ScanData } from '../shared/ScanDataPanel';
 import { estimateCost, checkBidDeviation, type CostEstimate } from '../../lib/costEstimator';
+import { validateMessage, getViolationMessage } from '../../utils/contactDetection';
 
 interface Project {
   id: string;
@@ -82,26 +83,19 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
     loadScan();
   }, [project.id, project.work_types, project.budget_min, project.budget_max]);
 
-  // Detect contact info in bid messages to prevent platform bypass
-  const CONTACT_PATTERNS = [
-    { re: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i, label: 'email address' },
-    { re: /\b(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/, label: 'phone number' },
-    { re: /whatsapp|wa\.me|telegram|t\.me|signal/i, label: 'messaging app link' },
-    { re: /instagram\.com|facebook\.com|linkedin\.com\/in\//i, label: 'social media link' },
-  ];
-
-  function checkMessageForContactInfo(text: string): string | null {
-    for (const { re, label } of CONTACT_PATTERNS) {
-      if (re.test(text)) {
-        return `Your message appears to contain a ${label}. Contact details are shared through the platform after the deposit is paid to protect both parties.`;
-      }
-    }
-    return null;
-  }
-
   function handleMessageChange(value: string) {
     setMessage(value);
-    setMessageWarning(checkMessageForContactInfo(value));
+
+    if (value.trim()) {
+      const validation = validateMessage(value);
+      if (!validation.isValid) {
+        setMessageWarning(getViolationMessage(validation));
+      } else {
+        setMessageWarning(null);
+      }
+    } else {
+      setMessageWarning(null);
+    }
   }
 
   const addMilestone = () => {
@@ -148,8 +142,11 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
       return 'Please add a message to the property owner';
     }
 
-    if (checkMessageForContactInfo(message)) {
-      return 'Please remove contact details from your message. Contact info is shared through the platform after the deposit is paid.';
+    if (message.trim()) {
+      const validation = validateMessage(message);
+      if (!validation.isValid && (validation.severity === 'critical' || validation.severity === 'high')) {
+        return getViolationMessage(validation);
+      }
     }
 
     if (milestones.some(m => !m.description.trim() || !m.price || !m.duration)) {
