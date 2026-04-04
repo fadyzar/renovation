@@ -158,10 +158,6 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
       return 'Total price must be greater than 0';
     }
 
-    // NOTE: Budget range is a RECOMMENDATION signal, not a hard gate.
-    // Contractors can bid any amount — the budget warning below is advisory only.
-    // Do NOT block submission based on budget here.
-
     return null;
   };
 
@@ -185,7 +181,7 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
 
       // status: 'submitted' — canonical status for a newly placed bid
       // ContractorMatching queries this status to show owner all received bids
-      const { error: insertError } = await supabase
+      const { data: bidData, error: insertError } = await supabase
         .from('bids')
         .insert({
           project_id: project.id,
@@ -194,9 +190,34 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
           milestones: milestonesData,
           message: message,
           status: 'submitted'
-        });
+        })
+        .select()
+        .single();
 
       if (insertError) throw insertError;
+
+      // Get project owner to send notification
+      const { data: projectData } = await supabase
+        .from('projects')
+        .select('owner_id')
+        .eq('id', project.id)
+        .single();
+
+      if (projectData?.owner_id) {
+        // Send notification to project owner
+        await supabase.from('notifications').insert({
+          user_id: projectData.owner_id,
+          type: 'bid_received',
+          title: 'New Bid Received',
+          message: `You received a new bid of $${calculateTotal().toLocaleString()} for "${project.title}"`,
+          data: {
+            project_id: project.id,
+            bid_id: bidData?.id,
+            contractor_id: profile?.id,
+            amount: calculateTotal()
+          }
+        });
+      }
 
       onSuccess();
       onClose();

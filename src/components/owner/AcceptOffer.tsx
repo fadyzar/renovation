@@ -147,6 +147,22 @@ export function AcceptOffer() {
         })
         .eq('id', projectId);
 
+      // 4. Send notification to contractor
+      if (bid?.contractor_id) {
+        await supabase.from('notifications').insert({
+          user_id: bid.contractor_id,
+          type: 'bid_accepted',
+          title: 'Bid Accepted!',
+          message: `Your bid of $${bid.total_price.toLocaleString()} for "${project?.title}" was accepted! Pay the deposit to start.`,
+          data: {
+            project_id: projectId,
+            bid_id: bidId,
+            deposit_amount: bid.total_price * 0.1,
+            total_amount: bid.total_price
+          }
+        });
+      }
+
       navigate('/dashboard');
     } catch (error) {
       console.error('Error accepting bid:', error);

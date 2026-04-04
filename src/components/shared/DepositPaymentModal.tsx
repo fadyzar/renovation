@@ -141,6 +141,21 @@ export function DepositPaymentModal({
           .eq('id', convId);
       }
 
+      // ── 5. Send notification to owner ────────────────────────────────────────
+      await supabase.from('notifications').insert({
+        user_id: ownerId,
+        type: 'deposit_paid',
+        title: 'Contractor Deposit Paid',
+        message: `Contractor paid the ${DEPOSIT_PCT}% deposit for "${projectTitle}". Project is now active!`,
+        data: {
+          project_id: projectId,
+          bid_id: bidId,
+          contractor_id: contractorId,
+          deposit_amount: depositAmount,
+          conversation_id: convId,
+        }
+      });
+
       setState('success');
     } catch (err) {
       console.error('Deposit flow error:', err);

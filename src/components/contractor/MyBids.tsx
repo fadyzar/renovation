@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
-import { ChevronDown, Search, Layers, Clock, ArrowRight } from 'lucide-react';
+import { ChevronDown, Search, Layers, Clock, ArrowRight, CheckCircle, XCircle, Eye, DollarSign, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import { DepositPaymentModal } from '../shared/DepositPaymentModal';
 
 interface Milestone {
   description: string;
@@ -28,6 +29,7 @@ interface Bid {
     budget_max: number;
     timeline_weeks: number;
     status: string;
+    owner_id: string;
     owner: {
       full_name: string;
       total_projects?: number;
@@ -40,6 +42,7 @@ export function MyBids() {
   const navigate = useNavigate();
   const [bids, setBids] = useState<Bid[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedBidForDeposit, setSelectedBidForDeposit] = useState<Bid | null>(null);
 
   const [filters, setFilters] = useState({
     renovationType: 'Select Project Type',
@@ -66,6 +69,7 @@ export function MyBids() {
             budget_max,
             timeline_weeks,
             status,
+            owner_id,
             owner:profiles!projects_owner_id_fkey(full_name, total_projects)
           )
         `)
@@ -81,32 +85,59 @@ export function MyBids() {
     }
   }
 
-  const getStatusConfig = (status: string) => {
+  const getStatusConfig = (bid: Bid) => {
+    const { status } = bid;
+    const projectStatus = bid.project.status;
+
+    // Accepted bid waiting for deposit
+    if (status === 'accepted' && projectStatus === 'awaiting_deposit') {
+      return {
+        label: 'Accepted - Deposit Required',
+        className: 'bg-amber-500 text-white',
+        icon: AlertCircle,
+        action: 'pay_deposit'
+      };
+    }
+
+    // Accepted bid, project in progress
+    if (status === 'accepted' && projectStatus === 'in_progress') {
+      return {
+        label: 'Active Project',
+        className: 'bg-green-500 text-white',
+        icon: CheckCircle,
+        action: 'view_project'
+      };
+    }
+
+    // Regular statuses
     switch (status) {
       case 'submitted':
         return {
-          label: 'Pending Bid',
-          className: 'bg-gray-500 text-white'
+          label: 'Pending Review',
+          className: 'bg-gray-500 text-white',
+          icon: Clock,
+          action: null
         };
       case 'viewed':
         return {
           label: 'Viewed by Owner',
-          className: 'bg-blue-500 text-white'
-        };
-      case 'accepted':
-        return {
-          label: 'Approved Bid',
-          className: 'bg-green-500 text-white'
+          className: 'bg-blue-500 text-white',
+          icon: Eye,
+          action: null
         };
       case 'rejected':
         return {
-          label: 'Rejected Bid',
-          className: 'bg-red-500 text-white'
+          label: 'Not Selected',
+          className: 'bg-red-500 text-white',
+          icon: XCircle,
+          action: null
         };
       default:
         return {
-          label: 'Pending Bid',
-          className: 'bg-gray-500 text-white'
+          label: 'Pending',
+          className: 'bg-gray-500 text-white',
+          icon: Clock,
+          action: null
         };
     }
   };
@@ -213,85 +244,153 @@ export function MyBids() {
             </button>
           </div>
         ) : (
-          <div className="space-y-6">
-            {bids.map((bid) => {
-              const statusConfig = getStatusConfig(bid.status);
+          <>
+            <div className="space-y-6">
+              {bids.map((bid) => {
+                const statusConfig = getStatusConfig(bid);
+                const StatusIcon = statusConfig.icon;
 
-              return (
-                <div key={bid.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
-                  <div className="p-6">
-                    <div className="flex items-start gap-4">
-                      <img
-                        src={`https://ui-avatars.com/api/?name=${bid.project.owner.full_name}&background=random`}
-                        alt={bid.project.owner.full_name}
-                        className="w-16 h-16 rounded-full flex-shrink-0"
-                      />
-
-                      <div className="flex-1">
-                        <div className="flex items-start justify-between mb-3">
-                          <div>
-                            <h3 className="text-lg font-bold text-gray-900 mb-1">
-                              {bid.project.owner.full_name}
-                            </h3>
-                            <p className="text-sm text-gray-600 mb-2">First-Time Renovator</p>
-                            <span className="inline-block px-3 py-1 bg-green-100 text-green-700 text-xs font-medium rounded-full">
-                              Verified
-                            </span>
-                          </div>
-
-                          <div className="text-right">
-                            <span className={`inline-block px-4 py-1.5 rounded-lg text-sm font-semibold ${statusConfig.className} mb-3`}>
-                              {statusConfig.label}
-                            </span>
-                            <p className="text-sm text-gray-600 mb-1">Bid Amount:</p>
-                            <p className="text-2xl font-bold text-gray-900">
-                              ${bid.total_price.toLocaleString()}
-                            </p>
-                          </div>
+                return (
+                  <div key={bid.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden hover:shadow-md transition-shadow">
+                    <div className="p-6">
+                      <div className="flex items-start gap-4">
+                        <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl flex items-center justify-center flex-shrink-0 text-white text-2xl font-bold shadow">
+                          {bid.project.title.charAt(0)}
                         </div>
 
-                        <div className="flex items-center gap-6 text-sm pt-3 border-t border-gray-200">
-                          <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                              <Layers className="w-4 h-4 text-blue-600" />
-                            </div>
+                        <div className="flex-1">
+                          <div className="flex items-start justify-between mb-3">
                             <div>
-                              <p className="text-xs text-gray-500">Finished Projects</p>
-                              <p className="text-sm font-semibold text-gray-900">
-                                {bid.project.owner.total_projects || 2} Projects
+                              <h3 className="text-lg font-bold text-gray-900 mb-1">
+                                {bid.project.title}
+                              </h3>
+                              <p className="text-sm text-gray-600 line-clamp-2 mb-2">
+                                {bid.project.description}
+                              </p>
+                            </div>
+
+                            <div className="text-right ml-4">
+                              <span className={`inline-flex items-center gap-1.5 px-4 py-1.5 rounded-lg text-sm font-semibold ${statusConfig.className} mb-3 whitespace-nowrap`}>
+                                <StatusIcon className="w-4 h-4" />
+                                {statusConfig.label}
+                              </span>
+                              <p className="text-sm text-gray-600 mb-1">Your Bid:</p>
+                              <p className="text-2xl font-bold text-gray-900">
+                                ${bid.total_price.toLocaleString()}
                               </p>
                             </div>
                           </div>
 
-                          <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                              <Clock className="w-4 h-4 text-blue-600" />
+                          <div className="flex items-center gap-6 text-sm pt-3 border-t border-gray-200">
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                                <Layers className="w-4 h-4 text-blue-600" />
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-500">Milestones</p>
+                                <p className="text-sm font-semibold text-gray-900">
+                                  {bid.milestones.length} phases
+                                </p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="text-xs text-gray-500">Estimated Completion Time</p>
-                              <p className="text-sm font-semibold text-gray-900">
-                                {bid.project.timeline_weeks || 1.5} Months
-                              </p>
+
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                                <Clock className="w-4 h-4 text-blue-600" />
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-500">Duration</p>
+                                <p className="text-sm font-semibold text-gray-900">
+                                  {bid.milestones.reduce((sum, m) => sum + m.duration, 0)} days
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2">
+                              <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                                <DollarSign className="w-4 h-4 text-purple-600" />
+                              </div>
+                              <div>
+                                <p className="text-xs text-gray-500">Submitted</p>
+                                <p className="text-sm font-semibold text-gray-900">
+                                  {new Date(bid.created_at).toLocaleDateString()}
+                                </p>
+                              </div>
                             </div>
                           </div>
+
+                          {/* Action buttons based on status */}
+                          {statusConfig.action === 'pay_deposit' && (
+                            <div className="mt-4">
+                              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-3">
+                                <div className="flex items-start gap-2">
+                                  <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                                  <div>
+                                    <p className="text-sm font-semibold text-amber-900 mb-1">
+                                      Deposit Required to Start Project
+                                    </p>
+                                    <p className="text-sm text-amber-800">
+                                      Your bid was accepted! Pay the 10% security deposit (${(bid.total_price * 0.1).toLocaleString()}) to unlock messaging and start the project.
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => setSelectedBidForDeposit(bid)}
+                                className="w-full px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold rounded-lg transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                              >
+                                <DollarSign className="w-5 h-5" />
+                                Pay ${(bid.total_price * 0.1).toLocaleString()} Deposit to Start
+                              </button>
+                            </div>
+                          )}
+
+                          {statusConfig.action === 'view_project' && (
+                            <div className="mt-4">
+                              <button
+                                onClick={() => navigate(`/project/${bid.project.id}`)}
+                                className="w-full px-6 py-3 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white font-bold rounded-lg transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                              >
+                                View Active Project
+                                <ArrowRight className="w-5 h-5" />
+                              </button>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
 
-            <div className="text-center py-8">
-              <button
-                onClick={() => navigate('/projects')}
-                className="px-8 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl inline-flex items-center gap-2"
-              >
-                Browse More Projects
-                <ArrowRight className="w-5 h-5" />
-              </button>
+              <div className="text-center py-8">
+                <button
+                  onClick={() => navigate('/projects')}
+                  className="px-8 py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-lg transition-all duration-200 shadow-lg hover:shadow-xl inline-flex items-center gap-2"
+                >
+                  Browse More Projects
+                  <ArrowRight className="w-5 h-5" />
+                </button>
+              </div>
             </div>
-          </div>
+
+            {/* Deposit Payment Modal */}
+            {selectedBidForDeposit && profile && (
+              <DepositPaymentModal
+                projectId={selectedBidForDeposit.project.id}
+                bidId={selectedBidForDeposit.id}
+                ownerId={selectedBidForDeposit.project.owner_id}
+                contractorId={profile.id}
+                projectTitle={selectedBidForDeposit.project.title}
+                totalBidAmount={selectedBidForDeposit.total_price}
+                onClose={() => setSelectedBidForDeposit(null)}
+                onSuccess={() => {
+                  setSelectedBidForDeposit(null);
+                  loadBids();
+                }}
+              />
+            )}
+          </>
         )}
       </div>
     </div>

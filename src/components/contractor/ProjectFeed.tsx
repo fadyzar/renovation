@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ChevronDown, MapPin, Navigation, AlertCircle, Clock, TrendingUp, MessageCircle, Sparkles, Star, ChevronRight } from 'lucide-react';
+import { ChevronDown, MapPin, Navigation, AlertCircle, Clock, TrendingUp, MessageCircle, Sparkles, Star, ChevronRight, CheckCircle, Eye, XCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { BidBuilder } from './BidBuilder';
 import { useAuth } from '../../contexts/AuthContext';
@@ -35,6 +35,8 @@ interface Project {
     id: string;
     full_name: string;
   };
+  userBidStatus?: string | null;
+  userBidId?: string | null;
 }
 
 interface ScoredProject extends Project {
@@ -92,7 +94,8 @@ export function ProjectFeed() {
         .select(`
           *,
           properties(address, city, state, zip_code),
-          owner:profiles!projects_owner_id_fkey(id, full_name)
+          owner:profiles!projects_owner_id_fkey(id, full_name),
+          bids(id, status, contractor_id)
         `)
         .eq('status', 'seeking_quotes');
 
@@ -105,7 +108,18 @@ export function ProjectFeed() {
 
       const { data, error } = await query;
       if (error) throw error;
-      setRawProjects(data || []);
+
+      // Filter bids to only include current user's bids
+      const projectsWithUserBid = (data || []).map(proj => {
+        const userBid = proj.bids?.find((b: any) => b.contractor_id === profile?.id);
+        return {
+          ...proj,
+          userBidStatus: userBid?.status || null,
+          userBidId: userBid?.id || null
+        };
+      });
+
+      setRawProjects(projectsWithUserBid as any);
     } catch (err) {
       console.error('Error loading projects:', err);
     } finally {
@@ -383,10 +397,6 @@ export function ProjectFeed() {
 
           {isExpanded && (
             <div className="bg-gray-50 rounded-xl p-4 mb-4 space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-gray-500">Owner</span>
-                <span className="font-medium">{project.owner.full_name}</span>
-              </div>
               {project.timeline_weeks && (
                 <div className="flex justify-between">
                   <span className="text-gray-500">Timeline</span>
@@ -405,25 +415,70 @@ export function ProjectFeed() {
                   <span className="font-medium">{formatDistance(project.distance)}</span>
                 </div>
               )}
+              <div className="mt-2 p-2 bg-blue-50 rounded text-xs text-blue-700">
+                <strong>Note:</strong> Owner contact details available after deposit payment
+              </div>
             </div>
           )}
 
           {/* CTAs */}
           <div className="flex gap-2">
-            <button
-              onClick={() => handleContactOwner(project)}
-              className="flex items-center gap-1.5 px-4 py-2.5 bg-white border-2 border-blue-600 text-blue-600 font-semibold rounded-lg hover:bg-blue-50 transition-colors text-sm"
-            >
-              <MessageCircle className="w-4 h-4" />
-              Message
-            </button>
-            <button
-              onClick={() => setSelectedProject(project)}
-              className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-lg transition-all shadow hover:shadow-md text-sm"
-            >
-              Submit Bid
-              <ChevronRight className="w-4 h-4" />
-            </button>
+            {project.userBidStatus ? (
+              // Already submitted a bid
+              <>
+                {project.userBidStatus === 'submitted' && (
+                  <button
+                    className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-green-500 text-white font-semibold rounded-lg cursor-default text-sm"
+                  >
+                    <CheckCircle className="w-4 h-4" />
+                    Bid Submitted - Awaiting Review
+                  </button>
+                )}
+                {project.userBidStatus === 'viewed' && (
+                  <button
+                    className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-blue-500 text-white font-semibold rounded-lg cursor-default text-sm"
+                  >
+                    <Eye className="w-4 h-4" />
+                    Bid Viewed by Owner
+                  </button>
+                )}
+                {project.userBidStatus === 'accepted' && (
+                  <button
+                    onClick={() => navigate('/my-bids')}
+                    className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg transition-colors text-sm"
+                  >
+                    <AlertCircle className="w-4 h-4" />
+                    Bid Accepted - Pay Deposit
+                  </button>
+                )}
+                {project.userBidStatus === 'rejected' && (
+                  <button
+                    className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-gray-400 text-white font-semibold rounded-lg cursor-default text-sm"
+                  >
+                    <XCircle className="w-4 h-4" />
+                    Not Selected
+                  </button>
+                )}
+              </>
+            ) : (
+              // No bid yet
+              <>
+                <button
+                  onClick={() => handleContactOwner(project)}
+                  className="flex items-center gap-1.5 px-4 py-2.5 bg-white border-2 border-blue-600 text-blue-600 font-semibold rounded-lg hover:bg-blue-50 transition-colors text-sm"
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  Message
+                </button>
+                <button
+                  onClick={() => setSelectedProject(project)}
+                  className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-lg transition-all shadow hover:shadow-md text-sm"
+                >
+                  Submit Bid
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
