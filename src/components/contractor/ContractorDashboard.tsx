@@ -78,6 +78,8 @@ export function ContractorDashboard() {
   useEffect(() => {
     if (profile?.id) {
       loadData();
+    } else {
+      setLoading(false);
     }
   }, [profile?.id]);
 
@@ -203,6 +205,11 @@ export function ContractorDashboard() {
     navigate('/projects');
   };
 
+  console.log('=== RENDER STATE ===');
+  console.log('depositPendingBids.length:', depositPendingBids.length);
+  console.log('depositPendingBids:', depositPendingBids);
+  console.log('loading:', loading);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -312,7 +319,14 @@ export function ContractorDashboard() {
         <LocationSettings />
 
         {/* ── Deposit Required Alert ───────────────────────────────────────── */}
-        {depositPendingBids.length > 0 && (
+        {(() => {
+          console.log('=== CHECKING DEPOSIT RENDER ===');
+          console.log('depositPendingBids.length:', depositPendingBids.length);
+          console.log('Should render?', depositPendingBids.length > 0);
+          return null;
+        })()}
+
+        {depositPendingBids.length > 0 ? (
           <div className="mb-8">
             <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl overflow-hidden">
               <div className="bg-amber-500 px-6 py-3 flex items-center gap-2">
@@ -363,6 +377,12 @@ export function ContractorDashboard() {
                 })}
               </div>
             </div>
+          </div>
+        ) : (
+          <div className="mb-8 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <p className="text-blue-700 text-sm">
+              DEBUG: No deposit pending bids (depositPendingBids.length = {depositPendingBids.length})
+            </p>
           </div>
         )}
 
