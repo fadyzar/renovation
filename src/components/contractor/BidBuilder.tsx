@@ -59,7 +59,7 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
   useEffect(() => {
     async function loadScan() {
       const { data } = await supabase
-        .from('project_scans')
+        .from('project_images')
         .select('*')
         .eq('project_id', project.id)
         .maybeSingle();

@@ -106,7 +106,7 @@ export function ScanDataPanel({
     if (!projectId) return;
 
     supabase
-      .from('project_scans')
+      .from('project_images')
       .select('*')
       .eq('project_id', projectId)
       .maybeSingle()

@@ -96,7 +96,7 @@ export function ContractorMatching() {
 
       // Load scan data in parallel with bids
       const { data: scan } = await supabase
-        .from('project_scans')
+        .from('project_images')
         .select('*')
         .eq('project_id', projectId)
         .maybeSingle();

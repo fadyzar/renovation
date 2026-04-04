@@ -14,11 +14,7 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
-import {
-  X, Camera, Upload, CheckCircle, AlertCircle,
-  RefreshCw, Ruler, Zap, Eye, Edit3, ScanLine,
-  ArrowRight, RotateCcw
-} from 'lucide-react';
+import { X, Camera, Upload, CheckCircle, AlertCircle, RefreshCw, Ruler, Zap, Eye, CreditCard as Edit3, ScanLine, ArrowRight, RotateCcw } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -257,7 +253,7 @@ export function ScanSpaceModal({ projectId, renovationType, onConfirm, onClose }
       setScanResult(result.measurements);
       setAiQuote(result.ai_quote ?? null);
 
-      await supabase.from('project_scans').upsert({
+      await supabase.from('project_images').upsert({
         project_id: projectId,
         owner_id: profile?.id,
         scan_status: 'completed',
@@ -282,7 +278,7 @@ export function ScanSpaceModal({ projectId, renovationType, onConfirm, onClose }
     if (!scanResult) return;
     setIsSaving(true);
     try {
-      await supabase.from('project_scans').update({
+      await supabase.from('project_images').update({
         is_confirmed: true,
         confirmed_at: new Date().toISOString(),
       }).eq('project_id', projectId);
@@ -312,7 +308,7 @@ export function ScanSpaceModal({ projectId, renovationType, onConfirm, onClose }
       renovation_notes: '',
     };
     try {
-      await supabase.from('project_scans').upsert({
+      await supabase.from('project_images').upsert({
         project_id: projectId, owner_id: profile?.id,
         scan_status: 'manual', scan_source: 'manual',
         is_confirmed: true, confirmed_at: new Date().toISOString(),
