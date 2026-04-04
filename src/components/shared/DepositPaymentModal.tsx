@@ -415,7 +415,7 @@ export function DepositPaymentModal({
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-4 text-xs">
           <p className="text-blue-900 font-medium mb-1">Demo Mode - Testing</p>
           <p className="text-blue-700">
-            Use card <span className="font-mono font-bold">4242 4242 4242 4242</span> with any future date and CVV for successful payment.
+            Use card <span className="font-mono font-bold">4242 4242 4242 4242</span> with <span className="font-semibold">any expiry date (e.g., 12/25)</span> and any CVV (e.g., 123).
           </p>
         </div>
 

@@ -64,12 +64,12 @@ function delay(ms: number): Promise<void> {
 }
 
 function isCardExpired(month: string, year: string): boolean {
-  const now = new Date();
-  const expMonth = parseInt(month, 10);
-  const expYear = 2000 + parseInt(year, 10);
-  if (expYear < now.getFullYear()) return true;
-  if (expYear === now.getFullYear() && expMonth < now.getMonth() + 1) return true;
-  return false;
+  // In demo mode, be very lenient - accept any reasonable date
+  // Only reject obviously invalid dates like year 00-20 (2000-2020)
+  const expYear = parseInt(year, 10);
+  if (expYear < 21) return true; // Cards from 2020 and earlier are expired
+
+  return false; // Accept all other dates (2021+)
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
