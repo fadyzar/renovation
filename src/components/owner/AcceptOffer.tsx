@@ -21,8 +21,14 @@ interface Bid {
     id: string;
     full_name: string;
     company_name: string;
+    specialties: string[];
     bio: string;
     avatar_url: string;
+    years_experience: number;
+    total_projects: number;
+    rating: number;
+    verification_status: string;
+    license_verified: boolean;
   };
 }
 
@@ -77,12 +83,18 @@ export function AcceptOffer() {
         .from('bids')
         .select(`
           *,
-          contractor:profiles!bids_contractor_id_fkey (
+          contractor:profiles!contractor_id (
             id,
             full_name,
             company_name,
+            specialties,
             bio,
-            avatar_url
+            avatar_url,
+            years_experience,
+            total_projects,
+            rating,
+            verification_status,
+            license_verified
           )
         `)
         .eq('id', bidId)
@@ -153,10 +165,6 @@ export function AcceptOffer() {
     }
     const months = Math.ceil(totalDuration / 30);
     return months === 1 ? '1 Month' : `${months / 2} Months`;
-  }
-
-  function getProjectCount(): number {
-    return Math.floor(Math.random() * 80) + 20;
   }
 
   if (loading) {
@@ -310,17 +318,30 @@ export function AcceptOffer() {
                   {bid.contractor?.company_name || 'Licensed General Contractor'}
                 </p>
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    <CheckCircle className="w-3 h-3 mr-1" />
-                    Verified
-                  </span>
+                  {bid.contractor?.verification_status === 'verified' || bid.contractor?.license_verified ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      <CheckCircle className="w-3 h-3 mr-1" />
+                      Verified
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                      Verification Pending
+                    </span>
+                  )}
                 </div>
-                <div className="flex items-center">
-                  {[...Array(5)].map((_, i) => (
-                    <Star key={i} className="w-4 h-4 fill-yellow-400 text-yellow-400" />
-                  ))}
-                  <span className="text-xs text-gray-600 ml-1">(5 Stars)</span>
-                </div>
+                {(bid.contractor?.rating ?? 0) > 0 ? (
+                  <div className="flex items-center">
+                    {[...Array(5)].map((_, i) => (
+                      <Star
+                        key={i}
+                        className={`w-4 h-4 ${i < Math.round(bid.contractor?.rating ?? 0) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}`}
+                      />
+                    ))}
+                    <span className="text-xs text-gray-600 ml-1">({bid.contractor?.rating?.toFixed(1)} Stars)</span>
+                  </div>
+                ) : (
+                  <span className="text-xs text-gray-500">No ratings yet</span>
+                )}
               </div>
             </div>
 
@@ -345,7 +366,11 @@ export function AcceptOffer() {
               </div>
               <div>
                 <p className="text-sm font-medium text-gray-900 mb-1">Finished Projects</p>
-                <p className="text-sm text-gray-600">{getProjectCount()} Projects</p>
+                <p className="text-sm text-gray-600">
+                  {(bid.contractor?.total_projects ?? 0) > 0
+                    ? `${bid.contractor?.total_projects} Projects`
+                    : 'New contractor'}
+                </p>
               </div>
             </div>
 

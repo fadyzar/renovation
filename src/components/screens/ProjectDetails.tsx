@@ -28,6 +28,7 @@ interface Project {
   room_dimensions?: string;
   finish_level?: string;
   status: string;
+  owner_id: string;
   owner: {
     full_name: string;
     email: string;
@@ -225,27 +226,41 @@ function ProjectDetails() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Mail className="w-5 h-5 text-blue-600" />
-                </div>
-                <div>
-                  <p className="text-xs text-gray-500">Your Mail</p>
-                  <p className="text-sm font-semibold text-gray-900">{project.owner.email}</p>
-                </div>
-              </div>
+              {profile?.id === project.owner_id ? (
+                <>
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <Mail className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Your Mail</p>
+                      <p className="text-sm font-semibold text-gray-900">{project.owner.email}</p>
+                    </div>
+                  </div>
 
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <Phone className="w-5 h-5 text-blue-600" />
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                      <Phone className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500">Phone Number</p>
+                      <p className="text-sm font-semibold text-gray-900">
+                        {project.owner.phone || 'Not provided'}
+                      </p>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center gap-3 col-span-2">
+                  <div className="w-10 h-10 bg-amber-100 rounded-lg flex items-center justify-center">
+                    <Mail className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500">Contact Info</p>
+                    <p className="text-sm text-amber-700 font-medium">Available after deposit is paid</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs text-gray-500">Phone Number</p>
-                  <p className="text-sm font-semibold text-gray-900">
-                    {project.owner.phone || '+1 1234567890'}
-                  </p>
-                </div>
-              </div>
+              )}
 
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
@@ -253,7 +268,7 @@ function ProjectDetails() {
                 </div>
                 <div>
                   <p className="text-xs text-gray-500">Room Dimensions</p>
-                  <p className="text-sm font-semibold text-gray-900">{project.room_dimensions || '24x75'}</p>
+                  <p className="text-sm font-semibold text-gray-900">{project.room_dimensions || 'N/A'}</p>
                 </div>
               </div>
 

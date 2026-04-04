@@ -37,6 +37,7 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
   ]);
   const [scanData, setScanData] = useState<ScanData | null>(null);
   const [costEstimate, setCostEstimate] = useState<CostEstimate | null>(null);
+  const [messageWarning, setMessageWarning] = useState<string | null>(null);
 
   // Check for duplicate bid on mount — contractor can only bid once per project
   useEffect(() => {
@@ -81,6 +82,28 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
     loadScan();
   }, [project.id, project.work_types, project.budget_min, project.budget_max]);
 
+  // Detect contact info in bid messages to prevent platform bypass
+  const CONTACT_PATTERNS = [
+    { re: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i, label: 'email address' },
+    { re: /\b(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/, label: 'phone number' },
+    { re: /whatsapp|wa\.me|telegram|t\.me|signal/i, label: 'messaging app link' },
+    { re: /instagram\.com|facebook\.com|linkedin\.com\/in\//i, label: 'social media link' },
+  ];
+
+  function checkMessageForContactInfo(text: string): string | null {
+    for (const { re, label } of CONTACT_PATTERNS) {
+      if (re.test(text)) {
+        return `Your message appears to contain a ${label}. Contact details are shared through the platform after the deposit is paid to protect both parties.`;
+      }
+    }
+    return null;
+  }
+
+  function handleMessageChange(value: string) {
+    setMessage(value);
+    setMessageWarning(checkMessageForContactInfo(value));
+  }
+
   const addMilestone = () => {
     setMilestones([
       ...milestones,
@@ -123,6 +146,10 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
   const validateBid = () => {
     if (message.trim() === '') {
       return 'Please add a message to the property owner';
+    }
+
+    if (checkMessageForContactInfo(message)) {
+      return 'Please remove contact details from your message. Contact info is shared through the platform after the deposit is paid.';
     }
 
     if (milestones.some(m => !m.description.trim() || !m.price || !m.duration)) {
@@ -319,12 +346,22 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
             </label>
             <textarea
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
+              onChange={(e) => handleMessageChange(e.target.value)}
               placeholder="Introduce yourself and explain your approach to this project..."
               rows={4}
-              className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all resize-none"
+              className={`w-full px-4 py-3 border rounded-xl focus:ring-2 outline-none transition-all resize-none ${
+                messageWarning
+                  ? 'border-amber-400 focus:border-amber-500 focus:ring-amber-500/20'
+                  : 'border-gray-200 focus:border-blue-500 focus:ring-blue-500/20'
+              }`}
               required
             />
+            {messageWarning && (
+              <div className="mt-2 flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
+                <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-amber-800">{messageWarning}</p>
+              </div>
+            )}
           </div>
 
           <div>

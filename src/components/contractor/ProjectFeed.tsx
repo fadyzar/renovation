@@ -34,8 +34,6 @@ interface Project {
   owner: {
     id: string;
     full_name: string;
-    email: string;
-    phone?: string;
   };
 }
 
@@ -94,7 +92,7 @@ export function ProjectFeed() {
         .select(`
           *,
           properties(address, city, state, zip_code),
-          owner:profiles!projects_owner_id_fkey(id, full_name, email, phone)
+          owner:profiles!projects_owner_id_fkey(id, full_name)
         `)
         .eq('status', 'seeking_quotes');
 
