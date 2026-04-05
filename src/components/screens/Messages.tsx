@@ -91,6 +91,28 @@ export function Messages() {
         .on(
           'postgres_changes',
           {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'projects',
+          },
+          () => {
+            loadConversations();
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'payments',
+          },
+          () => {
+            loadConversations();
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
             event: 'INSERT',
             schema: 'public',
             table: 'messages',

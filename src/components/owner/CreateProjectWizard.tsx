@@ -184,6 +184,36 @@ export function CreateProjectWizard() {
       const budget = parseFloat(formData.budget);
       const budgetMax = budget * 1.1;
 
+      const imageUrls: string[] = [];
+
+      if (formData.images.length > 0) {
+        const uploadPromises = formData.images.map(async (file) => {
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${projectIdRef.current}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+          const { data, error } = await supabase.storage
+            .from('project-images')
+            .upload(fileName, file, {
+              cacheControl: '3600',
+              upsert: false
+            });
+
+          if (error) {
+            console.error('Error uploading image:', error);
+            return null;
+          }
+
+          const { data: urlData } = supabase.storage
+            .from('project-images')
+            .getPublicUrl(fileName);
+
+          return urlData.publicUrl;
+        });
+
+        const uploadedUrls = await Promise.all(uploadPromises);
+        imageUrls.push(...uploadedUrls.filter(url => url !== null) as string[]);
+      }
+
       const { error } = await supabase
         .from('projects')
         .insert({
@@ -208,6 +238,7 @@ export function CreateProjectWizard() {
           longitude: formData.longitude,
           location_accuracy: formData.locationAccuracy,
           search_radius_km: formData.searchRadius,
+          images: imageUrls,
           status: 'seeking_quotes'
         });
 

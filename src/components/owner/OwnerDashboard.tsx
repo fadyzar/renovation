@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Home, Clock, CheckCircle, AlertCircle, Send, Eye, Hourglass, Users, DollarSign, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, Home, Clock, CheckCircle, AlertCircle, Send, Eye, Hourglass, Users, DollarSign, ChevronDown, ChevronUp, Image as ImageIcon } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { PublishProjectModal } from './PublishProjectModal';
@@ -17,6 +17,7 @@ interface Project {
   started_at?: string;
   completed_at?: string;
   work_types: string[];
+  images?: string[];
   selected_contractor_id?: string | null;
   selected_contractor?: {
     full_name: string;
@@ -263,6 +264,34 @@ export function OwnerDashboard() {
                     </div>
                   </div>
                 </div>
+
+                {project.images && project.images.length > 0 && (
+                  <div className="mb-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <ImageIcon className="w-4 h-4 text-gray-500" />
+                      <span className="text-xs font-medium text-gray-600">Project Images</span>
+                    </div>
+                    <div className="flex gap-2 overflow-x-auto pb-2">
+                      {project.images.slice(0, 4).map((imageUrl, index) => (
+                        <div
+                          key={index}
+                          className="relative w-24 h-24 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 flex-shrink-0 hover:shadow-md transition-shadow cursor-pointer group"
+                        >
+                          <img
+                            src={imageUrl}
+                            alt={`Project ${index + 1}`}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          />
+                        </div>
+                      ))}
+                      {project.images.length > 4 && (
+                        <div className="w-24 h-24 rounded-lg bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center flex-shrink-0">
+                          <span className="text-xs font-medium text-gray-500">+{project.images.length - 4}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex flex-wrap items-center gap-4 text-sm">
                   {project.work_types.length > 0 && (

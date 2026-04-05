@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   BarChart3, MapPin, User, Mail, Phone, Maximize2,
-  Layers, Clock, CheckCircle, Circle, Upload, MessageCircle, Send, X
+  Layers, Clock, CheckCircle, Circle, Upload, MessageCircle, Send, X, Image as ImageIcon
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -29,6 +29,7 @@ interface Project {
   finish_level?: string;
   status: string;
   owner_id: string;
+  images?: string[];
   owner: {
     full_name: string;
     email: string;
@@ -202,6 +203,32 @@ function ProjectDetails() {
                 <p className="text-gray-600">{project.description}</p>
               </div>
             </div>
+
+            {project.images && project.images.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <ImageIcon className="w-5 h-5 text-gray-600" />
+                  <h4 className="text-sm font-semibold text-gray-900">Project Images</h4>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {project.images.map((imageUrl, index) => (
+                    <div
+                      key={index}
+                      className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 border border-gray-200 hover:shadow-lg transition-shadow group cursor-pointer"
+                    >
+                      <img
+                        src={imageUrl}
+                        alt={`Project image ${index + 1}`}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end">
+                        <p className="text-white text-xs font-medium p-2">View Full Size</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">

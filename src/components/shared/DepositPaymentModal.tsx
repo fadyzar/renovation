@@ -126,14 +126,21 @@ export function DepositPaymentModal({
         }
       }
 
-      // ── 4. Send auto intro message from contractor ──────────────────────────
+      // ── 4. Send system message about deposit + contractor intro ──────────────
       if (convId) {
-        await supabase.from('messages').insert({
-          conversation_id: convId,
-          sender_id: contractorId,
-          content:
-            "Hi! I received your project request and I'm ready to get started. When would be a good time to schedule a visit and begin the renovation?",
-        });
+        await supabase.from('messages').insert([
+          {
+            conversation_id: convId,
+            sender_id: contractorId,
+            content: `🔐 Security deposit of $${depositAmount.toLocaleString()} has been paid and secured in escrow. Project is now active!`,
+          },
+          {
+            conversation_id: convId,
+            sender_id: contractorId,
+            content:
+              "Hi! I received your project request and I'm ready to get started. When would be a good time to schedule a visit and begin the renovation?",
+          },
+        ]);
 
         await supabase
           .from('conversations')
