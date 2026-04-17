@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Home, Clock, CheckCircle, AlertCircle, Send, Eye, Hourglass, Users, DollarSign, ChevronDown, ChevronUp, Image as ImageIcon } from 'lucide-react';
+import { Plus, Home, Clock, CheckCircle, AlertCircle, Send, Eye, Hourglass, Users, DollarSign, ChevronDown, ChevronUp, Image as ImageIcon, CreditCard } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { PublishProjectModal } from './PublishProjectModal';
 import { ProjectTimeline } from '../shared/ProjectTimeline';
+import { FirstPaymentModal } from '../shared/FirstPaymentModal';
 
 interface Project {
   id: string;
@@ -38,6 +39,15 @@ interface Project {
   };
 }
 
+interface PaymentModalData {
+  project: Project;
+  bidId: string;
+  contractorName: string;
+  contractorPhone: string;
+  totalBidAmount: number;
+  milestones: Array<{ description: string; price: number; duration?: number }>;
+}
+
 export function OwnerDashboard() {
   const { profile } = useAuth();
   const navigate = useNavigate();
@@ -46,6 +56,8 @@ export function OwnerDashboard() {
   const [publishingProject, setPublishingProject] = useState<Project | null>(null);
   const [publishingLoading, setPublishingLoading] = useState(false);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const [paymentModal, setPaymentModal] = useState<PaymentModalData | null>(null);
+  const [fetchingBid, setFetchingBid] = useState<string | null>(null); // project id being fetched
 
   useEffect(() => {
     loadProjects();
@@ -113,6 +125,49 @@ export function OwnerDashboard() {
       }
       return newSet;
     });
+  }
+
+  async function openPaymentModal(project: Project) {
+    if (!project.selected_contractor_id) return;
+    setFetchingBid(project.id);
+    try {
+      // Fetch the accepted bid + contractor profile (phone)
+      const [{ data: bid }, { data: contractorProfile }] = await Promise.all([
+        supabase
+          .from('bids')
+          .select('id, total_amount, milestones')
+          .eq('project_id', project.id)
+          .eq('status', 'accepted')
+          .maybeSingle(),
+        supabase
+          .from('profiles')
+          .select('full_name, phone')
+          .eq('id', project.selected_contractor_id)
+          .single(),
+      ]);
+
+      if (!bid) {
+        alert('לא נמצאה הצעת מחיר מאושרת לפרויקט זה.');
+        return;
+      }
+
+      const milestones: Array<{ description: string; price: number; duration?: number }> =
+        Array.isArray(bid.milestones) ? bid.milestones : [];
+
+      setPaymentModal({
+        project,
+        bidId: bid.id,
+        contractorName: contractorProfile?.full_name ?? project.selected_contractor?.full_name ?? 'קבלן',
+        contractorPhone: contractorProfile?.phone ?? '',
+        totalBidAmount: bid.total_amount,
+        milestones,
+      });
+    } catch (err) {
+      console.error('Error fetching bid for payment modal:', err);
+      alert('שגיאה בטעינת פרטי ההצעה. נסה שוב.');
+    } finally {
+      setFetchingBid(null);
+    }
   }
 
   async function publishProject(project: Project) {
@@ -375,19 +430,33 @@ export function OwnerDashboard() {
                 )}
 
                 {project.status === 'awaiting_deposit' && (
-                  <div className="mt-4 pt-4 border-t border-amber-100">
-                    <div className="flex items-start gap-2.5 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
-                      <Hourglass className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div className="mt-4 pt-4 border-t border-blue-100">
+                    <div className="flex items-start gap-2.5 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-3">
+                      <CreditCard className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
                       <div>
-                        <p className="text-sm font-semibold text-amber-800">
-                          Waiting for contractor deposit
-                        </p>
-                        <p className="text-xs text-amber-700 mt-0.5">
-                          Your selected contractor must pay a 10% security deposit before the
-                          project becomes active. They have been notified.
+                        <p className="text-sm font-semibold text-blue-800">נדרש תשלום ראשון</p>
+                        <p className="text-xs text-blue-700 mt-0.5">
+                          שלם את אבן הדרך הראשונה כדי להפעיל את הפרויקט ולפתוח את הצ׳אט עם הקבלן.
                         </p>
                       </div>
                     </div>
+                    <button
+                      onClick={() => openPaymentModal(project)}
+                      disabled={fetchingBid === project.id}
+                      className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:opacity-60 text-white font-semibold rounded-lg transition-colors"
+                    >
+                      {fetchingBid === project.id ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          טוען...
+                        </>
+                      ) : (
+                        <>
+                          <CreditCard className="w-4 h-4" />
+                          שלם ופתח את הפרויקט
+                        </>
+                      )}
+                    </button>
                   </div>
                 )}
 
@@ -432,6 +501,26 @@ export function OwnerDashboard() {
           loading={publishingLoading}
           onPublish={() => publishProject(publishingProject)}
           onClose={() => setPublishingProject(null)}
+        />
+      )}
+
+      {paymentModal && profile && (
+        <FirstPaymentModal
+          projectId={paymentModal.project.id}
+          bidId={paymentModal.bidId}
+          ownerId={profile.id}
+          contractorId={paymentModal.project.selected_contractor_id!}
+          contractorName={paymentModal.contractorName}
+          contractorPhone={paymentModal.contractorPhone}
+          projectTitle={paymentModal.project.title}
+          totalBidAmount={paymentModal.totalBidAmount}
+          milestones={paymentModal.milestones}
+          onSuccess={() => {
+            setPaymentModal(null);
+            loadProjects();
+            navigate('/messages');
+          }}
+          onClose={() => setPaymentModal(null)}
         />
       )}
     </div>

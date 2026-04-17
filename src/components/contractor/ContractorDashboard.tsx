@@ -1,11 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star, DollarSign, Briefcase, FileText, MapPin, Calendar, ChevronRight, AlertCircle, Lock } from 'lucide-react';
+import { Star, DollarSign, Briefcase, FileText, MapPin, ChevronRight, Clock } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { BidBuilder } from './BidBuilder';
 import { LocationSettings } from './LocationSettings';
-import { DepositPaymentModal } from '../shared/DepositPaymentModal';
 
 interface Bid {
   id: string;
@@ -30,14 +29,12 @@ interface Bid {
   };
 }
 
-interface DepositPendingBid {
+interface AwaitingPaymentBid {
   id: string;
   total_price: number;
   project: {
     id: string;
     title: string;
-    description: string;
-    owner_id: string;
     owner: { full_name: string };
   };
 }
@@ -70,9 +67,8 @@ export function ContractorDashboard() {
   });
   const [activeBids, setActiveBids] = useState<Bid[]>([]);
   const [ongoingProjects, setOngoingProjects] = useState<Project[]>([]);
-  const [depositPendingBids, setDepositPendingBids] = useState<DepositPendingBid[]>([]);
+  const [awaitingPaymentBids, setAwaitingPaymentBids] = useState<AwaitingPaymentBid[]>([]);
   const [selectedProject, setSelectedProject] = useState<any>(null);
-  const [depositModalBid, setDepositModalBid] = useState<DepositPendingBid | null>(null);
   const [loading, setLoading] = useState(true);
   const loadingRef = useRef(false);
 
@@ -122,59 +118,34 @@ export function ContractorDashboard() {
         .select('*')
         .eq('contractor_id', profile.id);
 
-      // Fetch accepted bids where project is awaiting deposit payment from this contractor
-      const { data: acceptedBidsRaw } = await supabase
+      // Accepted bids where project is still awaiting owner payment
+      const { data: awaitingRaw } = await supabase
         .from('bids')
-        .select('id, total_price, status, project_id')
+        .select(`
+          id, total_amount,
+          project:projects!bids_project_id_fkey(
+            id, title, status,
+            owner:profiles!projects_owner_id_fkey(full_name)
+          )
+        `)
         .eq('contractor_id', profile.id)
         .eq('status', 'accepted');
 
-      const acceptedBidsWithProject: DepositPendingBid[] = [];
-
-      if (acceptedBidsRaw && acceptedBidsRaw.length > 0) {
-        for (const bid of acceptedBidsRaw) {
-          const { data: projectData } = await supabase
-            .from('projects')
-            .select(`
-              id,
-              title,
-              description,
-              status,
-              owner_id,
-              owner:profiles!projects_owner_id_fkey(full_name)
-            `)
-            .eq('id', bid.project_id)
-            .maybeSingle();
-
-          // Check if deposit already paid for this bid
-          const { data: existingPayment } = await supabase
-            .from('payments')
-            .select('id, status')
-            .eq('project_id', bid.project_id)
-            .eq('bid_id', bid.id)
-            .eq('is_deposit', true)
-            .maybeSingle();
-
-          // Only include if project exists, is awaiting_deposit, AND no payment exists yet
-          if (projectData && projectData.status === 'awaiting_deposit' && !existingPayment) {
-            acceptedBidsWithProject.push({
-              id: bid.id,
-              total_price: bid.total_price,
-              project: projectData as any,
-            });
-          }
-        }
-      }
-
-      const pendingDeposit = acceptedBidsWithProject;
+      const awaitingList: AwaitingPaymentBid[] = (awaitingRaw ?? [])
+        .filter((b: any) => b.project?.status === 'awaiting_deposit')
+        .map((b: any) => ({
+          id: b.id,
+          total_price: b.total_amount,
+          project: { id: b.project.id, title: b.project.title, owner: b.project.owner },
+        }));
 
       const acceptedBids = allBidsData?.filter(b => b.status === 'accepted') || [];
 
       setActiveBids(bidsData || []);
       setOngoingProjects(projectsData || []);
-      setDepositPendingBids(pendingDeposit);
+      setAwaitingPaymentBids(awaitingList);
       setStats({
-        totalRevenue: acceptedBids.reduce((sum, b) => sum + (b.total_price || 0), 0),
+        totalRevenue: acceptedBids.reduce((sum, b) => sum + (b.total_amount || 0), 0),
         totalProjects: acceptedBids.length,
         totalBids: allBidsData?.length || 0,
       });
@@ -198,16 +169,6 @@ export function ContractorDashboard() {
   const handleBrowseProjects = () => {
     navigate('/projects');
   };
-
-  const handleDepositSuccess = useCallback((conversationId?: string) => {
-    setDepositModalBid(null);
-    loadingRef.current = false;
-    if (conversationId) {
-      navigate('/messages', { state: { conversationId } });
-    } else {
-      loadData();
-    }
-  }, [loadData, navigate]);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -317,56 +278,35 @@ export function ContractorDashboard() {
 
         <LocationSettings />
 
-        {/* ── Deposit Required Alert ───────────────────────────────────────── */}
-        {depositPendingBids.length > 0 && (
+        {/* ── Awaiting Owner Payment ───────────────────────────────────────── */}
+        {awaitingPaymentBids.length > 0 && (
           <div className="mb-8">
-            <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl overflow-hidden">
-              <div className="bg-amber-500 px-6 py-3 flex items-center gap-2">
-                <AlertCircle className="w-5 h-5 text-white" />
+            <div className="bg-blue-50 border-2 border-blue-200 rounded-2xl overflow-hidden">
+              <div className="bg-blue-600 px-6 py-3 flex items-center gap-2">
+                <Clock className="w-5 h-5 text-white" />
                 <h3 className="text-white font-bold text-base">
-                  Action Required — Deposit Payment
+                  ממתין לתשלום בעל הנכס
                 </h3>
-                <span className="ml-auto bg-white text-amber-600 text-xs font-bold px-2 py-0.5 rounded-full">
-                  {depositPendingBids.length} pending
+                <span className="ml-auto bg-white text-blue-600 text-xs font-bold px-2 py-0.5 rounded-full">
+                  {awaitingPaymentBids.length}
                 </span>
               </div>
 
               <div className="p-6 space-y-4">
-                {depositPendingBids.map(bid => {
-                  const depositAmount = Math.round(bid.total_price * 0.1);
-                  return (
-                    <div
-                      key={bid.id}
-                      className="bg-white rounded-xl border border-amber-200 p-5 flex items-center justify-between gap-4"
-                    >
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-gray-900 truncate">{bid.project.title}</p>
-                        <p className="text-sm text-gray-500 truncate">{bid.project.description}</p>
-                        <div className="mt-2 flex items-center gap-4 text-sm">
-                          <span className="text-gray-600">
-                            Total bid:{' '}
-                            <span className="font-semibold text-gray-900">
-                              ${bid.total_price.toLocaleString()}
-                            </span>
-                          </span>
-                          <span className="text-amber-700 font-bold">
-                            Deposit required: ${depositAmount.toLocaleString()}
-                          </span>
-                        </div>
-                        <p className="text-xs text-gray-400 mt-1">
-                          Owner: {bid.project.owner?.full_name} · Deposit held in escrow
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => setDepositModalBid(bid)}
-                        className="flex-shrink-0 flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-bold rounded-xl transition-all shadow-md hover:shadow-lg whitespace-nowrap"
-                      >
-                        <Lock className="w-4 h-4" />
-                        Pay ${depositAmount.toLocaleString()} Deposit
-                      </button>
-                    </div>
-                  );
-                })}
+                {awaitingPaymentBids.map(bid => (
+                  <div
+                    key={bid.id}
+                    className="bg-white rounded-xl border border-blue-200 p-5"
+                  >
+                    <p className="font-bold text-gray-900">{bid.project.title}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      בעל הנכס: {bid.project.owner?.full_name}
+                    </p>
+                    <p className="text-sm text-blue-700 mt-2 font-medium">
+                      הצעתך התקבלה! ממתינים לתשלום ראשון מבעל הנכס כדי להפעיל את הפרויקט.
+                    </p>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -511,22 +451,6 @@ export function ContractorDashboard() {
         />
       )}
 
-      {depositModalBid && profile && (
-        <DepositPaymentModal
-          projectId={depositModalBid.project.id}
-          bidId={depositModalBid.id}
-          ownerId={depositModalBid.project.owner_id}
-          contractorId={profile.id}
-          projectTitle={depositModalBid.project.title}
-          totalBidAmount={depositModalBid.total_price}
-          onSuccess={() => {
-            setDepositModalBid(null);
-            loadData();
-            navigate('/messages');
-          }}
-          onClose={() => setDepositModalBid(null)}
-        />
-      )}
     </div>
   );
 }

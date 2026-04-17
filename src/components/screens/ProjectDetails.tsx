@@ -32,8 +32,6 @@ interface Project {
   images?: string[];
   owner: {
     full_name: string;
-    email: string;
-    phone?: string;
   };
   accepted_bid?: {
     total_price: number;
@@ -103,7 +101,7 @@ function ProjectDetails() {
         .from('projects')
         .select(`
           *,
-          owner:profiles!projects_owner_id_fkey(full_name, email, phone),
+          owner:profiles!projects_owner_id_fkey(full_name),
           accepted_bid:bids!bids_project_id_fkey(
             total_price,
             milestones,

@@ -21,8 +21,6 @@ interface Project {
   owner_id: string;
   owner: {
     full_name: string;
-    email: string;
-    phone?: string;
   };
   accepted_bid?: {
     contractor_id: string;
@@ -50,7 +48,7 @@ export function MyProjects() {
         .from('projects')
         .select(`
           *,
-          owner:profiles!projects_owner_id_fkey(full_name, email, phone),
+          owner:profiles!projects_owner_id_fkey(full_name),
           accepted_bid:bids!bids_project_id_fkey(
             contractor_id,
             contractor:profiles!bids_contractor_id_fkey(full_name, company_name, total_projects)
