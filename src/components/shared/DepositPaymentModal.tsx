@@ -36,12 +36,6 @@ function delay(ms: number) {
   return new Promise<void>(resolve => setTimeout(resolve, ms));
 }
 
-function generateTxId() {
-  const ts = Date.now().toString(36).toUpperCase();
-  const rand = Math.random().toString(36).slice(2, 8).toUpperCase();
-  return `MOCK-${ts}-${rand}`;
-}
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export function DepositPaymentModal({
@@ -65,28 +59,9 @@ export function DepositPaymentModal({
     await delay(1500);
 
     try {
-      const txId = generateTxId();
       const now = new Date().toISOString();
 
-      // ── 1. Write deposit payment record ────────────────────────────────────
-      // Ignore duplicate error (UNIQUE project_id+bid_id) — just proceed
-      await supabase.from('payments').upsert(
-        {
-          project_id: projectId,
-          bid_id: bidId,
-          owner_id: ownerId,
-          contractor_id: contractorId,
-          total_amount: depositAmount,
-          is_deposit: true,
-          deposit_percentage: DEPOSIT_PCT,
-          status: 'escrowed',
-          mock_transaction_id: txId,
-          paid_at: now,
-        },
-        { onConflict: 'project_id,bid_id', ignoreDuplicates: true }
-      );
-
-      // ── 2. Advance project status → in_progress ────────────────────────────
+      // ── 1. Advance project status → in_progress ────────────────────────────
       const { error: projError } = await supabase
         .from('projects')
         .update({ status: 'in_progress', started_at: now })

@@ -1,20 +1,14 @@
 /**
  * ProjectPayments — Milestone-based escrow payment management
  *
- * Accessible by both the property owner and the assigned contractor.
+ * Uses: `milestones` table (linked by project_id) + `projects` table
+ * Both tables exist in the remote Supabase DB.
  *
- * FLOW:
- *  1. Page loads → finds (or creates) the payment record for this project.
- *  2. If no payment_milestones exist, lazily initialises them from bid.milestones.
- *  3. Contractor marks a milestone as complete ("Submit for Approval").
- *  4. Owner reviews and pays the milestone amount via the fake payment modal.
- *     → 90% recorded as contractor payout, 10% recorded as platform fee.
- *  5. DB trigger auto-advances payments.status when all milestones are released.
- *
- * ANTI-BYPASS GUARANTEE:
- *  Milestone status can only be set to 'released' through this page (owner pays).
- *  The contractor never touches the release step — they can only submit.
- *  Platform fee (10%) is always calculated server-side and stored per milestone.
+ * Flow:
+ *  1. Page loads → finds milestones for this project (or creates them from bid).
+ *  2. Contractor marks a milestone complete → status = 'awaiting_approval'.
+ *  3. Owner approves → status = 'paid', paid_at recorded.
+ *  4. When all milestones paid → owner can mark project completed.
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -43,7 +37,7 @@ import { processMockDeposit, type CardDetails } from '../../lib/mockPaymentServi
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const PLATFORM_FEE_PCT = 10; // percent taken by platform from every milestone
+const PLATFORM_FEE_PCT = 10;
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,7 +46,7 @@ type MilestoneStatus =
   | 'in_progress'
   | 'awaiting_approval'
   | 'approved'
-  | 'released'
+  | 'paid'
   | 'disputed';
 
 interface BidMilestone {
@@ -63,28 +57,16 @@ interface BidMilestone {
 
 interface PaymentMilestone {
   id: string;
-  payment_id: string;
+  project_id: string;
   title: string;
   description?: string;
   amount: number;
-  percentage?: number;
-  sequence_order: number;
+  order_index: number;
   status: MilestoneStatus;
-  contractor_submitted_at?: string;
-  owner_approved_at?: string;
-  released_at?: string;
-  contractor_note?: string;
-  owner_note?: string;
-  platform_fee_amount: number;
-  contractor_payout: number;
-}
-
-interface PaymentRecord {
-  id: string;
-  total_amount: number;
-  platform_fee: number;
-  status: string;
-  is_deposit: boolean;
+  submitted_at?: string;
+  approved_at?: string;
+  paid_at?: string;
+  proof_of_work_description?: string;
 }
 
 interface ProjectInfo {
@@ -93,10 +75,10 @@ interface ProjectInfo {
   status: string;
   owner_id: string;
   selected_contractor_id?: string;
-  property_address?: string;
-  property_city?: string;
-  property_state?: string;
-  property_zip?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
 }
 
 interface BidInfo {
@@ -131,12 +113,12 @@ function formatExpiry(v: string) {
 }
 
 const STATUS_CONFIG: Record<MilestoneStatus, { label: string; color: string; bg: string; icon: React.ElementType }> = {
-  pending:            { label: 'Pending',             color: 'text-gray-600',   bg: 'bg-gray-100',   icon: CircleDot },
-  in_progress:        { label: 'In Progress',         color: 'text-blue-600',   bg: 'bg-blue-100',   icon: Clock },
-  awaiting_approval:  { label: 'Awaiting Approval',   color: 'text-amber-600',  bg: 'bg-amber-100',  icon: AlertCircle },
-  approved:           { label: 'Approved',            color: 'text-teal-600',   bg: 'bg-teal-100',   icon: CheckCircle },
-  released:           { label: 'Payment Released',    color: 'text-green-600',  bg: 'bg-green-100',  icon: CheckCircle },
-  disputed:           { label: 'Disputed',            color: 'text-red-600',    bg: 'bg-red-100',    icon: AlertCircle },
+  pending:           { label: 'Pending',           color: 'text-gray-600',   bg: 'bg-gray-100',   icon: CircleDot },
+  in_progress:       { label: 'In Progress',        color: 'text-blue-600',   bg: 'bg-blue-100',   icon: Clock },
+  awaiting_approval: { label: 'Awaiting Approval',  color: 'text-amber-600',  bg: 'bg-amber-100',  icon: AlertCircle },
+  approved:          { label: 'Approved',           color: 'text-teal-600',   bg: 'bg-teal-100',   icon: CheckCircle },
+  paid:              { label: 'Paid',               color: 'text-green-600',  bg: 'bg-green-100',  icon: CheckCircle },
+  disputed:          { label: 'Disputed',           color: 'text-red-600',    bg: 'bg-red-100',    icon: AlertCircle },
 };
 
 // ─── Approve & Pay Modal ──────────────────────────────────────────────────────
@@ -177,15 +159,12 @@ function ApproveMilestoneModal({ milestone, onSuccess, onClose }: PayModalProps)
       return;
     }
 
-    // Mark milestone as released + record split
     const { error } = await supabase
-      .from('payment_milestones')
+      .from('milestones')
       .update({
-        status: 'released',
-        owner_approved_at: new Date().toISOString(),
-        released_at: new Date().toISOString(),
-        platform_fee_amount: fee,
-        contractor_payout: payout,
+        status: 'paid',
+        approved_at: new Date().toISOString(),
+        paid_at: new Date().toISOString(),
       })
       .eq('id', milestone.id);
 
@@ -384,11 +363,11 @@ function SubmitMilestoneModal({ milestone, onSuccess, onClose }: SubmitModalProp
   async function handleSubmit() {
     setLoading(true);
     const { error } = await supabase
-      .from('payment_milestones')
+      .from('milestones')
       .update({
         status: 'awaiting_approval',
-        contractor_submitted_at: new Date().toISOString(),
-        contractor_note: note.trim() || null,
+        submitted_at: new Date().toISOString(),
+        proof_of_work_description: note.trim() || null,
       })
       .eq('id', milestone.id);
 
@@ -453,7 +432,6 @@ export function ProjectPayments() {
   const [loading, setLoading] = useState(true);
   const [project, setProject] = useState<ProjectInfo | null>(null);
   const [bid, setBid] = useState<BidInfo | null>(null);
-  const [payment, setPayment] = useState<PaymentRecord | null>(null);
   const [milestones, setMilestones] = useState<PaymentMilestone[]>([]);
   const [approveModal, setApproveModal] = useState<PaymentMilestone | null>(null);
   const [submitModal, setSubmitModal] = useState<PaymentMilestone | null>(null);
@@ -468,10 +446,10 @@ export function ProjectPayments() {
     if (!projectId || !profile) return;
 
     try {
-      // 1. Load project
+      // 1. Load project (use actual column names: address, city, state, zip_code)
       const { data: proj } = await supabase
         .from('projects')
-        .select('id, title, status, owner_id, selected_contractor_id, property_address, property_city, property_state, property_zip')
+        .select('id, title, status, owner_id, selected_contractor_id, address, city, state, zip_code')
         .eq('id', projectId)
         .maybeSingle();
 
@@ -489,79 +467,37 @@ export function ProjectPayments() {
       if (!bidData) { navigate('/dashboard'); return; }
       setBid(bidData);
 
-      // 3. Find or create payment record
-      let paymentRecord: PaymentRecord | null = null;
-
-      const { data: existingPayment } = await supabase
-        .from('payments')
-        .select('id, total_amount, platform_fee, status, is_deposit')
-        .eq('project_id', projectId)
-        .maybeSingle();
-
-      if (existingPayment) {
-        paymentRecord = existingPayment;
-        setPayment(existingPayment);
-      } else {
-        // No payment yet (deposit modal DB write may have failed) — create one
-        const platformFee = Math.round(bidData.total_price * PLATFORM_FEE_MULTIPLIER * 100) / 100;
-        const { data: newPayment } = await supabase
-          .from('payments')
-          .insert({
-            project_id: projectId,
-            bid_id: bidData.id,
-            owner_id: proj.owner_id,
-            contractor_id: bidData.contractor_id,
-            total_amount: bidData.total_price,
-            platform_fee: platformFee,
-            status: 'escrowed',
-            is_deposit: false,
-          })
-          .select()
-          .maybeSingle();
-
-        paymentRecord = newPayment;
-        setPayment(newPayment);
-      }
-
-      if (!paymentRecord) return;
-
-      // 4. Load existing milestones
+      // 3. Load existing milestones for this project
       const { data: existingMilestones } = await supabase
-        .from('payment_milestones')
-        .select('*')
-        .eq('payment_id', paymentRecord.id)
-        .order('sequence_order', { ascending: true });
+        .from('milestones')
+        .select('id, project_id, title, description, amount, status, order_index, submitted_at, approved_at, paid_at, proof_of_work_description')
+        .eq('project_id', projectId)
+        .order('order_index', { ascending: true });
 
       if (existingMilestones && existingMilestones.length > 0) {
-        setMilestones(existingMilestones);
+        setMilestones(existingMilestones as PaymentMilestone[]);
         return;
       }
 
-      // 5. Lazy-init: create milestones from bid.milestones
+      // 4. Lazy-init: create milestones from bid.milestones
       const bidMilestones: BidMilestone[] = Array.isArray(bidData.milestones) ? bidData.milestones : [];
       if (bidMilestones.length === 0) return;
 
-      const toInsert = bidMilestones.map((m, i) => {
-        const { fee, payout } = calcSplit(m.price);
-        return {
-          payment_id: paymentRecord!.id,
-          title: m.description || `Milestone ${i + 1}`,
-          description: m.description,
-          amount: m.price,
-          percentage: Math.round((m.price / bidData.total_price) * 100 * 100) / 100,
-          sequence_order: i + 1,
-          status: 'pending' as MilestoneStatus,
-          platform_fee_amount: fee,
-          contractor_payout: payout,
-        };
-      });
+      const toInsert = bidMilestones.map((m, i) => ({
+        project_id: projectId,
+        title: m.description || `Milestone ${i + 1}`,
+        description: m.description,
+        amount: m.price,
+        order_index: i + 1,
+        status: 'pending' as MilestoneStatus,
+      }));
 
       const { data: createdMilestones } = await supabase
-        .from('payment_milestones')
+        .from('milestones')
         .insert(toInsert)
-        .select();
+        .select('id, project_id, title, description, amount, status, order_index, submitted_at, approved_at, paid_at, proof_of_work_description');
 
-      setMilestones(createdMilestones ?? []);
+      setMilestones((createdMilestones as PaymentMilestone[]) ?? []);
     } catch (err) {
       console.error('ProjectPayments loadData error:', err);
     } finally {
@@ -575,12 +511,7 @@ export function ProjectPayments() {
 
   function handleNavigate() {
     if (!project) return;
-    const parts = [
-      project.property_address,
-      project.property_city,
-      project.property_state,
-      project.property_zip,
-    ].filter(Boolean);
+    const parts = [project.address, project.city, project.state, project.zip_code].filter(Boolean);
     if (parts.length === 0) {
       alert('No address available for this project.');
       return;
@@ -596,28 +527,24 @@ export function ProjectPayments() {
   async function handleCompleteProject() {
     if (!project || !isOwner) return;
     setCompleting(true);
-    const { error } = await supabase
+    await supabase
       .from('projects')
       .update({ status: 'completed', completed_at: new Date().toISOString() })
       .eq('id', project.id);
     setCompleting(false);
-    if (!error) {
-      loadData();
-    }
+    loadData();
   }
 
   // ── Derived stats ───────────────────────────────────────────────────────────
 
   const totalBid = bid?.total_price ?? 0;
   const totalPlatformFee = Math.round(totalBid * PLATFORM_FEE_MULTIPLIER * 100) / 100;
-  const totalContractorPayout = totalBid - totalPlatformFee;
-  const releasedAmount = milestones
-    .filter(m => m.status === 'released')
-    .reduce((s, m) => s + m.contractor_payout, 0);
-  const platformCollected = milestones
-    .filter(m => m.status === 'released')
-    .reduce((s, m) => s + m.platform_fee_amount, 0);
+  const totalContractorPayout = totalBid * CONTRACTOR_MULTIPLIER;
+  const paidMilestones = milestones.filter(m => m.status === 'paid');
+  const releasedAmount = paidMilestones.reduce((s, m) => s + calcSplit(m.amount).payout, 0);
+  const platformCollected = paidMilestones.reduce((s, m) => s + calcSplit(m.amount).fee, 0);
   const remaining = totalContractorPayout - releasedAmount;
+  const allPaid = milestones.length > 0 && milestones.every(m => m.status === 'paid');
 
   // ── Render ──────────────────────────────────────────────────────────────────
 
@@ -655,19 +582,16 @@ export function ProjectPayments() {
               <p className="text-gray-600 mt-1">
                 {isOwner ? 'Approve milestone completions and release payments to contractor.' : 'Submit milestones for owner approval to receive payment.'}
               </p>
-              {(project.property_city || project.property_address) && (
+              {(project.city || project.address) && (
                 <div className="flex items-center gap-1.5 mt-2 text-sm text-gray-500">
                   <MapPin className="w-4 h-4 text-gray-400" />
-                  {[project.property_address, project.property_city, project.property_state]
-                    .filter(Boolean)
-                    .join(', ')}
+                  {[project.address, project.city, project.state].filter(Boolean).join(', ')}
                 </div>
               )}
             </div>
 
             {/* Action buttons */}
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Navigate to client — contractor only */}
               {isContractor && (
                 <button
                   onClick={handleNavigate}
@@ -677,8 +601,6 @@ export function ProjectPayments() {
                   Navigate to Client
                 </button>
               )}
-
-              {/* Open Chat */}
               <button
                 onClick={handleOpenChat}
                 className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors shadow-sm text-sm"
@@ -721,7 +643,7 @@ export function ProjectPayments() {
           {/* Progress bar */}
           <div className="mt-4">
             <div className="flex justify-between text-xs text-gray-500 mb-1">
-              <span>{milestones.filter(m => m.status === 'released').length} of {milestones.length} milestones paid</span>
+              <span>{paidMilestones.length} of {milestones.length} milestones paid</span>
               <span>{totalBid > 0 ? Math.round((releasedAmount / totalContractorPayout) * 100) : 0}% complete</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
@@ -732,7 +654,6 @@ export function ProjectPayments() {
             </div>
           </div>
 
-          {/* Platform fee note */}
           <div className="mt-4 flex items-start gap-2 bg-orange-50 border border-orange-200 rounded-xl p-3">
             <Shield className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
             <p className="text-xs text-orange-700">
@@ -758,7 +679,7 @@ export function ProjectPayments() {
           ) : (
             <div className="divide-y divide-gray-100">
               {milestones.map((milestone, index) => {
-                const cfg = STATUS_CONFIG[milestone.status];
+                const cfg = STATUS_CONFIG[milestone.status] ?? STATUS_CONFIG.pending;
                 const StatusIcon = cfg.icon;
                 const { fee, payout } = calcSplit(milestone.amount);
 
@@ -767,8 +688,8 @@ export function ProjectPayments() {
                     {/* Milestone header */}
                     <div className="flex items-start justify-between gap-4 mb-3">
                       <div className="flex items-start gap-3 flex-1">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${milestone.status === 'released' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
-                          {milestone.status === 'released' ? <CheckCircle className="w-4 h-4" /> : index + 1}
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${milestone.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                          {milestone.status === 'paid' ? <CheckCircle className="w-4 h-4" /> : index + 1}
                         </div>
                         <div className="flex-1">
                           <h3 className="font-semibold text-gray-900">{milestone.title}</h3>
@@ -799,23 +720,23 @@ export function ProjectPayments() {
                     </div>
 
                     {/* Contractor note (shown when submitted) */}
-                    {milestone.contractor_note && (
+                    {milestone.proof_of_work_description && (
                       <div className="ml-11 mb-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
                         <p className="text-xs font-semibold text-blue-700 mb-1">Contractor's Completion Note:</p>
-                        <p className="text-sm text-blue-900">{milestone.contractor_note}</p>
+                        <p className="text-sm text-blue-900">{milestone.proof_of_work_description}</p>
                       </div>
                     )}
 
-                    {/* Released info */}
-                    {milestone.status === 'released' && milestone.released_at && (
+                    {/* Paid info */}
+                    {milestone.status === 'paid' && milestone.paid_at && (
                       <div className="ml-11 mb-3 bg-green-50 border border-green-200 rounded-lg p-3 flex items-center gap-2">
                         <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
                         <div>
                           <p className="text-xs font-semibold text-green-700">
-                            Payment Released — {new Date(milestone.released_at).toLocaleDateString()}
+                            Payment Released — {new Date(milestone.paid_at).toLocaleDateString()}
                           </p>
                           <p className="text-xs text-green-600">
-                            {formatILS(milestone.contractor_payout)} to contractor · {formatILS(milestone.platform_fee_amount)} platform fee
+                            {formatILS(payout)} to contractor · {formatILS(fee)} platform fee
                           </p>
                         </div>
                       </div>
@@ -834,7 +755,7 @@ export function ProjectPayments() {
                         </button>
                       )}
 
-                      {/* CONTRACTOR: awaiting approval — waiting message */}
+                      {/* CONTRACTOR: awaiting approval */}
                       {isContractor && milestone.status === 'awaiting_approval' && (
                         <div className="flex items-center gap-2 text-sm text-amber-600">
                           <Clock className="w-4 h-4" />
@@ -842,7 +763,7 @@ export function ProjectPayments() {
                         </div>
                       )}
 
-                      {/* OWNER: approve & pay awaiting_approval milestone */}
+                      {/* OWNER: approve & pay */}
                       {isOwner && milestone.status === 'awaiting_approval' && (
                         <div className="flex items-center gap-3 flex-wrap">
                           <button
@@ -854,7 +775,7 @@ export function ProjectPayments() {
                           </button>
                           <button
                             onClick={async () => {
-                              await supabase.from('payment_milestones').update({ status: 'disputed' }).eq('id', milestone.id);
+                              await supabase.from('milestones').update({ status: 'disputed' }).eq('id', milestone.id);
                               loadData();
                             }}
                             className="flex items-center gap-2 px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-semibold rounded-xl transition-colors border border-red-200"
@@ -865,7 +786,7 @@ export function ProjectPayments() {
                         </div>
                       )}
 
-                      {/* OWNER: pending milestone — instructions */}
+                      {/* OWNER: pending milestone */}
                       {isOwner && milestone.status === 'pending' && (
                         <p className="text-xs text-gray-400 italic">Waiting for contractor to submit this milestone…</p>
                       )}
@@ -878,7 +799,7 @@ export function ProjectPayments() {
         </div>
 
         {/* All milestones done banner */}
-        {milestones.length > 0 && milestones.every(m => m.status === 'released') && (
+        {allPaid && (
           <div className="mt-6 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl p-6 text-center text-white shadow-lg">
             <CheckCircle className="w-12 h-12 mx-auto mb-3 opacity-90" />
             <h3 className="text-xl font-bold mb-1">
@@ -907,7 +828,7 @@ export function ProjectPayments() {
         )}
 
         {/* Owner: complete project even if some milestones pending */}
-        {isOwner && project.status === 'in_progress' && milestones.some(m => m.status !== 'released') && (
+        {isOwner && project.status === 'in_progress' && !allPaid && (
           <div className="mt-4 flex justify-end">
             <button
               onClick={handleCompleteProject}
