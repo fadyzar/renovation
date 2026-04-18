@@ -234,9 +234,9 @@ export function ContractorMatching() {
                     Accepted — Project In Progress
                   </div>
                 ) : isAwaitingDeposit ? (
-                  <div className="bg-gradient-to-r from-amber-500 to-amber-600 text-white text-xs font-bold px-4 py-1.5 flex items-center gap-1.5">
+                  <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white text-xs font-bold px-4 py-1.5 flex items-center gap-1.5">
                     <CheckCircle className="w-3.5 h-3.5" />
-                    Accepted — Waiting for Deposit
+                    Accepted — Payment Required
                   </div>
                 ) : isRejected ? (
                   <div className="bg-gradient-to-r from-gray-400 to-gray-500 text-white text-xs font-bold px-4 py-1.5 flex items-center gap-1.5">
@@ -389,9 +389,12 @@ export function ContractorMatching() {
                       </div>
                     )}
                     {isAwaitingDeposit && (
-                      <div className="w-full px-4 py-3 text-center bg-amber-50 border-2 border-amber-300 text-amber-700 font-bold rounded-lg">
-                        ⏳ Waiting for Contractor Deposit
-                      </div>
+                      <button
+                        onClick={() => navigate('/dashboard')}
+                        className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-bold rounded-lg transition-all"
+                      >
+                        Pay First Milestone →
+                      </button>
                     )}
                   </div>
                 </div>

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Briefcase, Calendar, Star, CheckCircle, MapPin, User, Mail, Phone, Maximize2, BarChart3 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { FirstPaymentModal } from '../shared/FirstPaymentModal';
 
 interface Bid {
   id: string;
@@ -29,6 +30,7 @@ interface Bid {
     rating: number;
     verification_status: string;
     license_verified: boolean;
+    phone?: string;
   };
 }
 
@@ -56,6 +58,7 @@ export function AcceptOffer() {
   const [loading, setLoading] = useState(true);
   const [confirmed, setConfirmed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [showPayment, setShowPayment] = useState(false);
 
   useEffect(() => {
     if (projectId && bidId) {
@@ -94,7 +97,8 @@ export function AcceptOffer() {
             total_projects,
             rating,
             verification_status,
-            license_verified
+            license_verified,
+            phone
           )
         `)
         .eq('id', bidId)
@@ -153,17 +157,17 @@ export function AcceptOffer() {
           user_id: bid.contractor_id,
           type: 'bid_accepted',
           title: 'Bid Accepted!',
-          message: `Your bid of $${bid.total_price.toLocaleString()} for "${project?.title}" was accepted! Pay the deposit to start.`,
+          message: `Your bid of $${bid.total_price.toLocaleString()} for "${project?.title}" was accepted! Waiting for the owner's first payment to activate the project.`,
           metadata: {
             project_id: projectId,
             bid_id: bidId,
-            deposit_amount: bid.total_price * 0.1,
             total_amount: bid.total_price
           }
         });
       }
 
-      navigate('/dashboard');
+      // 5. Open payment modal immediately instead of navigating away
+      setShowPayment(true);
     } catch (error) {
       console.error('Error accepting bid:', error);
       alert('Failed to accept offer. Please try again.');
@@ -422,10 +426,27 @@ export function AcceptOffer() {
             disabled={!confirmed || submitting}
             className="px-12 py-4 bg-orange-500 text-white text-lg font-semibold rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {submitting ? 'Processing...' : 'Confirm & Proceed'}
+            {submitting ? 'Processing...' : 'Confirm & Proceed to Payment'}
           </button>
         </div>
       </div>
+
+      {showPayment && project && bid && profile && (
+        <FirstPaymentModal
+          projectId={project.id}
+          bidId={bid.id}
+          ownerId={profile.id}
+          contractorId={bid.contractor_id}
+          contractorName={bid.contractor?.full_name ?? 'Contractor'}
+          contractorPhone={bid.contractor?.phone ?? ''}
+          projectTitle={project.title}
+          projectAddress={[project.address, project.city, project.state, project.zip_code].filter(Boolean).join(', ')}
+          totalBidAmount={bid.total_price}
+          milestones={bid.milestones}
+          onSuccess={() => navigate('/messages')}
+          onClose={() => navigate('/dashboard')}
+        />
+      )}
     </div>
   );
 }

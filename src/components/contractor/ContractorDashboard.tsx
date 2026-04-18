@@ -122,7 +122,7 @@ export function ContractorDashboard() {
       const { data: awaitingRaw } = await supabase
         .from('bids')
         .select(`
-          id, total_amount,
+          id, total_price,
           project:projects!bids_project_id_fkey(
             id, title, status,
             owner:profiles!projects_owner_id_fkey(full_name)
@@ -135,7 +135,7 @@ export function ContractorDashboard() {
         .filter((b: any) => b.project?.status === 'awaiting_deposit')
         .map((b: any) => ({
           id: b.id,
-          total_price: b.total_amount,
+          total_price: b.total_price,
           project: { id: b.project.id, title: b.project.title, owner: b.project.owner },
         }));
 
@@ -285,7 +285,7 @@ export function ContractorDashboard() {
               <div className="bg-blue-600 px-6 py-3 flex items-center gap-2">
                 <Clock className="w-5 h-5 text-white" />
                 <h3 className="text-white font-bold text-base">
-                  ממתין לתשלום בעל הנכס
+                  Waiting for Owner Payment
                 </h3>
                 <span className="ml-auto bg-white text-blue-600 text-xs font-bold px-2 py-0.5 rounded-full">
                   {awaitingPaymentBids.length}
@@ -300,10 +300,10 @@ export function ContractorDashboard() {
                   >
                     <p className="font-bold text-gray-900">{bid.project.title}</p>
                     <p className="text-xs text-gray-500 mt-1">
-                      בעל הנכס: {bid.project.owner?.full_name}
+                      Owner: {bid.project.owner?.full_name}
                     </p>
                     <p className="text-sm text-blue-700 mt-2 font-medium">
-                      הצעתך התקבלה! ממתינים לתשלום ראשון מבעל הנכס כדי להפעיל את הפרויקט.
+                      Your bid was accepted! Waiting for the owner's first payment to activate the project.
                     </p>
                   </div>
                 ))}

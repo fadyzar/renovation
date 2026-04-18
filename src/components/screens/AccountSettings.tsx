@@ -17,6 +17,85 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+/* ── country codes ── */
+const COUNTRY_CODES = [
+  { code: '+1',  flag: '🇺🇸', label: 'US' },
+  { code: '+1',  flag: '🇨🇦', label: 'CA' },
+  { code: '+44', flag: '🇬🇧', label: 'GB' },
+  { code: '+61', flag: '🇦🇺', label: 'AU' },
+  { code: '+52', flag: '🇲🇽', label: 'MX' },
+  { code: '+33', flag: '🇫🇷', label: 'FR' },
+  { code: '+49', flag: '🇩🇪', label: 'DE' },
+  { code: '+972',flag: '🇮🇱', label: 'IL' },
+];
+
+/* ── phone field with country code dropdown ── */
+function PhoneField({
+  label, value, onChange, disabled, onToggle, saving,
+}: {
+  label: string; value: string; onChange: (v: string) => void;
+  disabled: boolean; onToggle: () => void; saving?: boolean;
+}) {
+  // Parse stored value: may include a country code prefix like "+1 5551234567"
+  const firstSpace = value.indexOf(' ');
+  const storedCode = firstSpace > 0 && value.startsWith('+') ? value.slice(0, firstSpace) : '+1';
+  const storedNumber = firstSpace > 0 && value.startsWith('+') ? value.slice(firstSpace + 1) : value;
+
+  const [countryCode, setCountryCode] = useState(storedCode || '+1');
+  const [number, setNumber] = useState(storedNumber || '');
+
+  function handleCodeChange(c: string) {
+    setCountryCode(c);
+    onChange(`${c} ${number}`);
+  }
+  function handleNumberChange(n: string) {
+    setNumber(n);
+    onChange(`${countryCode} ${n}`);
+  }
+
+  return (
+    <div>
+      <label className="block text-sm font-semibold text-brand-navy mb-2">{label}</label>
+      <div className="relative flex gap-2">
+        <select
+          disabled={disabled}
+          value={countryCode}
+          onChange={e => handleCodeChange(e.target.value)}
+          className="h-[59px] pl-3 pr-7 bg-white border-[1.5px] border-[#D9D9D9] rounded-full text-brand-navy text-sm focus:outline-none focus:border-brand-blue disabled:bg-[#F5F5F5] disabled:text-[#909090] appearance-none cursor-pointer"
+          style={{ minWidth: '90px' }}
+        >
+          {COUNTRY_CODES.map((c, i) => (
+            <option key={i} value={c.code}>{c.flag} {c.code}</option>
+          ))}
+        </select>
+        <div className="relative flex-1">
+          <input
+            type="tel"
+            value={number}
+            onChange={e => handleNumberChange(e.target.value)}
+            placeholder="(555) 000-0000"
+            disabled={disabled}
+            className={inputBase + ' pr-12'}
+          />
+          <button
+            type="button"
+            onClick={onToggle}
+            className="absolute right-5 top-1/2 -translate-y-1/2 text-[#909090] hover:text-brand-blue transition-colors"
+          >
+            {saving ? (
+              <div className="w-4 h-4 border-2 border-brand-blue border-t-transparent rounded-full animate-spin" />
+            ) : disabled ? (
+              <Pencil className="w-4 h-4" />
+            ) : (
+              <Check className="w-4 h-4 text-green-500" />
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ── editable field ── */
 function EditableField({
   label, value, onChange, type = 'text', placeholder, disabled, onToggle, saving,
@@ -287,11 +366,10 @@ export function AccountSettings() {
                 <label className="block text-sm font-semibold text-brand-navy mb-2">Email Address</label>
                 <input type="email" value={profile.email || ''} disabled className={inputBase} />
               </div>
-              <EditableField
+              <PhoneField
                 label="Phone Number"
                 value={personalForm.phone}
                 onChange={v => setPersonalForm(f => ({ ...f, phone: v }))}
-                placeholder="+1 (555) 000-0000"
                 disabled={!personalEditing.phone}
                 onToggle={() => togglePersonalField('phone')}
                 saving={personalSaving === 'phone'}

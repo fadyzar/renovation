@@ -11,6 +11,10 @@ interface Project {
   id: string;
   title: string;
   description: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
   status: string;
   budget_min: number;
   budget_max: number;
@@ -46,6 +50,7 @@ interface PaymentModalData {
   contractorPhone: string;
   totalBidAmount: number;
   milestones: Array<{ description: string; price: number; duration?: number }>;
+  projectAddress: string;
 }
 
 export function OwnerDashboard() {
@@ -135,7 +140,7 @@ export function OwnerDashboard() {
       const [{ data: bid }, { data: contractorProfile }] = await Promise.all([
         supabase
           .from('bids')
-          .select('id, total_amount, milestones')
+          .select('id, total_price, milestones')
           .eq('project_id', project.id)
           .eq('status', 'accepted')
           .maybeSingle(),
@@ -147,24 +152,28 @@ export function OwnerDashboard() {
       ]);
 
       if (!bid) {
-        alert('לא נמצאה הצעת מחיר מאושרת לפרויקט זה.');
+        alert('No accepted bid found for this project.');
         return;
       }
 
       const milestones: Array<{ description: string; price: number; duration?: number }> =
         Array.isArray(bid.milestones) ? bid.milestones : [];
 
+      const addr = [project.address, project.city, project.state, project.zip_code]
+        .filter(Boolean).join(', ');
+
       setPaymentModal({
         project,
         bidId: bid.id,
-        contractorName: contractorProfile?.full_name ?? project.selected_contractor?.full_name ?? 'קבלן',
+        contractorName: contractorProfile?.full_name ?? project.selected_contractor?.full_name ?? 'Contractor',
         contractorPhone: contractorProfile?.phone ?? '',
-        totalBidAmount: bid.total_amount,
+        totalBidAmount: bid.total_price,
         milestones,
+        projectAddress: addr,
       });
     } catch (err) {
       console.error('Error fetching bid for payment modal:', err);
-      alert('שגיאה בטעינת פרטי ההצעה. נסה שוב.');
+      alert('Error loading bid details. Please try again.');
     } finally {
       setFetchingBid(null);
     }
@@ -434,9 +443,9 @@ export function OwnerDashboard() {
                     <div className="flex items-start gap-2.5 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 mb-3">
                       <CreditCard className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
                       <div>
-                        <p className="text-sm font-semibold text-blue-800">נדרש תשלום ראשון</p>
+                        <p className="text-sm font-semibold text-blue-800">First Payment Required</p>
                         <p className="text-xs text-blue-700 mt-0.5">
-                          שלם את אבן הדרך הראשונה כדי להפעיל את הפרויקט ולפתוח את הצ׳אט עם הקבלן.
+                          Pay the first milestone to activate the project and unlock chat with your contractor.
                         </p>
                       </div>
                     </div>
@@ -448,12 +457,12 @@ export function OwnerDashboard() {
                       {fetchingBid === project.id ? (
                         <>
                           <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          טוען...
+                          Loading...
                         </>
                       ) : (
                         <>
                           <CreditCard className="w-4 h-4" />
-                          שלם ופתח את הפרויקט
+                          Pay &amp; Activate Project
                         </>
                       )}
                     </button>
@@ -515,6 +524,7 @@ export function OwnerDashboard() {
           projectTitle={paymentModal.project.title}
           totalBidAmount={paymentModal.totalBidAmount}
           milestones={paymentModal.milestones}
+          projectAddress={paymentModal.projectAddress}
           onSuccess={() => {
             setPaymentModal(null);
             loadProjects();
