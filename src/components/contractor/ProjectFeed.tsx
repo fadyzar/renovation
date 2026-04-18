@@ -31,6 +31,7 @@ interface Project {
     state?: string;
     zip_code?: string;
   };
+  project_images?: Array<{ image_url: string }>;
   owner: {
     id: string;
     full_name: string;
@@ -95,7 +96,8 @@ export function ProjectFeed() {
           *,
           properties(address, city, state, zip_code),
           owner:profiles!projects_owner_id_fkey(id, full_name),
-          bids(id, status, contractor_id)
+          bids(id, status, contractor_id),
+          project_images(image_url)
         `)
         .eq('status', 'seeking_quotes');
 
@@ -332,6 +334,25 @@ export function ProjectFeed() {
             {project.description}
           </p>
 
+          {/* Project images */}
+          {project.project_images && project.project_images.length > 0 && (
+            <div className="flex gap-2 overflow-x-auto pb-1 mb-3">
+              {project.project_images.slice(0, 4).map((img, i) => (
+                <img
+                  key={i}
+                  src={img.image_url}
+                  alt={`Project photo ${i + 1}`}
+                  className="w-20 h-20 rounded-lg object-cover flex-shrink-0 border border-gray-200"
+                />
+              ))}
+              {project.project_images.length > 4 && (
+                <div className="w-20 h-20 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0 text-xs font-semibold text-gray-500">
+                  +{project.project_images.length - 4}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Work types */}
           {project.work_types?.length > 0 && (
             <div className="flex flex-wrap gap-1.5 mb-4">
@@ -444,11 +465,10 @@ export function ProjectFeed() {
                 )}
                 {project.userBidStatus === 'accepted' && (
                   <button
-                    onClick={() => navigate('/my-bids')}
-                    className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-lg transition-colors text-sm"
+                    className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 bg-blue-500 text-white font-bold rounded-lg cursor-default text-sm"
                   >
-                    <AlertCircle className="w-4 h-4" />
-                    Bid Accepted - Pay Deposit
+                    <Clock className="w-4 h-4" />
+                    Bid Accepted — Waiting for Owner Payment
                   </button>
                 )}
                 {project.userBidStatus === 'rejected' && (

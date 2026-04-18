@@ -114,7 +114,7 @@ export function FirstPaymentModal({
         p_mock_tx_id:       result.transactionId,
         p_contractor_name:  contractorName,
         p_contractor_phone: contractorPhone,
-        p_milestones:       JSON.stringify(milestones),
+        p_milestones:       milestones,
       });
 
       if (rpcError) {

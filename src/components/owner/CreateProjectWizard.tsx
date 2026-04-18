@@ -782,13 +782,34 @@ export function CreateProjectWizard() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Phone Number
                   </label>
-                  <input
-                    type="tel"
-                    value={formData.phone}
-                    onChange={(e) => updateField('phone', e.target.value)}
-                    placeholder="+972 12345678"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                  />
+                  <div className="flex gap-2">
+                    <select
+                      value={formData.phone.startsWith('+') ? formData.phone.split(' ')[0] : '+1'}
+                      onChange={(e) => {
+                        const num = formData.phone.startsWith('+') ? formData.phone.split(' ').slice(1).join(' ') : formData.phone;
+                        updateField('phone', `${e.target.value} ${num}`);
+                      }}
+                      className="px-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white text-sm"
+                      style={{ minWidth: '100px' }}
+                    >
+                      <option value="+1">🇺🇸 +1</option>
+                      <option value="+1">🇨🇦 +1</option>
+                      <option value="+44">🇬🇧 +44</option>
+                      <option value="+61">🇦🇺 +61</option>
+                      <option value="+52">🇲🇽 +52</option>
+                      <option value="+972">🇮🇱 +972</option>
+                    </select>
+                    <input
+                      type="tel"
+                      value={formData.phone.startsWith('+') ? formData.phone.split(' ').slice(1).join(' ') : formData.phone}
+                      onChange={(e) => {
+                        const code = formData.phone.startsWith('+') ? formData.phone.split(' ')[0] : '+1';
+                        updateField('phone', `${code} ${e.target.value}`);
+                      }}
+                      placeholder="(555) 000-0000"
+                      className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    />
+                  </div>
                 </div>
               </div>
 

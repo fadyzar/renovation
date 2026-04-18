@@ -277,15 +277,14 @@ export function Messages() {
               <div className="flex-1">
                 <h3 className="font-semibold text-amber-900 text-sm mb-1">Some chats are locked</h3>
                 <p className="text-amber-700 text-sm">
-                  Contractors must pay a 10% security deposit before chat is unlocked.
-                  You can check project status on your{' '}
+                  Chat unlocks after the first milestone payment is made. Go to your{' '}
                   <button
                     onClick={() => navigate('/dashboard')}
                     className="underline hover:text-amber-900 font-medium"
                   >
                     Dashboard
                   </button>
-                  .
+                  {' '}to pay and activate the project.
                 </p>
               </div>
             </div>
@@ -419,20 +418,20 @@ export function Messages() {
                         <h3 className="text-xl font-semibold text-gray-900 mb-2">Chat Locked</h3>
                         <p className="text-gray-600 text-sm leading-relaxed mb-4">
                           {projectStatus === 'awaiting_deposit'
-                            ? 'The contractor needs to pay the 10% security deposit before chat is unlocked. This ensures commitment before sharing contact details.'
+                            ? 'Chat unlocks after the first milestone payment is made. Go to your dashboard to complete the payment and activate the project.'
                             : 'Chat will be available once the project is active.'}
                         </p>
                         {projectStatus === 'awaiting_deposit' && (
                           <>
-                            <div className="mb-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
-                              <p className="text-xs font-semibold text-amber-700 mb-1">Waiting for contractor deposit</p>
-                              <p className="text-xs text-amber-600">You will be notified when the contractor completes the payment.</p>
+                            <div className="mb-4 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+                              <p className="text-xs font-semibold text-blue-700 mb-1">First payment required</p>
+                              <p className="text-xs text-blue-600">Pay the first milestone on your dashboard to unlock chat and activate the project.</p>
                             </div>
                             <button
                               onClick={() => navigate('/dashboard')}
                               className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-colors"
                             >
-                              Back to Dashboard
+                              Go to Dashboard to Pay
                             </button>
                           </>
                         )}

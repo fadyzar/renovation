@@ -160,17 +160,16 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
 
   async function checkDepositStatus(projId: string): Promise<boolean> {
     try {
+      // Check if project is in_progress or completed — that means payment was made
       const { data } = await supabase
-        .from('payments')
-        .select('id')
-        .eq('project_id', projId)
-        .eq('is_deposit', true)
-        .in('status', ['escrowed', 'partially_released', 'completed'])
+        .from('projects')
+        .select('status')
+        .eq('id', projId)
         .maybeSingle();
 
-      return !!data;
+      return data?.status === 'in_progress' || data?.status === 'completed';
     } catch (error) {
-      console.error('Error checking deposit:', error);
+      console.error('Error checking project status:', error);
       return false;
     }
   }
@@ -433,17 +432,17 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
             <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Lock className="w-10 h-10 text-amber-600" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">Deposit Payment Required</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">First Payment Required</h3>
             <p className="text-gray-600 mb-4">
-              The contractor must pay the 10% security deposit before communication is enabled. This protects both parties and ensures commitment to the project.
+              Chat unlocks after the owner makes the first milestone payment. This activates the project and enables communication between both parties.
             </p>
-            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-left">
-              <p className="text-sm text-amber-900 font-medium mb-2">What happens next:</p>
-              <ul className="text-sm text-amber-800 space-y-1">
-                <li>• Contractor pays security deposit (held in escrow)</li>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-left">
+              <p className="text-sm text-blue-900 font-medium mb-2">What happens after payment:</p>
+              <ul className="text-sm text-blue-800 space-y-1">
                 <li>• Project status changes to "Active"</li>
                 <li>• Chat unlocks automatically</li>
-                <li>• You can coordinate project details</li>
+                <li>• Contractor's phone number is shared</li>
+                <li>• Milestone management begins</li>
               </ul>
             </div>
           </div>
