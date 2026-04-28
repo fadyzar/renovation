@@ -1,0 +1,16 @@
+{
+  "name": "RenovateMatch",
+  "short_name": "RenovateMatch",
+  "description": "Connect property owners with professional contractors",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64",
+      "type": "image/x-icon"
+    }
+  ]
+}

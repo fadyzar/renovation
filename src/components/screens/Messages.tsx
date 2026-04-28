@@ -40,6 +40,9 @@ export function Messages() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [typingUsers, setTypingUsers] = useState<Record<string, boolean>>({});
 
+  // Stable string of conversation IDs — used as dependency for typing subscriptions
+  const conversationIds = conversations.map((c) => c.id).join(',');
+
   // Auto-select conversation from navigation state
   useEffect(() => {
     const state = location.state as any;
@@ -51,29 +54,6 @@ export function Messages() {
   useEffect(() => {
     if (profile) {
       loadConversations();
-
-      const channels = conversations.map((conv) => {
-        return supabase
-          .channel(`conversation-typing:${conv.id}`, {
-            config: {
-              presence: {
-                key: profile.id,
-              },
-            },
-          })
-          .on('presence', { event: 'sync' }, () => {
-            const state = supabase.channel(`conversation-typing:${conv.id}`).presenceState();
-            const otherUserId = profile.id === conv.owner_id ? conv.contractor_id : conv.owner_id;
-            const otherUserPresence = state[otherUserId];
-
-            if (otherUserPresence && otherUserPresence[0]?.typing) {
-              setTypingUsers((prev) => ({ ...prev, [conv.id]: true }));
-            } else {
-              setTypingUsers((prev) => ({ ...prev, [conv.id]: false }));
-            }
-          })
-          .subscribe();
-      });
 
       const mainChannel = supabase
         .channel('conversations-list')
@@ -177,11 +157,36 @@ export function Messages() {
         .subscribe();
 
       return () => {
-        channels.forEach(channel => supabase.removeChannel(channel));
         supabase.removeChannel(mainChannel);
       };
     }
-  }, [profile?.id, conversations.length]);
+  }, [profile?.id]);
+
+  // Typing indicators: subscribe to each conversation's presence channel
+  // Uses the same channel name as Chat.tsx so we see real-time typing in sidebar
+  useEffect(() => {
+    if (!profile || conversations.length === 0) return;
+
+    const typingChannels = conversations.map((conv) => {
+      const otherUserId = profile.id === conv.owner_id ? conv.contractor_id : conv.owner_id;
+
+      const ch = supabase
+        .channel(`conversation:${conv.id}`)
+        .on('presence', { event: 'sync' }, () => {
+          const state = ch.presenceState();
+          const otherPresences = (state[otherUserId] || []) as any[];
+          const isTyping = otherPresences.some((p: any) => p.typing === true);
+          setTypingUsers((prev) => ({ ...prev, [conv.id]: isTyping }));
+        })
+        .subscribe();
+
+      return ch;
+    });
+
+    return () => {
+      typingChannels.forEach((ch) => supabase.removeChannel(ch));
+    };
+  }, [conversationIds, profile?.id]);
 
   async function loadConversations() {
     if (!profile) return;
@@ -383,7 +388,7 @@ export function Messages() {
                           {conv.project?.status !== 'in_progress' && conv.project?.status !== 'completed' ? (
                             <div className="flex items-center gap-1">
                               <Lock className="w-3 h-3 text-amber-500" />
-                              <span className="text-xs text-amber-600 font-medium">Locked — awaiting deposit</span>
+                              <span className="text-xs text-amber-600 font-medium">Locked — payment required</span>
                             </div>
                           ) : typingUsers[conv.id] ? (
                             <p className="text-sm text-blue-600 font-medium italic">typing...</p>

@@ -61,6 +61,7 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const channelRef = useRef<any>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const typingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     loadConversation();
@@ -102,7 +103,7 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
                Math.abs(new Date(msg.created_at).getTime() - new Date(newMessage.created_at).getTime()) < 2000)
             );
             if (exists) return prev;
-            return [...prev, { ...newMessage, sender }];
+            return [...prev, { ...newMessage, sender: sender ?? undefined } as Message];
           });
 
           if (newMessage.sender_id !== profile?.id) {
@@ -151,6 +152,7 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
 
     return () => {
       supabase.removeChannel(channel);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
   }, [conversation?.id, profile?.id]);
 
@@ -344,40 +346,78 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
       attachmentName = selectedFile.name;
     }
 
+    // Optimistic update — show message immediately before DB round-trip
+    const tempId = `temp-${Date.now()}`;
+    const optimisticMsg: Message = {
+      id: tempId,
+      conversation_id: conversation.id,
+      content: messageContent || '',
+      sender_id: profile.id,
+      is_read: false,
+      created_at: new Date().toISOString(),
+      attachment_url: attachmentUrl ?? undefined,
+      attachment_type: attachmentType ?? undefined,
+      attachment_name: attachmentName ?? undefined,
+      sender: { full_name: profile.full_name || '', avatar_url: profile.avatar_url },
+    };
+    setMessages(prev => [...prev, optimisticMsg]);
     setNewMessage('');
     setSelectedFile(null);
 
     try {
-      const { error } = await supabase.from('messages').insert({
-        conversation_id: conversation.id,
-        sender_id: profile.id,
-        content: messageContent || null,
-        attachment_url: attachmentUrl,
-        attachment_type: attachmentType,
-        attachment_name: attachmentName,
-      });
+      const { data: inserted, error } = await supabase
+        .from('messages')
+        .insert({
+          conversation_id: conversation.id,
+          sender_id: profile.id,
+          content: messageContent || null,
+          attachment_url: attachmentUrl,
+          attachment_type: attachmentType,
+          attachment_name: attachmentName,
+        })
+        .select()
+        .single();
 
       if (error) throw error;
+
+      // Replace temp message with the real DB row (so realtime dedup works by ID)
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === tempId
+            ? { ...inserted, sender: { full_name: profile.full_name || '', avatar_url: profile.avatar_url } }
+            : m
+        )
+      );
 
       await supabase
         .from('conversations')
         .update({ last_message_at: new Date().toISOString() })
         .eq('id', conversation.id);
 
-      if (channelRef.current) {
-        await channelRef.current.track({
-          user_id: profile.id,
-          typing: false,
-        });
-      }
+      handleTyping(false);
     } catch (error) {
       console.error('Error sending message:', error);
+      // Roll back optimistic message on failure
+      setMessages(prev => prev.filter(m => m.id !== tempId));
       setNewMessage(messageContent);
     }
   }
 
   async function handleTyping(isTyping: boolean) {
     if (!channelRef.current || !profile?.id) return;
+
+    if (isTyping) {
+      // Reset the auto-clear timer on every keystroke
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = setTimeout(() => {
+        channelRef.current?.track({ user_id: profile.id, typing: false });
+      }, 2000);
+    } else {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+    }
 
     await channelRef.current.track({
       user_id: profile.id,
@@ -549,7 +589,7 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
                       </div>
                     )}
                     {message.content && (
-                      <p className="text-sm leading-relaxed">{message.content}</p>
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
                     )}
                     <div className={`flex items-center gap-1 mt-1 ${isOwn ? 'justify-end' : 'justify-start'}`}>
                       <p className={`text-xs ${isOwn ? 'text-blue-100' : 'text-gray-500'}`}>

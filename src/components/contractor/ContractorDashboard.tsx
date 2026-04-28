@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Star, DollarSign, Briefcase, FileText, MapPin, ChevronRight, Clock } from 'lucide-react';
+import { Star, DollarSign, Briefcase, FileText, MapPin, ChevronRight, Clock, Phone, MessageCircle, CheckCircle, AlertTriangle, Upload, Image as ImageIcon, Navigation, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { BidBuilder } from './BidBuilder';
@@ -39,22 +39,35 @@ interface AwaitingPaymentBid {
   };
 }
 
+type MilestoneStatus = 'pending' | 'in_progress' | 'awaiting_approval' | 'approved' | 'paid' | 'disputed';
+
+interface Milestone {
+  id: string;
+  description: string;
+  amount: number;
+  status: MilestoneStatus;
+  order_index: number;
+}
+
 interface Project {
   id: string;
   title: string;
   description: string;
   status: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
   budget_min: number;
   budget_max: number;
   work_types: string[];
-  properties?: {
-    address?: string;
-    city?: string;
-    state?: string;
-  };
   owner: {
     full_name: string;
+    phone?: string;
   };
+  milestones?: Milestone[];
+  project_images?: Array<{ image_url: string }>;
+  conversationId?: string; // resolved after fetch
 }
 
 export function ContractorDashboard() {
@@ -70,6 +83,9 @@ export function ContractorDashboard() {
   const [awaitingPaymentBids, setAwaitingPaymentBids] = useState<AwaitingPaymentBid[]>([]);
   const [selectedProject, setSelectedProject] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
+  const [uploadingInvoice, setUploadingInvoice] = useState<string | null>(null);
+  const [invoiceSuccess, setInvoiceSuccess] = useState<string | null>(null);
   const loadingRef = useRef(false);
 
   const loadData = useCallback(async () => {
@@ -105,13 +121,30 @@ export function ContractorDashboard() {
         .from('projects')
         .select(`
           *,
-          properties(address, city, state),
-          owner:profiles!projects_owner_id_fkey(full_name)
+          owner:profiles!projects_owner_id_fkey(full_name, phone),
+          milestones(id, description, amount, status, order_index),
+          project_images(image_url)
         `)
         .eq('selected_contractor_id', profile.id)
         .eq('status', 'in_progress')
         .order('created_at', { ascending: false })
-        .limit(3);
+        .limit(10);
+
+      // Enrich projects with their conversation ID
+      const projectsWithConv = await Promise.all(
+        (projectsData || []).map(async (p: any) => {
+          const { data: conv } = await supabase
+            .from('conversations')
+            .select('id')
+            .eq('project_id', p.id)
+            .maybeSingle();
+          return {
+            ...p,
+            milestones: (p.milestones || []).sort((a: Milestone, b: Milestone) => a.order_index - b.order_index),
+            conversationId: conv?.id ?? null,
+          };
+        })
+      );
 
       const { data: allBidsData } = await supabase
         .from('bids')
@@ -142,7 +175,7 @@ export function ContractorDashboard() {
       const acceptedBids = allBidsData?.filter(b => b.status === 'accepted') || [];
 
       setActiveBids(bidsData || []);
-      setOngoingProjects(projectsData || []);
+      setOngoingProjects(projectsWithConv);
       setAwaitingPaymentBids(awaitingList);
       setStats({
         totalRevenue: acceptedBids.reduce((sum, b) => sum + (b.total_amount || 0), 0),
@@ -165,6 +198,41 @@ export function ContractorDashboard() {
       setLoading(false);
     }
   }, [profile?.id, loadData]);
+
+  async function handleInvoiceUpload(projectId: string, file: File) {
+    if (!profile?.id) return;
+    setUploadingInvoice(projectId);
+    try {
+      const ext = file.name.split('.').pop();
+      const path = `invoices/${profile.id}/${projectId}/${Date.now()}.${ext}`;
+      const { error: uploadErr } = await supabase.storage.from('chat-attachments').upload(path, file);
+      if (uploadErr) throw uploadErr;
+
+      const { data: { publicUrl } } = supabase.storage.from('chat-attachments').getPublicUrl(path);
+
+      // Send invoice as a message in the project conversation
+      const project = ongoingProjects.find(p => p.id === projectId);
+      if (project?.conversationId) {
+        await supabase.from('messages').insert({
+          conversation_id: project.conversationId,
+          sender_id: profile.id,
+          content: `📄 Final Invoice — ${file.name}`,
+          attachment_url: publicUrl,
+          attachment_type: 'file',
+          attachment_name: file.name,
+        });
+        await supabase.from('conversations').update({ last_message_at: new Date().toISOString() }).eq('id', project.conversationId);
+      }
+
+      setInvoiceSuccess(projectId);
+      setTimeout(() => setInvoiceSuccess(null), 4000);
+    } catch (err) {
+      console.error('Invoice upload error:', err);
+      alert('Failed to upload invoice. Please try again.');
+    } finally {
+      setUploadingInvoice(null);
+    }
+  }
 
   const handleBrowseProjects = () => {
     navigate('/projects');
@@ -381,63 +449,242 @@ export function ContractorDashboard() {
 
         {ongoingProjects.length > 0 && (
           <div className="mb-8">
-            <h3 className="text-2xl font-bold text-gray-900 mb-4">Ongoing Projects</h3>
-            <div className="space-y-4">
-              {ongoingProjects.map((project) => (
-                <div key={project.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                  <div className="p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <h4 className="text-xl font-bold text-gray-900 mb-2">
-                          {project.title}
-                        </h4>
-                        <p className="text-gray-600 text-sm mb-3">
-                          {project.description}
-                        </p>
-                        {project.properties && (
-                          <div className="flex items-center gap-2 text-sm text-gray-600">
-                            <MapPin className="w-4 h-4" />
-                            <span>
-                              {project.properties.address}, {project.properties.city}, {project.properties.state}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-4 flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <img
-                          src={`https://ui-avatars.com/api/?name=${project.owner.full_name}&background=random`}
-                          alt={project.owner.full_name}
-                          className="w-10 h-10 rounded-full"
-                        />
-                        <div>
-                          <p className="text-sm font-semibold text-gray-900">{project.owner.full_name}</p>
-                          <p className="text-xs text-gray-500">Property Investor</p>
-                          <span className="inline-block px-2 py-0.5 bg-green-100 text-green-700 text-xs font-semibold rounded mt-1">
-                            In Progress
-                          </span>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={() => navigate(`/project/${project.id}/payments`)}
-                        className="flex items-center gap-2 px-6 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold rounded-lg transition-all duration-200"
-                      >
-                        <DollarSign className="w-4 h-4" />
-                        Manage Payments
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+            {/* Section header */}
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
+                <h3 className="text-2xl font-bold text-gray-900">Ongoing Projects</h3>
+                <span className="bg-green-500 text-white text-sm font-bold px-3 py-0.5 rounded-full">
+                  {ongoingProjects.length} Active
+                </span>
+              </div>
             </div>
 
-            <div className="text-center mt-6">
-              <button className="px-8 py-3 bg-gray-900 hover:bg-gray-800 text-white font-semibold rounded-lg transition-colors">
-                Show More
-              </button>
+            {/* Obligation banner */}
+            <div className="bg-amber-50 border border-amber-300 rounded-xl px-4 py-3 mb-5 flex items-start gap-3">
+              <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-800 font-medium">
+                You are contractually obligated to complete all active projects in full.
+                Keep milestones updated, communicate proactively, and upload your final invoice upon completion.
+              </p>
+            </div>
+
+            <div className="space-y-6">
+              {ongoingProjects.map((project) => {
+                const milestones = project.milestones || [];
+                const total = milestones.length;
+                const done = milestones.filter(m => m.status === 'paid' || m.status === 'approved').length;
+                const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+                const isExpanded = expandedProjectId === project.id;
+                const address = [project.address, project.city, project.state, project.zip_code].filter(Boolean).join(', ');
+                const mapsUrl = address ? `https://maps.google.com/?q=${encodeURIComponent(address)}` : null;
+                const isLastMilestoneDone = total > 0 && (milestones[total - 1]?.status === 'approved' || milestones[total - 1]?.status === 'paid');
+                const showInvoiceUpload = pct >= 75 || isLastMilestoneDone;
+                const didUploadInvoice = invoiceSuccess === project.id;
+
+                return (
+                  <div key={project.id} className="bg-white rounded-2xl shadow-sm border-2 border-green-200 overflow-hidden">
+                    {/* Top bar */}
+                    <div className="bg-gradient-to-r from-green-600 to-emerald-600 px-6 py-4 flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center text-white font-bold text-lg">
+                          {project.title.charAt(0)}
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-white text-base leading-tight">{project.title}</h4>
+                          <p className="text-green-100 text-xs">Owner: {project.owner.full_name}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <div className="text-right">
+                          <p className="text-green-100 text-xs">Progress</p>
+                          <p className="text-white font-bold text-lg">{pct}%</p>
+                        </div>
+                        <button
+                          onClick={() => setExpandedProjectId(isExpanded ? null : project.id)}
+                          className="p-1.5 hover:bg-white/20 rounded-lg transition-colors"
+                        >
+                          {isExpanded ? <ChevronUp className="w-5 h-5 text-white" /> : <ChevronDown className="w-5 h-5 text-white" />}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Progress bar */}
+                    <div className="h-2 bg-green-100">
+                      <div
+                        className="h-2 bg-gradient-to-r from-green-500 to-emerald-400 transition-all duration-500"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+
+                    <div className="p-6">
+                      {/* Project images */}
+                      {project.project_images && project.project_images.length > 0 && (
+                        <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
+                          {project.project_images.slice(0, 5).map((img, i) => (
+                            <img
+                              key={i}
+                              src={img.image_url}
+                              alt={`Project ${i + 1}`}
+                              className="w-24 h-20 rounded-lg object-cover flex-shrink-0 border border-gray-200"
+                            />
+                          ))}
+                          {project.project_images.length > 5 && (
+                            <div className="w-24 h-20 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center flex-shrink-0">
+                              <p className="text-xs font-semibold text-gray-500">+{project.project_images.length - 5}</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Address + owner contact */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+                        {address && (
+                          <a
+                            href={mapsUrl!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5 hover:bg-blue-100 transition-colors"
+                          >
+                            <Navigation className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                            <div className="min-w-0">
+                              <p className="text-xs text-blue-500 font-medium">Project Address</p>
+                              <p className="text-sm font-semibold text-blue-800 truncate">{address}</p>
+                            </div>
+                          </a>
+                        )}
+                        {project.owner.phone && (
+                          <a
+                            href={`tel:${project.owner.phone}`}
+                            className="flex items-center gap-2 bg-green-50 border border-green-200 rounded-xl px-3 py-2.5 hover:bg-green-100 transition-colors"
+                          >
+                            <Phone className="w-4 h-4 text-green-600 flex-shrink-0" />
+                            <div>
+                              <p className="text-xs text-green-500 font-medium">Owner Phone</p>
+                              <p className="text-sm font-semibold text-green-800">{project.owner.phone}</p>
+                            </div>
+                          </a>
+                        )}
+                      </div>
+
+                      {/* Milestone tracker */}
+                      {milestones.length > 0 && (
+                        <div className="mb-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Milestone Progress</p>
+                            <p className="text-xs font-semibold text-gray-700">{done}/{total} completed</p>
+                          </div>
+
+                          {/* Steps */}
+                          <div className="space-y-2">
+                            {(isExpanded ? milestones : milestones.slice(0, 3)).map((m, idx) => {
+                              const statusConfig: Record<MilestoneStatus, { label: string; cls: string; dot: string }> = {
+                                paid:               { label: 'Paid',              cls: 'bg-green-100 text-green-700',  dot: 'bg-green-500' },
+                                approved:           { label: 'Approved',          cls: 'bg-emerald-100 text-emerald-700', dot: 'bg-emerald-500' },
+                                awaiting_approval:  { label: 'Awaiting Approval', cls: 'bg-amber-100 text-amber-700',  dot: 'bg-amber-500 animate-pulse' },
+                                in_progress:        { label: 'In Progress',       cls: 'bg-blue-100 text-blue-700',    dot: 'bg-blue-500 animate-pulse' },
+                                disputed:           { label: 'Disputed',          cls: 'bg-red-100 text-red-700',      dot: 'bg-red-500' },
+                                pending:            { label: 'Pending',           cls: 'bg-gray-100 text-gray-500',    dot: 'bg-gray-300' },
+                              };
+                              const cfg = statusConfig[m.status] ?? statusConfig.pending;
+                              const isDone = m.status === 'paid' || m.status === 'approved';
+
+                              return (
+                                <div key={m.id} className={`flex items-center gap-3 p-3 rounded-xl border ${isDone ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'}`}>
+                                  <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${isDone ? 'bg-green-500' : 'bg-white border-2 border-gray-300'}`}>
+                                    {isDone
+                                      ? <CheckCircle className="w-4 h-4 text-white" />
+                                      : <span className="text-xs font-bold text-gray-500">{idx + 1}</span>
+                                    }
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className={`text-sm font-medium truncate ${isDone ? 'text-gray-500 line-through' : 'text-gray-800'}`}>
+                                      {m.description}
+                                    </p>
+                                  </div>
+                                  <div className="flex items-center gap-2 flex-shrink-0">
+                                    <span className="text-sm font-bold text-gray-700">${m.amount.toLocaleString()}</span>
+                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cfg.cls}`}>{cfg.label}</span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {!isExpanded && milestones.length > 3 && (
+                              <button
+                                onClick={() => setExpandedProjectId(project.id)}
+                                className="text-xs text-blue-600 hover:text-blue-700 font-medium py-1"
+                              >
+                                + {milestones.length - 3} more milestones
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Invoice upload */}
+                      {showInvoiceUpload && (
+                        <div className={`mb-4 rounded-xl border-2 border-dashed p-4 ${didUploadInvoice ? 'border-green-400 bg-green-50' : 'border-gray-300 bg-gray-50'}`}>
+                          {didUploadInvoice ? (
+                            <div className="flex items-center gap-2 text-green-700">
+                              <CheckCircle className="w-5 h-5" />
+                              <p className="text-sm font-semibold">Invoice uploaded and sent to owner!</p>
+                            </div>
+                          ) : (
+                            <>
+                              <p className="text-sm font-semibold text-gray-700 mb-1">📄 Final Invoice</p>
+                              <p className="text-xs text-gray-500 mb-3">
+                                Upload your final invoice. It will be sent directly to the owner via the project chat.
+                              </p>
+                              <label className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer transition-all ${uploadingInvoice === project.id ? 'bg-gray-200 text-gray-400' : 'bg-gray-900 hover:bg-gray-800 text-white'}`}>
+                                {uploadingInvoice === project.id ? (
+                                  <>
+                                    <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                                    Uploading…
+                                  </>
+                                ) : (
+                                  <>
+                                    <Upload className="w-4 h-4" />
+                                    Upload Invoice
+                                  </>
+                                )}
+                                <input
+                                  type="file"
+                                  accept=".pdf,.doc,.docx,.png,.jpg,.jpeg"
+                                  className="hidden"
+                                  disabled={uploadingInvoice === project.id}
+                                  onChange={(e) => {
+                                    const f = e.target.files?.[0];
+                                    if (f) handleInvoiceUpload(project.id, f);
+                                  }}
+                                />
+                              </label>
+                            </>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Action buttons */}
+                      <div className="flex gap-3">
+                        {project.conversationId && (
+                          <button
+                            onClick={() => navigate('/messages', { state: { conversationId: project.conversationId } })}
+                            className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors text-sm"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                            Open Chat
+                          </button>
+                        )}
+                        <button
+                          onClick={() => navigate(`/project/${project.id}/payments`)}
+                          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-semibold rounded-xl transition-all text-sm"
+                        >
+                          <DollarSign className="w-4 h-4" />
+                          Manage Payments
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

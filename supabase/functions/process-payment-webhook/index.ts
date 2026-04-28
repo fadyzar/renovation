@@ -1,157 +1,115 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import Stripe from "npm:stripe@14.21.0";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey, stripe-signature",
+  "Access-Control-Allow-Headers": "Content-Type, stripe-signature",
 };
-
-interface StripeEvent {
-  type: string;
-  data: {
-    object: {
-      id: string;
-      amount: number;
-      currency: string;
-      status: string;
-      metadata?: {
-        transaction_id?: string;
-        milestone_id?: string;
-        type?: 'initial_deposit' | 'milestone_payment';
-      };
-    };
-  };
-}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, {
-      status: 200,
-      headers: corsHeaders,
-    });
+    return new Response(null, { status: 200, headers: corsHeaders });
   }
 
+  const stripeKey = Deno.env.get("STRIPE_SECRET_KEY");
+  const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
+
+  if (!stripeKey || !webhookSecret) {
+    console.error("Stripe env vars missing");
+    return new Response(JSON.stringify({ error: "Stripe not configured" }), { status: 500 });
+  }
+
+  const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
+
+  // Read raw body for signature verification
+  const rawBody = await req.text();
+  const signature = req.headers.get("stripe-signature");
+
+  if (!signature) {
+    return new Response(JSON.stringify({ error: "Missing stripe-signature" }), { status: 400 });
+  }
+
+  // Verify Stripe webhook signature
+  let event: Stripe.Event;
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    event = await stripe.webhooks.constructEventAsync(rawBody, signature, webhookSecret);
+  } catch (err) {
+    console.error("Webhook signature verification failed:", err);
+    return new Response(JSON.stringify({ error: "Invalid signature" }), { status: 400 });
+  }
 
-    // Parse Stripe event
-    const event: StripeEvent = await req.json();
+  console.log(`Stripe webhook received: ${event.type}`);
 
-    console.log('Processing payment event:', event.type);
+  // Use service role client — webhooks act on behalf of the system
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+  );
 
-    // Handle payment intent succeeded
-    if (event.type === 'payment_intent.succeeded') {
-      const paymentIntent = event.data.object;
-      const metadata = paymentIntent.metadata || {};
+  try {
+    if (event.type === "payment_intent.succeeded") {
+      const pi = event.data.object as Stripe.PaymentIntent;
+      const meta = pi.metadata || {};
 
-      if (metadata.type === 'initial_deposit' && metadata.transaction_id) {
-        // Call fund_initial_deposit function
-        const { data, error } = await supabase.rpc('fund_initial_deposit', {
-          p_transaction_id: metadata.transaction_id,
-          p_payment_intent_id: paymentIntent.id,
-        });
+      console.log(`PaymentIntent succeeded: ${pi.id}`, meta);
 
-        if (error) {
-          console.error('Error funding initial deposit:', error);
-          throw error;
-        }
-
-        console.log('Initial deposit funded successfully:', metadata.transaction_id);
-
-        return new Response(
-          JSON.stringify({
-            success: true,
-            message: 'Initial deposit funded',
-            transaction_id: metadata.transaction_id
-          }),
-          {
-            headers: {
-              ...corsHeaders,
-              "Content-Type": "application/json",
-            },
-          }
-        );
+      // Update any pending transaction that used this payment intent
+      // (in case the frontend already called activate_project_after_payment,
+      //  this just confirms the stripe_payment_intent_id is stored)
+      if (meta.project_id) {
+        await supabase
+          .from("transactions")
+          .update({
+            mock_tx_id: pi.id, // reuse mock_tx_id column for stripe PI id
+            status: "completed",
+          })
+          .eq("project_id", meta.project_id)
+          .eq("status", "completed"); // only update if already activated by frontend
       }
 
-      if (metadata.type === 'milestone_payment' && metadata.transaction_id) {
-        // Call fund_next_milestone function
-        const { data, error } = await supabase.rpc('fund_next_milestone', {
-          p_transaction_id: metadata.transaction_id,
-          p_payment_intent_id: paymentIntent.id,
-        });
-
-        if (error) {
-          console.error('Error funding milestone:', error);
-          throw error;
-        }
-
-        console.log('Milestone funded successfully:', metadata.transaction_id);
-
-        return new Response(
-          JSON.stringify({
-            success: true,
-            message: 'Milestone funded',
-            transaction_id: metadata.transaction_id
-          }),
-          {
-            headers: {
-              ...corsHeaders,
-              "Content-Type": "application/json",
-            },
-          }
-        );
-      }
+      return new Response(
+        JSON.stringify({ received: true, event: event.type }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // Handle payment intent failed
-    if (event.type === 'payment_intent.payment_failed') {
-      const paymentIntent = event.data.object;
-      const metadata = paymentIntent.metadata || {};
+    if (event.type === "payment_intent.payment_failed") {
+      const pi = event.data.object as Stripe.PaymentIntent;
+      const meta = pi.metadata || {};
+      const lastError = pi.last_payment_error;
 
-      // Log failure in audit trail
-      if (metadata.transaction_id) {
-        await supabase.rpc('log_audit', {
-          p_entity_type: 'payment',
-          p_entity_id: metadata.transaction_id,
-          p_action: 'payment_failed',
-          p_metadata: {
-            payment_intent_id: paymentIntent.id,
-            error: 'Payment failed'
-          }
+      console.warn(`PaymentIntent failed: ${pi.id}`, lastError?.message);
+
+      // Notify owner of failed payment
+      if (meta.owner_id) {
+        await supabase.from("notifications").insert({
+          user_id: meta.owner_id,
+          type: "project_update",
+          title: "Payment Failed",
+          message: `Your payment could not be processed: ${lastError?.message || "Card declined"}. Please try again.`,
+          metadata: { project_id: meta.project_id, payment_intent_id: pi.id },
         });
       }
 
-      console.log('Payment failed:', paymentIntent.id);
+      return new Response(
+        JSON.stringify({ received: true, event: event.type }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
+    // All other events — acknowledge receipt
     return new Response(
-      JSON.stringify({ success: true, message: 'Event processed' }),
-      {
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      }
+      JSON.stringify({ received: true, event: event.type }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
   } catch (error) {
-    console.error('Error processing webhook:', error);
-
+    console.error("Webhook handler error:", error);
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      }),
-      {
-        status: 400,
-        headers: {
-          ...corsHeaders,
-          "Content-Type": "application/json",
-        },
-      }
+      JSON.stringify({ error: error instanceof Error ? error.message : "Handler error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

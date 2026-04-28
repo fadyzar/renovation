@@ -22,9 +22,33 @@ interface ProjectFormData {
   country: string;
   fullName: string;
   email: string;
+  phoneCode: string;
   phone: string;
   agreeToTerms: boolean;
 }
+
+const PHONE_CODES = [
+  { code: '+1',   label: '🇺🇸 +1 (US/CA)' },
+  { code: '+44',  label: '🇬🇧 +44' },
+  { code: '+972', label: '🇮🇱 +972' },
+  { code: '+49',  label: '🇩🇪 +49' },
+  { code: '+33',  label: '🇫🇷 +33' },
+  { code: '+39',  label: '🇮🇹 +39' },
+  { code: '+34',  label: '🇪🇸 +34' },
+  { code: '+31',  label: '🇳🇱 +31' },
+  { code: '+61',  label: '🇦🇺 +61' },
+  { code: '+81',  label: '🇯🇵 +81' },
+  { code: '+82',  label: '🇰🇷 +82' },
+  { code: '+86',  label: '🇨🇳 +86' },
+  { code: '+91',  label: '🇮🇳 +91' },
+  { code: '+55',  label: '🇧🇷 +55' },
+  { code: '+52',  label: '🇲🇽 +52' },
+  { code: '+7',   label: '🇷🇺 +7' },
+  { code: '+27',  label: '🇿🇦 +27' },
+  { code: '+20',  label: '🇪🇬 +20' },
+  { code: '+971', label: '🇦🇪 +971' },
+  { code: '+966', label: '🇸🇦 +966' },
+];
 
 const RENOVATION_TYPES = [
   'Kitchen', 'Bathroom', 'Bedroom', 'Living Room', 'Basement',
@@ -87,6 +111,7 @@ export function CreateProjectPage() {
     country: 'USA',
     fullName: profile?.full_name || '',
     email: profile?.email || '',
+    phoneCode: '+1',
     phone: profile?.phone || '',
     agreeToTerms: false,
   });
@@ -172,6 +197,30 @@ export function CreateProjectPage() {
         status: 'seeking_quotes',
       });
       if (error) throw error;
+
+      // Upload images to storage and save URLs to project_images table
+      if (formData.images.length > 0) {
+        const projectId = projectIdRef.current;
+        await Promise.all(
+          formData.images.map(async (file) => {
+            const ext = file.name.split('.').pop();
+            const path = `${projectId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+            const { error: uploadError } = await supabase.storage
+              .from('project-images')
+              .upload(path, file);
+            if (uploadError) { console.error('Image upload error:', uploadError); return; }
+            const { data: { publicUrl } } = supabase.storage
+              .from('project-images')
+              .getPublicUrl(path);
+            await supabase.from('project_images').insert({
+              project_id: projectId,
+              image_url: publicUrl,
+              image_type: 'before',
+            });
+          })
+        );
+      }
+
       setShowLoading(true);
       setTimeout(() => navigate('/dashboard'), 3000);
     } catch (err) {
@@ -635,13 +684,24 @@ export function CreateProjectPage() {
                 )}
               </div>
               <div>
-                <input
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => updateField('phone', e.target.value)}
-                  placeholder="Phone Number"
-                  className={`${inputBase} h-[59px] ${errors.phone ? inputError : ''}`}
-                />
+                <div className={`flex h-[59px] bg-white border-[1.5px] rounded-full overflow-hidden transition-colors focus-within:border-brand-blue focus-within:bg-[#EDF3FF] ${errors.phone ? 'border-red-500' : 'border-[#D9D9D9]'}`}>
+                  <select
+                    value={formData.phoneCode}
+                    onChange={(e) => updateField('phoneCode', e.target.value)}
+                    className="bg-transparent pl-4 pr-2 text-brand-navy text-sm font-medium focus:outline-none appearance-none border-r border-[#D9D9D9] shrink-0"
+                  >
+                    {PHONE_CODES.map((c) => (
+                      <option key={c.code} value={c.code}>{c.label}</option>
+                    ))}
+                  </select>
+                  <input
+                    type="tel"
+                    value={formData.phone}
+                    onChange={(e) => updateField('phone', e.target.value)}
+                    placeholder="Phone Number"
+                    className="flex-1 px-4 bg-transparent text-brand-navy placeholder-[#909090] focus:outline-none text-sm"
+                  />
+                </div>
                 {errors.phone && (
                   <p className="text-red-500 text-xs mt-1 ml-5">{errors.phone}</p>
                 )}

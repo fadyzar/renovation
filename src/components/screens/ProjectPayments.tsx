@@ -91,12 +91,15 @@ interface BidInfo {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const PLATFORM_FEE_MULTIPLIER = PLATFORM_FEE_PCT / 100;
-const CONTRACTOR_MULTIPLIER = 1 - PLATFORM_FEE_MULTIPLIER;
 
-function calcSplit(amount: number) {
-  const fee = Math.round(amount * PLATFORM_FEE_MULTIPLIER * 100) / 100;
-  const payout = Math.round((amount - fee) * 100) / 100;
-  return { fee, payout };
+/** Fee is collected once (from milestone index 0). All others go 100% to contractor. */
+function getMilestoneSplit(amount: number, isFirst: boolean, totalFee: number) {
+  if (isFirst) {
+    const fee = totalFee;
+    const payout = Math.round((amount - fee) * 100) / 100;
+    return { fee, payout };
+  }
+  return { fee: 0, payout: amount };
 }
 
 function formatILS(n: number) {
@@ -125,12 +128,14 @@ const STATUS_CONFIG: Record<MilestoneStatus, { label: string; color: string; bg:
 
 interface PayModalProps {
   milestone: PaymentMilestone;
+  isFirstMilestone: boolean;
+  totalPlatformFee: number;
   onSuccess: () => void;
   onClose: () => void;
 }
 
-function ApproveMilestoneModal({ milestone, onSuccess, onClose }: PayModalProps) {
-  const { fee, payout } = calcSplit(milestone.amount);
+function ApproveMilestoneModal({ milestone, isFirstMilestone, totalPlatformFee, onSuccess, onClose }: PayModalProps) {
+  const { fee, payout } = getMilestoneSplit(milestone.amount, isFirstMilestone, totalPlatformFee);
   const [modalState, setModalState] = useState<'form' | 'processing' | 'success' | 'error'>('form');
   const [card, setCard] = useState<CardDetails>({
     cardNumber: '', cardholderName: '', expiryMonth: '', expiryYear: '', cvv: '',
@@ -214,14 +219,23 @@ function ApproveMilestoneModal({ milestone, onSuccess, onClose }: PayModalProps)
                     <span className="text-gray-600">Milestone Amount</span>
                     <span className="font-semibold">{formatILS(milestone.amount)}</span>
                   </div>
-                  <div className="flex justify-between text-green-700">
-                    <span>→ Contractor Receives (90%)</span>
-                    <span className="font-semibold">{formatILS(payout)}</span>
-                  </div>
-                  <div className="flex justify-between text-orange-600">
-                    <span>→ Platform Fee (10%)</span>
-                    <span className="font-semibold">{formatILS(fee)}</span>
-                  </div>
+                  {isFirstMilestone ? (
+                    <>
+                      <div className="flex justify-between text-green-700">
+                        <span>→ Contractor Receives</span>
+                        <span className="font-semibold">{formatILS(payout)}</span>
+                      </div>
+                      <div className="flex justify-between text-orange-600">
+                        <span>→ Platform Fee (10% of total, collected once)</span>
+                        <span className="font-semibold">{formatILS(fee)}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex justify-between text-green-700">
+                      <span>→ Contractor Receives (100%)</span>
+                      <span className="font-semibold">{formatILS(payout)}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="border-t border-green-200 mt-3 pt-3 flex justify-between">
                   <span className="font-bold text-gray-900">You Pay</span>
@@ -318,7 +332,8 @@ function ApproveMilestoneModal({ milestone, onSuccess, onClose }: PayModalProps)
               <div>
                 <h3 className="text-xl font-bold text-gray-900 mb-1">Payment Released!</h3>
                 <p className="text-gray-600 text-sm">
-                  {formatILS(payout)} sent to contractor · {formatILS(fee)} platform fee retained.
+                  {formatILS(payout)} sent to contractor
+                  {isFirstMilestone && fee > 0 ? ` · ${formatILS(fee)} platform fee retained` : ''}
                 </p>
               </div>
               <button onClick={onSuccess} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition-colors">
@@ -433,7 +448,8 @@ export function ProjectPayments() {
   const [project, setProject] = useState<ProjectInfo | null>(null);
   const [bid, setBid] = useState<BidInfo | null>(null);
   const [milestones, setMilestones] = useState<PaymentMilestone[]>([]);
-  const [approveModal, setApproveModal] = useState<PaymentMilestone | null>(null);
+  const [ownerProfile, setOwnerProfile] = useState<{ id: string; full_name: string; avatar_url: string | null } | null>(null);
+  const [approveModal, setApproveModal] = useState<{ milestone: PaymentMilestone; isFirst: boolean } | null>(null);
   const [submitModal, setSubmitModal] = useState<PaymentMilestone | null>(null);
   const [completing, setCompleting] = useState(false);
 
@@ -455,6 +471,14 @@ export function ProjectPayments() {
 
       if (!proj) { navigate('/dashboard'); return; }
       setProject(proj);
+
+      // 1b. Load owner profile
+      const { data: ownerData } = await supabase
+        .from('profiles')
+        .select('id, full_name, avatar_url')
+        .eq('id', proj.owner_id)
+        .maybeSingle();
+      setOwnerProfile(ownerData ?? null);
 
       // 2. Load accepted bid
       const { data: bidData } = await supabase
@@ -539,10 +563,11 @@ export function ProjectPayments() {
 
   const totalBid = bid?.total_price ?? 0;
   const totalPlatformFee = Math.round(totalBid * PLATFORM_FEE_MULTIPLIER * 100) / 100;
-  const totalContractorPayout = totalBid * CONTRACTOR_MULTIPLIER;
+  const totalContractorPayout = totalBid - totalPlatformFee;
+  const firstMilestoneId = milestones[0]?.id;
   const paidMilestones = milestones.filter(m => m.status === 'paid');
-  const releasedAmount = paidMilestones.reduce((s, m) => s + calcSplit(m.amount).payout, 0);
-  const platformCollected = paidMilestones.reduce((s, m) => s + calcSplit(m.amount).fee, 0);
+  const releasedAmount = paidMilestones.reduce((s, m) => s + getMilestoneSplit(m.amount, m.id === firstMilestoneId, totalPlatformFee).payout, 0);
+  const platformCollected = paidMilestones.some(m => m.id === firstMilestoneId) ? totalPlatformFee : 0;
   const remaining = totalContractorPayout - releasedAmount;
   const allPaid = milestones.length > 0 && milestones.every(m => m.status === 'paid');
 
@@ -592,13 +617,35 @@ export function ProjectPayments() {
 
             {/* Action buttons */}
             <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors shadow-sm text-sm"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Dashboard
+              </button>
+              {isContractor && ownerProfile && (
+                <button
+                  onClick={() => navigate(`/profile/${ownerProfile.id}`)}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold rounded-xl transition-colors shadow-sm text-sm"
+                >
+                  {ownerProfile.avatar_url ? (
+                    <img src={ownerProfile.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
+                  ) : (
+                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-teal-400 flex items-center justify-center text-white text-xs font-bold">
+                      {ownerProfile.full_name?.charAt(0)?.toUpperCase() ?? 'O'}
+                    </div>
+                  )}
+                  {ownerProfile.full_name || 'Owner Profile'}
+                </button>
+              )}
               {isContractor && (
                 <button
                   onClick={handleNavigate}
                   className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors shadow-sm text-sm"
                 >
                   <Navigation className="w-4 h-4" />
-                  Navigate to Client
+                  Navigate
                 </button>
               )}
               <button
@@ -657,8 +704,8 @@ export function ProjectPayments() {
           <div className="mt-4 flex items-start gap-2 bg-orange-50 border border-orange-200 rounded-xl p-3">
             <Shield className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
             <p className="text-xs text-orange-700">
-              <strong>Platform Fee:</strong> {formatILS(platformCollected)} collected so far of {formatILS(totalPlatformFee)} total.
-              All payments are processed through escrow — 10% of every milestone is retained by the platform.
+              <strong>Platform Fee:</strong> {platformCollected > 0 ? `${formatILS(platformCollected)} collected` : 'Not collected yet'} of {formatILS(totalPlatformFee)} total.
+              10% of the total bid is deducted once from the first milestone payment.
             </p>
           </div>
         </div>
@@ -681,7 +728,8 @@ export function ProjectPayments() {
               {milestones.map((milestone, index) => {
                 const cfg = STATUS_CONFIG[milestone.status] ?? STATUS_CONFIG.pending;
                 const StatusIcon = cfg.icon;
-                const { fee, payout } = calcSplit(milestone.amount);
+                const isFirst = index === 0;
+                const { fee, payout } = getMilestoneSplit(milestone.amount, isFirst, totalPlatformFee);
 
                 return (
                   <div key={milestone.id} className="p-6">
@@ -708,15 +756,17 @@ export function ProjectPayments() {
                     </div>
 
                     {/* Payment split breakdown */}
-                    <div className="ml-11 grid grid-cols-2 gap-2 text-xs text-gray-500 mb-3">
+                    <div className="ml-11 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mb-3">
                       <div className="flex items-center gap-1.5">
                         <div className="w-2 h-2 rounded-full bg-green-400" />
-                        Contractor: {formatILS(payout)} (90%)
+                        Contractor: {formatILS(payout)}{isFirst ? ' (after fee)' : ' (100%)'}
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-2 h-2 rounded-full bg-orange-400" />
-                        Platform fee: {formatILS(fee)} (10%)
-                      </div>
+                      {isFirst && (
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2 h-2 rounded-full bg-orange-400" />
+                          Platform fee: {formatILS(fee)} (10% of total, once)
+                        </div>
+                      )}
                     </div>
 
                     {/* Contractor note (shown when submitted) */}
@@ -736,7 +786,7 @@ export function ProjectPayments() {
                             Payment Released — {new Date(milestone.paid_at).toLocaleDateString()}
                           </p>
                           <p className="text-xs text-green-600">
-                            {formatILS(payout)} to contractor · {formatILS(fee)} platform fee
+                            {formatILS(payout)} to contractor{isFirst && fee > 0 ? ` · ${formatILS(fee)} platform fee` : ''}
                           </p>
                         </div>
                       </div>
@@ -767,7 +817,7 @@ export function ProjectPayments() {
                       {isOwner && milestone.status === 'awaiting_approval' && (
                         <div className="flex items-center gap-3 flex-wrap">
                           <button
-                            onClick={() => setApproveModal(milestone)}
+                            onClick={() => setApproveModal({ milestone, isFirst })}
                             className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
                           >
                             <CreditCard className="w-4 h-4" />
@@ -845,7 +895,9 @@ export function ProjectPayments() {
       {/* Modals */}
       {approveModal && (
         <ApproveMilestoneModal
-          milestone={approveModal}
+          milestone={approveModal.milestone}
+          isFirstMilestone={approveModal.isFirst}
+          totalPlatformFee={totalPlatformFee}
           onSuccess={() => { setApproveModal(null); loadData(); }}
           onClose={() => setApproveModal(null)}
         />

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { MapPin, User, Mail, Phone, Maximize2, BarChart3, Layers, Clock } from 'lucide-react';
+import { MapPin, User, Maximize2, BarChart3, Layers, Clock, Image as ImageIcon } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
@@ -8,20 +8,22 @@ interface Project {
   id: string;
   title: string;
   description: string;
-  property_address: string;
-  property_city: string;
-  property_state: string;
-  property_zip: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  zip_code?: string;
   budget_min: number;
   budget_max: number;
   timeline_weeks: number;
-  room_dimensions?: string;
+  room_length?: number;
+  room_width?: number;
   finish_level?: string;
   status: string;
   owner_id: string;
   owner: {
     full_name: string;
   };
+  project_images?: Array<{ image_url: string }>;
   accepted_bid?: {
     contractor_id: string;
     contractor: {
@@ -49,13 +51,14 @@ export function MyProjects() {
         .select(`
           *,
           owner:profiles!projects_owner_id_fkey(full_name),
+          project_images(image_url),
           accepted_bid:bids!bids_project_id_fkey(
             contractor_id,
             contractor:profiles!bids_contractor_id_fkey(full_name, company_name, total_projects)
           )
         `)
         .eq('owner_id', profile?.id)
-        .in('status', ['in_progress', 'seeking_quotes'])
+        .in('status', ['in_progress', 'seeking_quotes', 'awaiting_deposit'])
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -103,80 +106,98 @@ export function MyProjects() {
             {projects.map((project) => (
               <div key={project.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
                 <div className="space-y-6">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <BarChart3 className="w-5 h-5 text-blue-600" />
+                  {/* Title + status */}
+                  <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="flex items-start gap-3 flex-1">
+                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <BarChart3 className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-bold text-gray-900 mb-1">{project.title}</h3>
+                        <p className="text-gray-600 text-sm">{project.description}</p>
+                      </div>
                     </div>
-                    <div className="flex-1">
-                      <h3 className="text-xl font-bold text-gray-900 mb-1">{project.title}</h3>
-                      <p className="text-gray-600">{project.description}</p>
-                    </div>
+                    <span className={`px-3 py-1 text-xs font-bold rounded-full flex-shrink-0 ${
+                      project.status === 'in_progress' ? 'bg-green-100 text-green-700' :
+                      project.status === 'seeking_quotes' ? 'bg-blue-100 text-blue-700' :
+                      'bg-amber-100 text-amber-700'
+                    }`}>
+                      {project.status === 'in_progress' ? 'In Progress' :
+                       project.status === 'seeking_quotes' ? 'Seeking Quotes' : 'Awaiting Payment'}
+                    </span>
                   </div>
 
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                      <MapPin className="w-5 h-5 text-blue-600" />
+                  {/* Project images */}
+                  {project.project_images && project.project_images.length > 0 && (
+                    <div className="flex gap-2 overflow-x-auto pb-1 mb-4">
+                      {project.project_images.slice(0, 5).map((img, i) => (
+                        <img
+                          key={i}
+                          src={img.image_url}
+                          alt={`Project photo ${i + 1}`}
+                          className="w-28 h-20 rounded-xl object-cover flex-shrink-0 border border-gray-200 shadow-sm"
+                        />
+                      ))}
+                      {project.project_images.length > 5 && (
+                        <div className="w-28 h-20 rounded-xl bg-gray-100 border border-gray-200 flex flex-col items-center justify-center flex-shrink-0">
+                          <ImageIcon className="w-5 h-5 text-gray-400 mb-1" />
+                          <p className="text-xs font-semibold text-gray-500">+{project.project_images.length - 5} more</p>
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-700">Project Location</p>
-                      <p className="text-gray-900">
-                        {project.property_address}, {project.property_city}, {project.property_state} {project.property_zip}, USA
-                      </p>
-                    </div>
-                  </div>
+                  )}
 
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-6 py-4 border-y border-gray-200">
+                  {/* Location */}
+                  {(project.address || project.city) && (
+                    <div className="flex items-start gap-3 mb-4">
+                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                        <MapPin className="w-5 h-5 text-blue-600" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-700">Project Location</p>
+                        <p className="text-gray-900 text-sm">
+                          {[project.address, project.city, project.state, project.zip_code].filter(Boolean).join(', ')}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-6 py-4 border-y border-gray-200">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
                         <User className="w-5 h-5 text-blue-600" />
                       </div>
                       <div>
-                        <p className="text-xs text-gray-500">Full Name</p>
+                        <p className="text-xs text-gray-500">Owner</p>
                         <p className="text-sm font-semibold text-gray-900">{project.owner.full_name}</p>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <Mail className="w-5 h-5 text-blue-600" />
+                    {(project.room_length || project.room_width) && (
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                          <Maximize2 className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Room Dimensions</p>
+                          <p className="text-sm font-semibold text-gray-900">
+                            {project.room_length}×{project.room_width} ft
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Your Mail</p>
-                        <p className="text-sm font-semibold text-gray-900">{project.owner.email}</p>
-                      </div>
-                    </div>
+                    )}
 
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <Phone className="w-5 h-5 text-blue-600" />
+                    {project.finish_level && (
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                          <BarChart3 className="w-5 h-5 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="text-xs text-gray-500">Finish Level</p>
+                          <p className="text-sm font-semibold text-gray-900">{project.finish_level}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Phone Number</p>
-                        <p className="text-sm font-semibold text-gray-900">
-                          {project.owner.phone || '+1 1234567890'}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <Maximize2 className="w-5 h-5 text-blue-600" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Room Dimensions</p>
-                        <p className="text-sm font-semibold text-gray-900">{project.room_dimensions || '24x75'}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <BarChart3 className="w-5 h-5 text-blue-600" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-gray-500">Finish Level</p>
-                        <p className="text-sm font-semibold text-gray-900">{project.finish_level || 'Standard'}</p>
-                      </div>
-                    </div>
+                    )}
                   </div>
 
                   {project.accepted_bid && (

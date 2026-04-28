@@ -443,7 +443,7 @@ export function AcceptOffer() {
           projectAddress={[project.address, project.city, project.state, project.zip_code].filter(Boolean).join(', ')}
           totalBidAmount={bid.total_price}
           milestones={bid.milestones}
-          onSuccess={() => navigate('/messages')}
+          onSuccess={(convId) => navigate('/messages', { state: { conversationId: convId } })}
           onClose={() => navigate('/dashboard')}
         />
       )}

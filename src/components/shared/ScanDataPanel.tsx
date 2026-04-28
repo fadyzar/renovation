@@ -76,14 +76,14 @@ const FEATURE_LABELS: Record<string, string> = {
   vaulted_ceiling:  'Vaulted ceiling',
 };
 
-function fmtFt(v: number | null): string {
-  return v !== null ? `${v.toFixed(1)} ft` : '—';
+function fmtFt(v: number | null | undefined): string {
+  return v != null ? `${v.toFixed(1)} ft` : '—';
 }
-function fmtSqft(v: number | null): string {
-  return v !== null ? `${v.toFixed(0)} sq ft` : '—';
+function fmtSqft(v: number | null | undefined): string {
+  return v != null ? `${v.toFixed(0)} sq ft` : '—';
 }
-function fmtCount(v: number | null): string {
-  return v !== null ? String(v) : '—';
+function fmtCount(v: number | null | undefined): string {
+  return v != null ? String(v) : '—';
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────────

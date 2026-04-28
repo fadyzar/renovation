@@ -76,9 +76,15 @@ export function Header() {
 
             <button
               onClick={() => navigate('/profile')}
-              className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-teal-400 flex items-center justify-center text-white text-sm font-bold hover:shadow-lg transition-shadow"
+              className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0 hover:shadow-lg transition-shadow"
             >
-              {profile?.full_name?.charAt(0) || 'U'}
+              {profile?.avatar_url ? (
+                <img src={profile.avatar_url} alt={profile.full_name || 'Profile'} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full bg-gradient-to-br from-blue-400 to-teal-400 flex items-center justify-center text-white text-sm font-bold">
+                  {profile?.full_name?.charAt(0)?.toUpperCase() || 'U'}
+                </div>
+              )}
             </button>
 
             <button

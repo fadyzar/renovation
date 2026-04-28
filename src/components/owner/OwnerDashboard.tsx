@@ -22,7 +22,7 @@ interface Project {
   started_at?: string;
   completed_at?: string;
   work_types: string[];
-  images?: string[];
+  project_images?: Array<{ image_url: string }>;
   selected_contractor_id?: string | null;
   selected_contractor?: {
     full_name: string;
@@ -106,6 +106,7 @@ export function OwnerDashboard() {
         .select(`
           *,
           selected_contractor:profiles!projects_selected_contractor_id_fkey(full_name),
+          project_images(image_url),
           transactions(initial_deposit_paid),
           payments(id, status, is_deposit, paid_at)
         `)
@@ -329,28 +330,28 @@ export function OwnerDashboard() {
                   </div>
                 </div>
 
-                {project.images && project.images.length > 0 && (
+                {project.project_images && project.project_images.length > 0 && (
                   <div className="mb-4">
                     <div className="flex items-center gap-2 mb-2">
                       <ImageIcon className="w-4 h-4 text-gray-500" />
                       <span className="text-xs font-medium text-gray-600">Project Images</span>
                     </div>
                     <div className="flex gap-2 overflow-x-auto pb-2">
-                      {project.images.slice(0, 4).map((imageUrl, index) => (
+                      {project.project_images.slice(0, 4).map((img, index) => (
                         <div
                           key={index}
                           className="relative w-24 h-24 rounded-lg overflow-hidden bg-gray-100 border border-gray-200 flex-shrink-0 hover:shadow-md transition-shadow cursor-pointer group"
                         >
                           <img
-                            src={imageUrl}
+                            src={img.image_url}
                             alt={`Project ${index + 1}`}
                             className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                           />
                         </div>
                       ))}
-                      {project.images.length > 4 && (
+                      {project.project_images.length > 4 && (
                         <div className="w-24 h-24 rounded-lg bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center flex-shrink-0">
-                          <span className="text-xs font-medium text-gray-500">+{project.images.length - 4}</span>
+                          <span className="text-xs font-medium text-gray-500">+{project.project_images.length - 4}</span>
                         </div>
                       )}
                     </div>
@@ -525,10 +526,10 @@ export function OwnerDashboard() {
           totalBidAmount={paymentModal.totalBidAmount}
           milestones={paymentModal.milestones}
           projectAddress={paymentModal.projectAddress}
-          onSuccess={() => {
+          onSuccess={(convId) => {
             setPaymentModal(null);
             loadProjects();
-            navigate('/messages');
+            navigate('/messages', { state: { conversationId: convId } });
           }}
           onClose={() => setPaymentModal(null)}
         />
