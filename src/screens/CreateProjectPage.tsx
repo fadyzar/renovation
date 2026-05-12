@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { ScanSpaceModal, type RoomMeasurements } from '../components/owner/ScanSpaceModal';
+import { whatsapp } from '../lib/whatsapp';
 
 interface ProjectFormData {
   renovationType: string;
@@ -220,6 +221,23 @@ export function CreateProjectPage() {
           })
         );
       }
+
+      // Notify all admins via WhatsApp
+      const { data: admins } = await supabase
+        .from('profiles')
+        .select('phone')
+        .eq('role', 'admin');
+
+      (admins ?? []).forEach(a => {
+        if (a.phone) {
+          whatsapp.adminNewProject(
+            a.phone,
+            `${formData.renovationType} Renovation`,
+            profile?.full_name ?? 'A client',
+            budget
+          );
+        }
+      });
 
       setShowLoading(true);
       setTimeout(() => navigate('/dashboard'), 3000);

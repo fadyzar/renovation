@@ -5,6 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { ScanDataPanel, type ScanData } from '../shared/ScanDataPanel';
 import { estimateCost, checkBidDeviation, type CostEstimate } from '../../lib/costEstimator';
 import { validateMessage, getViolationMessage } from '../../utils/contactDetection';
+import { whatsapp } from '../../lib/whatsapp';
 
 interface Project {
   id: string;
@@ -203,21 +204,30 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
         .eq('id', project.id)
         .single();
 
+      // In-app notification is handled by the DB trigger (notify_new_bid).
+      // Only send WhatsApp here.
       if (projectData?.owner_id) {
-        // Send notification to project owner
-        await supabase.from('notifications').insert({
-          user_id: projectData.owner_id,
-          type: 'bid_received',
-          title: 'New Bid Received',
-          message: `You received a new bid of $${calculateTotal().toLocaleString()} for "${project.title}"`,
-          metadata: {
-            project_id: project.id,
-            bid_id: bidData?.id,
-            contractor_id: profile?.id,
-            amount: calculateTotal()
-          }
-        });
+        const { data: ownerProfile } = await supabase
+          .from('profiles')
+          .select('phone')
+          .eq('id', projectData.owner_id)
+          .maybeSingle();
+
+        if (ownerProfile?.phone) {
+          whatsapp.newBidReceived(
+            ownerProfile.phone,
+            project.title,
+            profile?.full_name ?? 'A contractor',
+            calculateTotal()
+          );
+        }
       }
+
+      // Notify all admins
+      const { data: admins } = await supabase.from('profiles').select('phone').eq('role', 'admin');
+      (admins ?? []).forEach((a: { phone?: string }) => {
+        if (a.phone) whatsapp.adminNewBid(a.phone, project.title, profile?.full_name ?? 'A contractor', calculateTotal());
+      });
 
       onSuccess();
       onClose();

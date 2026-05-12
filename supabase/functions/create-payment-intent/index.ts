@@ -24,7 +24,6 @@ Deno.serve(async (req: Request) => {
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
 
-    // Authenticate the calling user
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -48,9 +47,11 @@ Deno.serve(async (req: Request) => {
     }
 
     const body = await req.json();
-    const { amount, projectId, bidId, ownerId, contractorId, projectTitle } = body;
+    const {
+      amount, projectId, bidId, ownerId, contractorId,
+      projectTitle, successUrl, cancelUrl,
+    } = body;
 
-    // Security: caller must match authenticated user
     if (user.id !== ownerId) {
       return new Response(
         JSON.stringify({ error: "Forbidden" }),
@@ -65,11 +66,23 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Create Stripe PaymentIntent
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(amount * 100), // Convert to cents
-      currency: "usd",
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
       payment_method_types: ["card"],
+      line_items: [
+        {
+          price_data: {
+            currency: "usd",
+            unit_amount: Math.round(amount * 100),
+            product_data: {
+              name: `First Milestone Payment`,
+              description: projectTitle ?? `Project ${projectId}`,
+            },
+          },
+          quantity: 1,
+        },
+      ],
+      allow_promotion_codes: true,
       metadata: {
         project_id: projectId,
         bid_id: bidId,
@@ -77,21 +90,19 @@ Deno.serve(async (req: Request) => {
         contractor_id: contractorId,
         type: "milestone_payment",
       },
-      description: `First milestone payment for project: ${projectTitle || projectId}`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
     });
 
-    console.log(`PaymentIntent created: ${paymentIntent.id} for $${amount}`);
+    console.log(`Checkout Session created: ${session.id} for $${amount}`);
 
     return new Response(
-      JSON.stringify({
-        clientSecret: paymentIntent.client_secret,
-        paymentIntentId: paymentIntent.id,
-      }),
+      JSON.stringify({ sessionUrl: session.url, sessionId: session.id }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
   } catch (error) {
-    console.error("create-payment-intent error:", error);
+    console.error("create-checkout-session error:", error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : "Unknown error" }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }

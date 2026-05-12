@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Bell, Settings, Volume2, Menu, X, LogOut } from 'lucide-react';
+import { Settings, Volume2, Menu, X, LogOut, ShieldCheck } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import logo from '../assets/logo.svg';
@@ -13,17 +13,18 @@ export function Header() {
 
   const isOwner = profile?.role === 'property_owner';
   const isContractor = profile?.role === 'contractor';
+  const isAdmin = profile?.role === 'admin';
 
   const navItems = [
-    { label: 'Dashboard', path: '/dashboard' },
+    { label: 'Dashboard', path: isAdmin ? '/admin' : '/dashboard' },
     ...(isContractor
       ? [{ label: 'Available Projects', path: '/projects' }]
       : isOwner
       ? [{ label: 'Project History', path: '/project-history' }]
       : []
     ),
-    { label: 'Messages', path: '/messages' },
-    { label: 'My Profile', path: '/profile' },
+    ...(isAdmin ? [] : [{ label: 'Messages', path: '/messages' }]),
+    ...(isAdmin ? [] : [{ label: 'My Profile', path: '/profile' }]),
   ];
 
   const isActive = (path: string) => location.pathname === path;
@@ -53,6 +54,15 @@ export function Header() {
           </nav>
 
           <div className="flex items-center gap-3">
+            {isAdmin && (
+              <button
+                onClick={() => navigate('/admin')}
+                className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg transition-colors"
+              >
+                <ShieldCheck className="w-3.5 h-3.5" />
+                Admin
+              </button>
+            )}
             <NotificationDropdown />
 
             <button

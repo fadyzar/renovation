@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Briefcase, Calendar, Star, CheckCircle, MapPin, User, Mail, Phone, Maximize2, BarChart3 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { whatsapp } from '../../lib/whatsapp';
 import { useAuth } from '../../contexts/AuthContext';
 import { FirstPaymentModal } from '../shared/FirstPaymentModal';
 
@@ -151,7 +152,7 @@ export function AcceptOffer() {
         })
         .eq('id', projectId);
 
-      // 4. Send notification to contractor
+      // 4. Send notification to contractor (in-app + WhatsApp)
       if (bid?.contractor_id) {
         await supabase.from('notifications').insert({
           user_id: bid.contractor_id,
@@ -164,6 +165,10 @@ export function AcceptOffer() {
             total_amount: bid.total_price
           }
         });
+
+        if (bid.contractor?.phone && project?.title) {
+          whatsapp.bidAccepted(bid.contractor.phone, project.title, bid.total_price);
+        }
       }
 
       // 5. Open payment modal immediately instead of navigating away

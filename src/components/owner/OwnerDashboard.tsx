@@ -107,7 +107,6 @@ export function OwnerDashboard() {
           *,
           selected_contractor:profiles!projects_selected_contractor_id_fkey(full_name),
           project_images(image_url),
-          transactions(initial_deposit_paid),
           payments(id, status, is_deposit, paid_at)
         `)
         .order('created_at', { ascending: false });

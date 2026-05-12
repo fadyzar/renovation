@@ -344,7 +344,9 @@ export function ContractorDashboard() {
           </div>
         </div>
 
-        <LocationSettings />
+        <div className="mb-8">
+          <LocationSettings />
+        </div>
 
         {/* ── Awaiting Owner Payment ───────────────────────────────────────── */}
         {awaitingPaymentBids.length > 0 && (

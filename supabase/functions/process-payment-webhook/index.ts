@@ -23,7 +23,6 @@ Deno.serve(async (req: Request) => {
 
   const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
 
-  // Read raw body for signature verification
   const rawBody = await req.text();
   const signature = req.headers.get("stripe-signature");
 
@@ -31,7 +30,6 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({ error: "Missing stripe-signature" }), { status: 400 });
   }
 
-  // Verify Stripe webhook signature
   let event: Stripe.Event;
   try {
     event = await stripe.webhooks.constructEventAsync(rawBody, signature, webhookSecret);
@@ -42,37 +40,55 @@ Deno.serve(async (req: Request) => {
 
   console.log(`Stripe webhook received: ${event.type}`);
 
-  // Use service role client — webhooks act on behalf of the system
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
   );
 
   try {
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const meta = session.metadata || {};
+
+      console.log(`Checkout session completed: ${session.id}`, meta);
+
+      // Mark any pending transaction as confirmed
+      if (meta.project_id) {
+        await supabase
+          .from("transactions")
+          .update({ status: "completed", mock_tx_id: session.payment_intent as string })
+          .eq("project_id", meta.project_id)
+          .eq("status", "pending");
+
+        // Notify owner
+        if (meta.owner_id) {
+          await supabase.from("notifications").insert({
+            user_id: meta.owner_id,
+            type: "project_update",
+            title: "Payment Confirmed",
+            message: "Your payment was confirmed by Stripe. Project is now active!",
+            metadata: {
+              project_id: meta.project_id,
+              session_id: session.id,
+            },
+          });
+        }
+      }
+    }
+
     if (event.type === "payment_intent.succeeded") {
       const pi = event.data.object as Stripe.PaymentIntent;
       const meta = pi.metadata || {};
 
       console.log(`PaymentIntent succeeded: ${pi.id}`, meta);
 
-      // Update any pending transaction that used this payment intent
-      // (in case the frontend already called activate_project_after_payment,
-      //  this just confirms the stripe_payment_intent_id is stored)
       if (meta.project_id) {
         await supabase
           .from("transactions")
-          .update({
-            mock_tx_id: pi.id, // reuse mock_tx_id column for stripe PI id
-            status: "completed",
-          })
+          .update({ mock_tx_id: pi.id, status: "completed" })
           .eq("project_id", meta.project_id)
-          .eq("status", "completed"); // only update if already activated by frontend
+          .eq("status", "completed");
       }
-
-      return new Response(
-        JSON.stringify({ received: true, event: event.type }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
     }
 
     if (event.type === "payment_intent.payment_failed") {
@@ -82,7 +98,6 @@ Deno.serve(async (req: Request) => {
 
       console.warn(`PaymentIntent failed: ${pi.id}`, lastError?.message);
 
-      // Notify owner of failed payment
       if (meta.owner_id) {
         await supabase.from("notifications").insert({
           user_id: meta.owner_id,
@@ -92,14 +107,8 @@ Deno.serve(async (req: Request) => {
           metadata: { project_id: meta.project_id, payment_intent_id: pi.id },
         });
       }
-
-      return new Response(
-        JSON.stringify({ received: true, event: event.type }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
     }
 
-    // All other events — acknowledge receipt
     return new Response(
       JSON.stringify({ received: true, event: event.type }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }

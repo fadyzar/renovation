@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Send, X, MessageCircle, FileText, Image as ImageIcon, CheckCheck, Check, Paperclip, Lock, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { whatsapp } from '../../lib/whatsapp';
 
 interface Message {
   id: string;
@@ -296,57 +297,19 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
 
     const messageContent = newMessage.trim();
 
-    if (messageContent) {
-      try {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-        const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-        const checkResponse = await fetch(
-          `${supabaseUrl}/functions/v1/validate-message`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${supabaseKey}`,
-            },
-            body: JSON.stringify({
-              message: messageContent,
-              userId: profile.id,
-              projectId: conversation.project_id,
-              conversationId: conversation.id,
-              type: 'chat',
-            }),
-          }
-        );
-
-        if (checkResponse.ok) {
-          const result = await checkResponse.json();
-
-          if (!result.isValid && result.shouldBlock) {
-            setMessageError(result.message);
-            return;
-          }
-        }
-      } catch (error) {
-        console.error('Error checking message:', error);
-      }
-    }
-
     let attachmentUrl: string | null = null;
     let attachmentType: string | null = null;
     let attachmentName: string | null = null;
 
     if (selectedFile) {
       attachmentUrl = await uploadFile(selectedFile);
-      if (!attachmentUrl) {
-        return;
-      }
+      if (!attachmentUrl) return;
       attachmentType = selectedFile.type.startsWith('image/') ? 'image' :
                        selectedFile.type.startsWith('video/') ? 'video' : 'file';
       attachmentName = selectedFile.name;
     }
 
-    // Optimistic update — show message immediately before DB round-trip
+    // Optimistic update — show immediately so sender sees the message right away
     const tempId = `temp-${Date.now()}`;
     const optimisticMsg: Message = {
       id: tempId,
@@ -363,6 +326,45 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
     setMessages(prev => [...prev, optimisticMsg]);
     setNewMessage('');
     setSelectedFile(null);
+
+    // Validate in background — roll back if blocked
+    if (messageContent) {
+      try {
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const { data: sessionData } = await supabase.auth.getSession();
+        const token = sessionData.session?.access_token;
+
+        const checkResponse = await fetch(
+          `${supabaseUrl}/functions/v1/validate-message`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              message: messageContent,
+              userId: profile.id,
+              projectId: conversation.project_id,
+              conversationId: conversation.id,
+              type: 'chat',
+            }),
+          }
+        );
+
+        if (checkResponse.ok) {
+          const result = await checkResponse.json();
+          if (!result.isValid && result.shouldBlock) {
+            setMessages(prev => prev.filter(m => m.id !== tempId));
+            setNewMessage(messageContent);
+            setMessageError(result.message);
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Error checking message:', error);
+      }
+    }
 
     try {
       const { data: inserted, error } = await supabase
@@ -393,6 +395,22 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
         .from('conversations')
         .update({ last_message_at: new Date().toISOString() })
         .eq('id', conversation.id);
+
+      // WhatsApp notification to the other party (non-blocking)
+      const recipientId = profile.id === conversation.owner_id
+        ? conversation.contractor_id
+        : conversation.owner_id;
+
+      supabase
+        .from('profiles')
+        .select('phone')
+        .eq('id', recipientId)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data?.phone) {
+            whatsapp.newMessage(data.phone, profile.full_name ?? 'Someone', messageContent || '📎 Attachment');
+          }
+        });
 
       handleTyping(false);
     } catch (error) {

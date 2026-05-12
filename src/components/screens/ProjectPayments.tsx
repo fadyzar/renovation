@@ -34,6 +34,7 @@ import {
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { processMockDeposit, type CardDetails } from '../../lib/mockPaymentService';
+import { whatsapp } from '../../lib/whatsapp';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -449,6 +450,8 @@ export function ProjectPayments() {
   const [bid, setBid] = useState<BidInfo | null>(null);
   const [milestones, setMilestones] = useState<PaymentMilestone[]>([]);
   const [ownerProfile, setOwnerProfile] = useState<{ id: string; full_name: string; avatar_url: string | null } | null>(null);
+  const [ownerPhone, setOwnerPhone] = useState<string | null>(null);
+  const [contractorPhone, setContractorPhone] = useState<string | null>(null);
   const [approveModal, setApproveModal] = useState<{ milestone: PaymentMilestone; isFirst: boolean } | null>(null);
   const [submitModal, setSubmitModal] = useState<PaymentMilestone | null>(null);
   const [completing, setCompleting] = useState(false);
@@ -472,13 +475,24 @@ export function ProjectPayments() {
       if (!proj) { navigate('/dashboard'); return; }
       setProject(proj);
 
-      // 1b. Load owner profile
+      // 1b. Load owner profile + phone
       const { data: ownerData } = await supabase
         .from('profiles')
-        .select('id, full_name, avatar_url')
+        .select('id, full_name, avatar_url, phone')
         .eq('id', proj.owner_id)
         .maybeSingle();
       setOwnerProfile(ownerData ?? null);
+      setOwnerPhone((ownerData as any)?.phone ?? null);
+
+      // 1c. Load contractor phone (if project has one)
+      if (proj.selected_contractor_id) {
+        const { data: contractorData } = await supabase
+          .from('profiles')
+          .select('phone')
+          .eq('id', proj.selected_contractor_id)
+          .maybeSingle();
+        setContractorPhone((contractorData as any)?.phone ?? null);
+      }
 
       // 2. Load accepted bid
       const { data: bidData } = await supabase
@@ -898,14 +912,38 @@ export function ProjectPayments() {
           milestone={approveModal.milestone}
           isFirstMilestone={approveModal.isFirst}
           totalPlatformFee={totalPlatformFee}
-          onSuccess={() => { setApproveModal(null); loadData(); }}
+          onSuccess={() => {
+            setApproveModal(null);
+            loadData();
+            // Notify contractor via WhatsApp
+            if (contractorPhone && project?.title) {
+              whatsapp.milestoneApproved(
+                contractorPhone,
+                project.title,
+                approveModal.milestone.title,
+                approveModal.milestone.amount
+              );
+            }
+          }}
           onClose={() => setApproveModal(null)}
         />
       )}
       {submitModal && (
         <SubmitMilestoneModal
           milestone={submitModal}
-          onSuccess={() => { setSubmitModal(null); loadData(); }}
+          onSuccess={() => {
+            setSubmitModal(null);
+            loadData();
+            // Notify owner via WhatsApp
+            if (ownerPhone && project?.title) {
+              whatsapp.milestoneSubmitted(
+                ownerPhone,
+                project.title,
+                submitModal.title,
+                submitModal.amount
+              );
+            }
+          }}
           onClose={() => setSubmitModal(null)}
         />
       )}

@@ -193,7 +193,7 @@ export function ProjectFeed() {
     }
 
     // Sort
-    const urgencyOrder: Record<string, number> = { urgent: 0, moderate: 1, flexible: 2 };
+    const urgencyOrder: Record<string, number> = { high: 0, medium: 1, low: 2 };
     switch (filters.sortBy) {
       case 'match':
         projects.sort((a, b) => b.matchScore - a.matchScore);
@@ -298,13 +298,13 @@ export function ProjectFeed() {
                       New
                     </span>
                   )}
-                  {project.urgency === 'urgent' && (
+                  {project.urgency === 'high' && (
                     <span className="flex items-center gap-1 text-xs font-bold px-2 py-0.5 bg-red-100 text-red-700 rounded-full border border-red-200">
                       <AlertCircle className="w-3 h-3" />
                       Urgent
                     </span>
                   )}
-                  {project.urgency === 'moderate' && (
+                  {project.urgency === 'medium' && (
                     <span className="flex items-center gap-1 text-xs font-bold px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full border border-orange-200">
                       <Clock className="w-3 h-3" />
                       Moderate
@@ -651,9 +651,9 @@ export function ProjectFeed() {
                 onChange: (v: string) => setFilters(f => ({ ...f, urgency: v })),
                 options: [
                   { value: 'all', label: 'Any Urgency' },
-                  { value: 'urgent', label: 'Urgent' },
-                  { value: 'moderate', label: 'Moderate' },
-                  { value: 'flexible', label: 'Flexible' },
+                  { value: 'high', label: 'Urgent' },
+                  { value: 'medium', label: 'Moderate' },
+                  { value: 'low', label: 'Flexible' },
                 ],
               },
               {

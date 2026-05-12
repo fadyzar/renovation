@@ -227,15 +227,16 @@ export function ScanSpaceModal({ projectId, renovationType, onConfirm, onClose }
       const publicUrls = await uploadPhotos();
       setUploadedUrls(publicUrls);
 
-      const { data: session } = await supabase.auth.getSession();
+      const { data: { session } } = await supabase.auth.getSession();
+
       const res = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/analyze-room-scan`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: `Bearer ${session?.session?.access_token}`,
-            Apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+            'Authorization': `Bearer ${session?.access_token ?? ''}`,
+            'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
           },
           body: JSON.stringify({
             photo_urls: publicUrls,
@@ -244,9 +245,21 @@ export function ScanSpaceModal({ projectId, renovationType, onConfirm, onClose }
         }
       );
 
+      // If AI analysis is unavailable (not deployed / key missing), fall through
+      // to manual entry but keep the uploaded photos attached to the project.
       if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.error ?? `Analysis failed (${res.status})`);
+        await supabase.from('project_images').upsert({
+          project_id: projectId,
+          owner_id: profile?.id,
+          scan_status: 'skipped',
+          scan_source: 'photo_ai',
+          photo_urls: publicUrls,
+          is_confirmed: false,
+        }, { onConflict: 'project_id' });
+
+        setErrorMsg('AI analysis unavailable — photos saved. Enter measurements manually below.');
+        setStep('manual');
+        return;
       }
 
       const result = await res.json();

@@ -92,7 +92,7 @@ export function SignUpPage() {
                                 type="text"
                                 value={fullName}
                                 onChange={(e) => setFullName(e.target.value)}
-                                placeholder="Gilad Ben Arush"
+                                placeholder="Your full name"
                                 required
                                 className="w-full h-14 px-6 border border-slate-200 rounded-full focus:outline-none focus:ring-4 focus:ring-brand-orange/20 focus:border-brand-orange transition-all placeholder:text-slate-400"
                             />
@@ -136,7 +136,7 @@ export function SignUpPage() {
                                 type="email"
                                 value={email}
                                 onChange={(e) => setEmail(e.target.value)}
-                                placeholder="Gilad@gmail.com"
+                                placeholder="your@email.com"
                                 required
                                 className="w-full h-14 px-6 border border-slate-200 rounded-full focus:outline-none focus:ring-4 focus:ring-brand-orange/20 focus:border-brand-orange transition-all placeholder:text-slate-400"
                             />
