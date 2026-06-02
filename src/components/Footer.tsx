@@ -52,10 +52,10 @@ export function Footer() {
               <h4 className="text-[20px] font-semibold text-brand-navy">Number</h4>
               <div className="w-7 h-[3px] bg-brand-navy mt-2 mb-5" />
               <a
-                href="tel:+11234567890"
+                href="tel:+18558264248"
                 className="text-[18px] font-semibold text-brand-navy hover:underline"
               >
-                +1 123456789
+                855-826-4248
               </a>
               <p className="text-[18px] text-brand-navy mt-5 leading-relaxed">
                 Assistance hours:<br />
@@ -129,11 +129,11 @@ export function Footer() {
           <div className="w-full lg:w-[310px] shrink-0">
             <img src={logo} alt="M.G.BIT" className="h-9 w-auto mb-6" />
             <p className="text-[14px] text-black leading-relaxed mb-3">
-              A108 Adam Street<br />
-              New York, NY 535022<br />
-              United States
+              MGBiT<br />
+              21550 Oxnard St, Suite 300<br />
+              Woodland Hills, CA 91367
             </p>
-            <p className="text-[14px] text-black mb-1">Phone: +1 123 4567 891</p>
+            <p className="text-[14px] text-black mb-1">Phone: 855-826-4248</p>
             <p className="text-[14px] text-black mb-6">Email: office@mgbit.com</p>
 
             {/* Social icons */}
