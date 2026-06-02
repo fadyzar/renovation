@@ -8,23 +8,7 @@ import {
   Award, TrendingUp,
 } from 'lucide-react';
 import { LicenseVerificationModal } from './LicenseVerificationModal';
-
-// ─── Specialization options ───────────────────────────────────────────────────
-
-const SPECIALTY_OPTIONS = [
-  { id: 'Kitchen Renovation', label: 'Kitchen Renovation', icon: '🍳' },
-  { id: 'Bathroom', label: 'Bathroom', icon: '🚿' },
-  { id: 'Painting & Finishing', label: 'Painting & Finishing', icon: '🎨' },
-  { id: 'Electrical', label: 'Electrical', icon: '⚡' },
-  { id: 'Plumbing', label: 'Plumbing', icon: '🔧' },
-  { id: 'Flooring', label: 'Flooring', icon: '🪵' },
-  { id: 'Roofing', label: 'Roofing', icon: '🏠' },
-  { id: 'Basement', label: 'Basement Finishing', icon: '🏗️' },
-  { id: 'Exterior', label: 'Exterior & Landscaping', icon: '🌿' },
-  { id: 'Full House', label: 'Full House Renovation', icon: '🏡' },
-  { id: 'HVAC', label: 'HVAC & Insulation', icon: '❄️' },
-  { id: 'Tile & Stone', label: 'Tile & Stone', icon: '🪨' },
-];
+import { WorkTypePicker } from '../shared/WorkTypePicker';
 
 // ─── Profile completeness ─────────────────────────────────────────────────────
 
@@ -203,13 +187,6 @@ export function ContractorProfile() {
     setSpecialties(updated);
     await supabase.from('profiles').update({ specialties: updated }).eq('id', profile.id);
     await refreshProfile();
-  }
-
-  function toggleSpecialty(id: string) {
-    const updated = specialties.includes(id)
-      ? specialties.filter(s => s !== id)
-      : [...specialties, id];
-    saveSpecialties(updated);
   }
 
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -666,30 +643,7 @@ export function ContractorProfile() {
             )}
           </div>
           <div className="p-6">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-              {SPECIALTY_OPTIONS.map(opt => {
-                const active = specialties.includes(opt.id);
-                return (
-                  <button
-                    key={opt.id}
-                    onClick={() => toggleSpecialty(opt.id)}
-                    className={`relative flex items-center gap-2.5 px-4 py-3.5 rounded-xl border-2 text-sm font-medium transition-all ${
-                      active
-                        ? 'border-blue-500 bg-blue-50 text-blue-700 shadow-sm'
-                        : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50'
-                    }`}
-                  >
-                    <span className="text-xl">{opt.icon}</span>
-                    <span className="text-left leading-tight flex-1">{opt.label}</span>
-                    {active && (
-                      <span className="absolute top-2 right-2 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
-                        <Check className="w-2.5 h-2.5 text-white" />
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+            <WorkTypePicker selected={specialties} onChange={saveSpecialties} />
             <p className="text-xs text-gray-400 mt-3">Changes are saved automatically</p>
           </div>
         </div>

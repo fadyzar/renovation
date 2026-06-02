@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { LocationPermissionRequest } from '../shared/LocationPermissionRequest';
 import { reverseGeocode } from '../../utils/geolocation';
 import { ScanSpaceModal, type RoomMeasurements } from './ScanSpaceModal';
+import { WorkTypePicker } from '../shared/WorkTypePicker';
 
 interface ProjectFormData {
   renovationType: string;
@@ -311,25 +312,13 @@ export function CreateProjectWizard() {
             <div className="space-y-6">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Renovation Type
+                  Project Type <span className="text-gray-400 font-normal">(select one)</span>
                 </label>
-                <select
-                  value={formData.renovationType}
-                  onChange={(e) => updateField('renovationType', e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-                >
-                  <option value="">Select Project Type</option>
-                  <option value="Kitchen">Kitchen Renovation</option>
-                  <option value="Bathroom">Bathroom Renovation</option>
-                  <option value="Bedroom">Bedroom Renovation</option>
-                  <option value="Living Room">Living Room Renovation</option>
-                  <option value="Basement">Basement Renovation</option>
-                  <option value="Exterior">Exterior Renovation</option>
-                  <option value="Roofing">Roofing</option>
-                  <option value="Flooring">Flooring</option>
-                  <option value="Painting">Painting</option>
-                  <option value="Full House">Full House Renovation</option>
-                </select>
+                <WorkTypePicker
+                  selected={formData.renovationType ? [formData.renovationType] : []}
+                  onChange={(vals) => updateField('renovationType', vals[0] ?? '')}
+                  singleSelect
+                />
               </div>
 
               <div>
