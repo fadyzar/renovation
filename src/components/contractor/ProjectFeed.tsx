@@ -70,12 +70,23 @@ export function ProjectFeed() {
   const [selectedProject, setSelectedProject] = useState<ScoredProject | null>(null);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
+  const locationEnabled = profile?.location_enabled ?? false;
   const [userLocation, setUserLocation] = useState<{ lat: number; lon: number } | null>(
-    profile?.service_latitude && profile?.service_longitude
+    locationEnabled && profile?.service_latitude && profile?.service_longitude
       ? { lat: profile.service_latitude, lon: profile.service_longitude }
       : null
   );
   const [distanceFilter, setDistanceFilter] = useState(profile?.service_radius_km || 50);
+
+  // Sync location + radius whenever profile changes (e.g. after LocationSettings saves)
+  useEffect(() => {
+    if (profile?.location_enabled && profile?.service_latitude && profile?.service_longitude) {
+      setUserLocation({ lat: profile.service_latitude, lon: profile.service_longitude });
+      setDistanceFilter(profile.service_radius_km || 50);
+    } else {
+      setUserLocation(null);
+    }
+  }, [profile?.location_enabled, profile?.service_latitude, profile?.service_longitude, profile?.service_radius_km]);
   const [filters, setFilters] = useState({
     renovationType: 'all',
     budgetRange: 'all',
@@ -164,10 +175,11 @@ export function ProjectFeed() {
       } as ScoredProject;
     });
 
-    // Distance filter
-    if (userLocation) {
+    // Distance filter — only when location is enabled
+    if (userLocation && profile?.location_enabled) {
       projects = projects.filter(p => {
-        if (!p.latitude || !p.longitude || p.distance === undefined) return true;
+        // Projects without coordinates are excluded when location filter is active
+        if (!p.latitude || !p.longitude || p.distance === undefined) return false;
         const withinContractor = p.distance <= distanceFilter;
         const withinProject = !p.search_radius_km || p.distance <= p.search_radius_km;
         return withinContractor && withinProject;

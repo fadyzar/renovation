@@ -5,7 +5,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { LocationPermissionRequest } from '../shared/LocationPermissionRequest';
 
 export function LocationSettings() {
-  const { profile } = useAuth();
+  const { profile, refreshProfile } = useAuth();
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [serviceRadius, setServiceRadius] = useState(profile?.service_radius_km || 50);
   const [locationEnabled, setLocationEnabled] = useState(profile?.location_enabled || false);
@@ -30,7 +30,7 @@ export function LocationSettings() {
 
       setLocationEnabled(true);
       setShowLocationModal(false);
-      window.location.reload();
+      await refreshProfile();
     } catch (error) {
       console.error('Error saving location:', error);
       alert('Failed to save location. Please try again.');
@@ -50,7 +50,7 @@ export function LocationSettings() {
         .eq('id', profile.id);
 
       if (error) throw error;
-      alert('Service radius updated successfully!');
+      await refreshProfile();
     } catch (error) {
       console.error('Error updating service radius:', error);
       alert('Failed to update service radius. Please try again.');
@@ -72,6 +72,7 @@ export function LocationSettings() {
 
       if (error) throw error;
       setLocationEnabled(!locationEnabled);
+      await refreshProfile();
     } catch (error) {
       console.error('Error toggling location:', error);
       alert('Failed to update location settings.');
