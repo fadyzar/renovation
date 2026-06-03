@@ -15,14 +15,28 @@ const API_TOKEN   = Deno.env.get("GREENAPI_API_TOKEN")   ?? "2ecdaa3dce4a4c0bb72
  */
 function toWhatsAppId(phone: string): string | null {
   const digits = phone.replace(/\D/g, "");
-  if (!digits || digits.length < 9) return null;
+  if (!digits || digits.length < 7) return null;
 
   let normalized = digits;
+
   if (normalized.startsWith("972")) {
-    // already has country code
-  } else if (normalized.startsWith("0")) {
+    // Israeli number with country code: 972XXXXXXXXX
+  } else if (normalized.startsWith("1") && normalized.length === 11) {
+    // US/Canada with country code: 1XXXXXXXXXX
+  } else if (normalized.startsWith("44")) {
+    // UK with country code
+  } else if (normalized.startsWith("61")) {
+    // Australia with country code
+  } else if (normalized.startsWith("52")) {
+    // Mexico with country code
+  } else if (normalized.startsWith("0") && normalized.length === 10) {
+    // Israeli local format: 05XXXXXXXX → 97205XXXXXXXX... wait, 0 + 9 digits = Israeli
     normalized = "972" + normalized.slice(1);
-  } else {
+  } else if (normalized.length === 10 && !normalized.startsWith("0")) {
+    // US local format (no country code): XXXXXXXXXX → 1XXXXXXXXXX
+    normalized = "1" + normalized;
+  } else if (normalized.length === 9 && normalized.startsWith("5")) {
+    // Israeli mobile without leading 0: 5XXXXXXXX → 9725XXXXXXXX
     normalized = "972" + normalized;
   }
 
