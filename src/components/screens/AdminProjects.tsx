@@ -3,16 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import {
   Search, Filter, AlertTriangle, RefreshCw, Eye,
   Users, Briefcase, DollarSign, Wrench, Phone, Mail,
-  X, MapPin, Clock, Ruler, Layers, FileText, Calendar,
+  X, MapPin, Clock, Ruler, Layers, FileText, CheckCircle2,
+  TrendingUp, Zap,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface ProjectRow {
   id: string; title: string; status: string;
-  budget_min: number; created_at: string; city?: string;
+  budget_min: number; budget_max?: number; created_at: string; city?: string;
+  work_types?: string[];
   owner: { full_name: string; phone?: string; email?: string } | null;
   contractor: { full_name: string; phone?: string } | null;
   bid_count: number;
+  accepted_bid_count: number;
 }
 
 interface ProjectDetail extends ProjectRow {
@@ -32,12 +35,74 @@ interface ProjectDetail extends ProjectRow {
 }
 
 const STATUS_CFG: Record<string, { label: string; color: string; bg: string }> = {
-  seeking_quotes:   { label: 'Seeking Quotes',   color: 'text-blue-300',   bg: 'bg-blue-900/40'   },
-  awaiting_deposit: { label: 'Awaiting Payment', color: 'text-amber-300',  bg: 'bg-amber-900/40'  },
+  draft:            { label: 'Draft',             color: 'text-gray-400',   bg: 'bg-gray-800'      },
+  seeking_quotes:   { label: 'Seeking Quotes',    color: 'text-blue-300',   bg: 'bg-blue-900/40'   },
+  awaiting_deposit: { label: 'Awaiting Payment',  color: 'text-amber-300',  bg: 'bg-amber-900/40'  },
   in_progress:      { label: 'In Progress',       color: 'text-green-300',  bg: 'bg-green-900/40'  },
-  completed:        { label: 'Completed',         color: 'text-gray-400',   bg: 'bg-gray-800'      },
+  completed:        { label: 'Completed',         color: 'text-emerald-400', bg: 'bg-emerald-900/30'},
   cancelled:        { label: 'Cancelled',         color: 'text-red-400',    bg: 'bg-red-900/30'    },
 };
+
+const PROGRESS_STEPS = ['Draft', 'Seeking Quotes', 'Bids Received', 'Awaiting Payment', 'In Progress', 'Completed'];
+
+function getProgressStep(status: string, bidCount: number): number {
+  if (status === 'draft')            return 0;
+  if (status === 'seeking_quotes')   return bidCount > 0 ? 2 : 1;
+  if (status === 'awaiting_deposit') return 3;
+  if (status === 'in_progress')      return 4;
+  if (status === 'completed')        return 5;
+  return 0;
+}
+
+function ProgressBar({ status, bidCount }: { status: string; bidCount: number }) {
+  const step = getProgressStep(status, bidCount);
+  const pct  = Math.round((step / (PROGRESS_STEPS.length - 1)) * 100);
+  const color = status === 'completed' ? 'bg-emerald-500'
+    : status === 'cancelled' ? 'bg-red-500'
+    : status === 'in_progress' ? 'bg-green-500'
+    : 'bg-blue-500';
+
+  return (
+    <div className="mt-2">
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-[10px] text-gray-500">{PROGRESS_STEPS[step]}</span>
+        <span className="text-[10px] text-gray-500">{pct}%</span>
+      </div>
+      <div className="w-full h-1.5 bg-gray-700 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full transition-all ${color}`} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function MatchBadge({ bidCount, status }: { bidCount: number; status: string }) {
+  if (status === 'completed') {
+    return (
+      <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-emerald-900/40 text-emerald-400">
+        <CheckCircle2 className="w-3 h-3" />Done
+      </span>
+    );
+  }
+  if (status === 'in_progress') {
+    return (
+      <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-green-900/40 text-green-400">
+        <TrendingUp className="w-3 h-3" />Active
+      </span>
+    );
+  }
+  if (bidCount === 0) {
+    return (
+      <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-red-900/30 text-red-400">
+        <Zap className="w-3 h-3" />No Match
+      </span>
+    );
+  }
+  return (
+    <span className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full bg-blue-900/40 text-blue-300">
+      <CheckCircle2 className="w-3 h-3" />{bidCount} Bid{bidCount !== 1 ? 's' : ''}
+    </span>
+  );
+}
 
 function hoursAgo(d: string) { return Math.floor((Date.now() - new Date(d).getTime()) / 3_600_000); }
 function timeAgo(d: string) {
@@ -247,20 +312,25 @@ export function AdminProjects() {
     setLoading(true);
     const { data: raw } = await supabase
       .from('projects')
-      .select(`id, title, status, budget_min, created_at, city,
+      .select(`id, title, status, budget_min, budget_max, created_at, city, work_types,
         owner:profiles!owner_id(full_name, phone, email),
         contractor:profiles!selected_contractor_id(full_name, phone)`)
       .order('created_at', { ascending: false });
 
-    const { data: bids } = await supabase.from('bids').select('project_id');
+    const { data: bids } = await supabase.from('bids').select('project_id, status');
     const bidMap: Record<string,number> = {};
-    for (const b of bids ?? []) bidMap[b.project_id] = (bidMap[b.project_id] ?? 0) + 1;
+    const acceptedMap: Record<string,number> = {};
+    for (const b of bids ?? []) {
+      bidMap[b.project_id] = (bidMap[b.project_id] ?? 0) + 1;
+      if (b.status === 'accepted') acceptedMap[b.project_id] = (acceptedMap[b.project_id] ?? 0) + 1;
+    }
 
     setProjects((raw ?? []).map(p => ({
       ...p,
       owner:      Array.isArray(p.owner)      ? p.owner[0] ?? null      : (p.owner ?? null),
       contractor: Array.isArray(p.contractor) ? p.contractor[0] ?? null : (p.contractor ?? null),
-      bid_count: bidMap[p.id] ?? 0,
+      bid_count:          bidMap[p.id] ?? 0,
+      accepted_bid_count: acceptedMap[p.id] ?? 0,
     })));
     setLoading(false);
   }, []);
@@ -360,29 +430,46 @@ export function AdminProjects() {
                 <div key={p.id} className={`px-5 py-4 hover:bg-gray-800/50 transition-colors ${isTimeout ? 'border-l-2 border-red-500' : ''}`}>
                   <div className="flex items-start gap-4">
                     <div className="flex-1 min-w-0">
+
+                      {/* Title + badges */}
                       <div className="flex flex-wrap items-center gap-2 mb-1.5">
                         <span className="text-sm font-semibold text-white truncate max-w-xs">{p.title}</span>
                         <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.color}`}>{cfg.label}</span>
+                        <MatchBadge bidCount={p.bid_count} status={p.status} />
                         {isTimeout && (
                           <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-900/40 text-red-400 flex items-center gap-1">
                             <AlertTriangle className="w-3 h-3" />{hrs}h — No Bids
                           </span>
                         )}
                       </div>
+
+                      {/* Meta */}
                       <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
                         <span className="flex items-center gap-1"><Users className="w-3 h-3" />{p.owner?.full_name ?? '—'}</span>
-                        {p.contractor && <span className="flex items-center gap-1"><Wrench className="w-3 h-3" />{p.contractor.full_name}</span>}
-                        <span className="flex items-center gap-1"><Briefcase className="w-3 h-3" />{p.bid_count} bid{p.bid_count !== 1 ? 's' : ''}</span>
-                        <span className="flex items-center gap-1"><DollarSign className="w-3 h-3" />${(p.budget_min ?? 0).toLocaleString()}</span>
-                        {p.city && <span>{p.city}</span>}
-                        <span>{timeAgo(p.created_at)}</span>
+                        {p.contractor && <span className="flex items-center gap-1 text-green-400"><Wrench className="w-3 h-3" />{p.contractor.full_name}</span>}
+                        <span className="flex items-center gap-1">
+                          <DollarSign className="w-3 h-3" />
+                          ${(p.budget_min ?? 0).toLocaleString()}
+                          {p.budget_max && p.budget_max !== p.budget_min ? ` – $${p.budget_max.toLocaleString()}` : ''}
+                        </span>
+                        {p.city && <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{p.city}</span>}
+                        {p.work_types && p.work_types.length > 0 && (
+                          <span className="flex items-center gap-1"><Layers className="w-3 h-3" />{p.work_types.slice(0,2).join(', ')}{p.work_types.length > 2 ? ` +${p.work_types.length - 2}` : ''}</span>
+                        )}
+                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{timeAgo(p.created_at)}</span>
                       </div>
+
+                      {/* Contacts */}
                       <div className="flex gap-3 mt-1.5">
                         {p.owner?.phone && <a href={`tel:${p.owner.phone}`} className="flex items-center gap-1 text-xs text-blue-400 hover:text-blue-300"><Phone className="w-3 h-3" />Owner</a>}
                         {p.contractor?.phone && <a href={`tel:${p.contractor.phone}`} className="flex items-center gap-1 text-xs text-green-400 hover:text-green-300"><Phone className="w-3 h-3" />Contractor</a>}
                         {p.owner?.email && <a href={`mailto:${p.owner.email}`} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-200"><Mail className="w-3 h-3" />Email</a>}
                       </div>
+
+                      {/* Progress bar */}
+                      <ProgressBar status={p.status} bidCount={p.bid_count} />
                     </div>
+
                     <button
                       onClick={() => handleView(p)}
                       className="flex-shrink-0 flex items-center gap-1 px-3 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 text-xs font-semibold rounded-lg transition-colors border border-blue-600/30"
