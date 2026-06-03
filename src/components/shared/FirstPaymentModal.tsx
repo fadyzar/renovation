@@ -38,8 +38,9 @@ export function FirstPaymentModal({
   onSuccess, onClose,
 }: Props) {
   const firstMilestone = milestones[0];
-  const firstAmount = firstMilestone?.price ?? Math.round(totalBidAmount * 0.25);
-  const platformFee = Math.round(totalBidAmount * PLATFORM_FEE_PCT / 100);
+  const firstAmount    = firstMilestone?.price ?? Math.round(totalBidAmount * 0.25);
+  const platformFee    = Math.round(totalBidAmount * PLATFORM_FEE_PCT / 100);
+  const totalCharge    = firstAmount + platformFee;
 
   const [loading, setLoading] = useState(false);
   const [errMsg, setErrMsg] = useState('');
@@ -74,7 +75,7 @@ export function FirstPaymentModal({
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            amount: firstAmount,
+            amount: totalCharge,
             projectId, bidId, ownerId, contractorId, projectTitle,
             successUrl, cancelUrl,
           }),
@@ -139,18 +140,23 @@ export function FirstPaymentModal({
           )}
 
           {/* Amount breakdown */}
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-5 space-y-2">
+          <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-5 space-y-2.5">
             <div className="flex items-center justify-between text-sm text-gray-600">
-              <span>Milestone payment</span>
+              <span>First milestone</span>
               <span className="font-semibold text-gray-900">${firstAmount.toLocaleString()}</span>
             </div>
-            <div className="flex items-center justify-between text-xs text-gray-500">
-              <span>Platform fee ({PLATFORM_FEE_PCT}% of ${totalBidAmount.toLocaleString()} total)</span>
-              <span>${platformFee.toLocaleString()}</span>
+            <div className="flex items-center justify-between text-sm text-gray-600">
+              <div>
+                <span>MGBiT match fee</span>
+                <span className="ml-1.5 text-xs bg-orange-100 text-orange-700 font-semibold px-1.5 py-0.5 rounded-full">
+                  {PLATFORM_FEE_PCT}% of ${totalBidAmount.toLocaleString()}
+                </span>
+              </div>
+              <span className="font-semibold text-orange-700">${platformFee.toLocaleString()}</span>
             </div>
-            <div className="border-t border-green-200 pt-2 flex items-center justify-between">
-              <span className="text-sm font-bold text-green-800">You pay</span>
-              <span className="text-2xl font-bold text-green-700">${firstAmount.toLocaleString()}</span>
+            <div className="border-t border-green-200 pt-2.5 flex items-center justify-between">
+              <span className="text-sm font-bold text-green-800">Total you pay</span>
+              <span className="text-2xl font-bold text-green-700">${totalCharge.toLocaleString()}</span>
             </div>
           </div>
 
@@ -198,7 +204,7 @@ export function FirstPaymentModal({
             ) : (
               <>
                 <CreditCard className="w-5 h-5" />
-                Pay ${firstAmount.toLocaleString()} via Stripe →
+                Pay ${totalCharge.toLocaleString()} via Stripe →
               </>
             )}
           </button>
