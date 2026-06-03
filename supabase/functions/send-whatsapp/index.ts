@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -75,7 +76,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { phone, message } = await req.json();
+    const { phone, message, recipient_id, project_id } = await req.json();
 
     if (!phone || !message) {
       return new Response(
@@ -85,6 +86,24 @@ Deno.serve(async (req: Request) => {
     }
 
     const result = await sendWhatsApp(phone, message);
+
+    // Save log to DB
+    try {
+      const supabase = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
+      );
+      await supabase.from("whatsapp_logs").insert({
+        phone,
+        message,
+        status: result.ok ? "sent" : "failed",
+        error: result.error ?? null,
+        recipient_id: recipient_id ?? null,
+        project_id: project_id ?? null,
+      });
+    } catch (logErr) {
+      console.warn("Failed to save whatsapp log:", logErr);
+    }
 
     return new Response(
       JSON.stringify(result),
