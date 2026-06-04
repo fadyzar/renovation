@@ -41,4 +41,6 @@ export interface Profile {
   license_status?: string;
   years_experience?: number;
   specialties?: string[];
+  onboarding_completed?: boolean;
+  service_area?: string;
 }
