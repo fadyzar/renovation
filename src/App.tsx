@@ -24,6 +24,7 @@ import { AdminDashboard } from "./components/screens/AdminDashboard";
 import { AdminProjects } from "./components/screens/AdminProjects";
 import { AdminRevenue } from "./components/screens/AdminRevenue";
 import { AdminSupport } from "./components/screens/AdminSupport";
+import { AdminVerificationReview } from "./components/admin/AdminVerificationReview";
 
 import { LoginPage } from "./components/auth/LoginPage";
 import { SignUpPage } from "./components/auth/SignUpPage";
@@ -75,10 +76,11 @@ function App() {
         <ForceRefreshModal />
         <ScrollToTop />
         <Routes>
-          <Route path="/admin"          element={<AdminDashboard />} />
-          <Route path="/admin/projects" element={<AdminProjects />} />
-          <Route path="/admin/revenue"  element={<AdminRevenue />} />
-          <Route path="/admin/support"  element={<AdminSupport />} />
+          <Route path="/admin"                   element={<AdminDashboard />} />
+          <Route path="/admin/projects"          element={<AdminProjects />} />
+          <Route path="/admin/verifications"     element={<AdminVerificationReview />} />
+          <Route path="/admin/revenue"           element={<AdminRevenue />} />
+          <Route path="/admin/support"           element={<AdminSupport />} />
           {/* Allow admin to view any project page */}
           <Route path="/project/:projectId/payments"       element={<ProjectPayments />} />
           <Route path="/contractor-matching/:projectId"    element={<ContractorMatching />} />

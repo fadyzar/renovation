@@ -8,10 +8,11 @@ import { useAuth } from '../../contexts/AuthContext';
 import { NotificationDropdown } from '../shared/NotificationDropdown';
 
 const NAV = [
-  { label: 'Dashboard',  path: '/admin',          icon: LayoutDashboard },
-  { label: 'Projects',   path: '/admin/projects',  icon: FolderOpen      },
-  { label: 'Revenue',    path: '/admin/revenue',   icon: DollarSign      },
-  { label: 'Support',    path: '/admin/support',   icon: HeadphonesIcon  },
+  { label: 'Dashboard',      path: '/admin',                icon: LayoutDashboard },
+  { label: 'Projects',       path: '/admin/projects',       icon: FolderOpen      },
+  { label: 'Verifications',  path: '/admin/verifications',  icon: ShieldCheck     },
+  { label: 'Revenue',        path: '/admin/revenue',        icon: DollarSign      },
+  { label: 'Support',        path: '/admin/support',        icon: HeadphonesIcon  },
 ];
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {

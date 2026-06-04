@@ -134,11 +134,23 @@ export function ContractorOnboarding({ onComplete }: { onComplete: () => void })
         bio:                  form.bio.trim(),
         years_experience:     form.years_experience === '' ? null : Number(form.years_experience),
         license_number:       form.license_number.trim(),
+        verification_status:  'pending',
+        license_verified:     false,
         specialties:          form.specialties,
         service_area:         form.service_area.trim(),
         avatar_url:           form.avatar_url || null,
         onboarding_completed: true,
       }).eq('id', profile.id);
+
+      // Create verification request for admin review
+      if (form.license_number.trim()) {
+        await supabase.from('verification_requests').upsert({
+          contractor_id:  profile.id,
+          license_number: form.license_number.trim(),
+          status:         'pending',
+          submitted_at:   new Date().toISOString(),
+        }, { onConflict: 'contractor_id' });
+      }
       if (error) throw error;
       await refreshProfile();
       onComplete();
