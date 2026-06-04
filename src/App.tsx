@@ -28,6 +28,7 @@ import { AdminSupport } from "./components/screens/AdminSupport";
 import { LoginPage } from "./components/auth/LoginPage";
 import { SignUpPage } from "./components/auth/SignUpPage";
 import { ForgotPasswordPage } from "./components/auth/ForgotPasswordPage";
+import { ForceRefreshModal } from "./components/shared/ForceRefreshModal";
 
 function SubmitBidPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -53,6 +54,7 @@ function App() {
   if (!user || !profile) {
     return (
       <>
+        <ForceRefreshModal />
         <ScrollToTop />
         <Routes>
           <Route path="/" element={<Landing />} />
@@ -69,6 +71,7 @@ function App() {
   if (profile.role === "admin") {
     return (
       <AdminLayout>
+        <ForceRefreshModal />
         <ScrollToTop />
         <Routes>
           <Route path="/admin"          element={<AdminDashboard />} />
@@ -87,6 +90,7 @@ function App() {
   // ─── Regular user routes ──────────────────────────────────────────────────
   return (
     <Layout>
+      <ForceRefreshModal />
       <ScrollToTop />
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
