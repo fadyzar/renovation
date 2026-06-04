@@ -197,10 +197,14 @@ export function ProjectFeed() {
       });
     }
 
-    // Work type filter
-    if (filters.workTypes.length > 0) {
+    // Work type filter — auto-filter by contractor's specialties if no manual filter set
+    const activeWorkTypes = filters.workTypes.length > 0
+      ? filters.workTypes
+      : (profile?.specialties ?? []);
+
+    if (activeWorkTypes.length > 0) {
       projects = projects.filter(p =>
-        p.work_types?.some(t => filters.workTypes.includes(t))
+        !p.work_types?.length || p.work_types.some(t => activeWorkTypes.includes(t))
       );
     }
 
