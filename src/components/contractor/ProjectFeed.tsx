@@ -203,9 +203,18 @@ export function ProjectFeed() {
       : (profile?.specialties ?? []);
 
     if (activeWorkTypes.length > 0) {
-      projects = projects.filter(p =>
-        !p.work_types?.length || p.work_types.some(t => activeWorkTypes.includes(t))
-      );
+      // Normalize for matching: lowercase + strip spaces for fuzzy compare
+      const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, '');
+      const activeNorm = activeWorkTypes.map(normalize);
+
+      projects = projects.filter(p => {
+        if (!p.work_types?.length) return true; // no work type set → show to all
+        return p.work_types.some(t =>
+          activeWorkTypes.includes(t) ||           // exact match
+          activeNorm.includes(normalize(t)) ||      // normalized match
+          activeNorm.some(a => a.includes(normalize(t)) || normalize(t).includes(a)) // substring match
+        );
+      });
     }
 
     // Sort
