@@ -282,7 +282,7 @@ export function Landing() {
       <div className="z-10">
 
         {/* ── HERO ── */}
-        <section id="home" ref={heroRef} className="relative pt-20 pb-24 min-h-[90vh] flex items-center">
+        <section id="home" ref={heroRef} className="relative pt-12 sm:pt-20 pb-12 sm:pb-24 min-h-[80vh] sm:min-h-[90vh] flex items-center">
           <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
             <motion.div
               initial="hidden"
@@ -293,9 +293,9 @@ export function Landing() {
             >
               <motion.h1
                 variants={item}
-                className="text-5xl md:text-8xl lg:text-[90px] font-extrabold tracking-[-0.03em] text-brand-navy leading-[1] max-w-5xl"
+                className="text-[2.4rem] sm:text-5xl md:text-8xl lg:text-[90px] font-extrabold tracking-[-0.03em] text-brand-navy leading-[1.1] md:leading-[1] max-w-5xl"
               >
-                Transparent & Hassle <br className="hidden md:block" />
+                Transparent & Hassle<br className="hidden md:block" />
                 -Free Renovations.
               </motion.h1>
 
@@ -306,17 +306,17 @@ export function Landing() {
                 Get fair pricing, verified contractors, and full project control – all in one place.
               </motion.p>
 
-              <motion.div variants={item} className="mt-12 flex flex-col sm:flex-row gap-4">
+              <motion.div variants={item} className="mt-8 sm:mt-12 flex flex-col sm:flex-row gap-3 sm:gap-4 w-full sm:w-auto">
                 <button
                   onClick={() => navigate("/signup")}
-                  className="px-10 py-5 rounded-full bg-brand-orange hover:bg-orange-600 text-white font-bold text-lg transition-all shadow-[0_8px_30px_rgb(254,95,32,0.3)] flex items-center justify-center gap-2 active:scale-95"
+                  className="px-8 sm:px-10 py-4 sm:py-5 rounded-full bg-brand-orange hover:bg-orange-600 text-white font-bold text-base sm:text-lg transition-all shadow-[0_8px_30px_rgb(254,95,32,0.3)] flex items-center justify-center gap-2 active:scale-95"
                 >
                   Start Your Project
                   <ArrowRight className="w-5 h-5" />
                 </button>
                 <button
                   onClick={() => navigate("/signup")}
-                  className="px-10 py-5 rounded-full bg-white hover:bg-slate-50 text-brand-navy font-bold text-lg border border-slate-200 transition-all flex items-center justify-center gap-2 active:scale-95"
+                  className="px-8 sm:px-10 py-4 sm:py-5 rounded-full bg-white hover:bg-slate-50 text-brand-navy font-bold text-base sm:text-lg border border-slate-200 transition-all flex items-center justify-center gap-2 active:scale-95"
                 >
                   View Pricing
                 </button>
@@ -324,7 +324,7 @@ export function Landing() {
 
               <motion.div
                 variants={item}
-                className="mt-20 relative w-full h-[400px] md:h-[600px] flex justify-center items-end"
+                className="mt-10 sm:mt-20 relative w-full h-[260px] sm:h-[400px] md:h-[600px] flex justify-center items-end"
               >
                 <div className="relative w-full max-w-6xl aspect-[2/1] pointer-events-none">
                   <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent z-10" />
@@ -349,10 +349,10 @@ export function Landing() {
               variants={container}
             >
               <div className="text-center mb-20">
-                <motion.h2 variants={item} className="text-4xl md:text-[56px] font-extrabold text-brand-navy tracking-tight leading-[1.1]">
+                <motion.h2 variants={item} className="text-[1.9rem] sm:text-4xl md:text-[56px] font-extrabold text-brand-navy tracking-tight leading-[1.1]">
                   Powerful Features for a <br className="hidden md:block" /> Smooth Renovation Process
                 </motion.h2>
-                <motion.p variants={item} className="mt-6 text-xl text-[#909090] max-w-3xl mx-auto">
+                <motion.p variants={item} className="mt-4 sm:mt-6 text-base sm:text-xl text-[#909090] max-w-3xl mx-auto">
                   Our platform ensures a seamless renovation experience with fair pricing, verified contractors, and full project control – all in one place.
                 </motion.p>
               </div>
@@ -395,13 +395,13 @@ export function Landing() {
               whileInView="show"
               viewport={{ once: true, amount: 0.25 }}
               variants={container}
-              className="rounded-[20px] bg-[#F6F7FF] border border-[#D0D6FF] p-10 sm:p-20 relative"
+              className="rounded-[20px] bg-[#F6F7FF] border border-[#D0D6FF] p-6 sm:p-10 lg:p-20 relative"
             >
               <div className="relative z-10 text-center mb-16">
-                <motion.h2 variants={item} className="text-4xl md:text-[56px] font-extrabold text-brand-navy tracking-tight leading-[1.1] mb-6">
+                <motion.h2 variants={item} className="text-[1.9rem] sm:text-4xl md:text-[56px] font-extrabold text-brand-navy tracking-tight leading-[1.1] mb-4 sm:mb-6">
                   Kickstart Your Renovation <br className="hidden md:block" /> in Just a Few Clicks
                 </motion.h2>
-                <motion.p variants={item} className="mt-4 text-xl text-[#909090] max-w-3xl mx-auto leading-relaxed">
+                <motion.p variants={item} className="mt-3 sm:mt-4 text-base sm:text-xl text-[#909090] max-w-3xl mx-auto leading-relaxed">
                   Choose your project type, set your budget, and get an instant estimate – hassle-free and transparent from the start.
                 </motion.p>
               </div>
@@ -513,10 +513,10 @@ export function Landing() {
               variants={container}
             >
               <div className="text-center mb-20">
-                <motion.h2 variants={item} className="text-4xl md:text-[56px] font-extrabold text-brand-navy tracking-tight max-w-4xl mx-auto leading-[1.1]">
+                <motion.h2 variants={item} className="text-[1.9rem] sm:text-4xl md:text-[56px] font-extrabold text-brand-navy tracking-tight max-w-4xl mx-auto leading-[1.1]">
                   What Our Customers Are Saying About Their Experience
                 </motion.h2>
-                <motion.p variants={item} className="mt-6 text-xl text-[#909090] max-w-3xl mx-auto">
+                <motion.p variants={item} className="mt-4 sm:mt-6 text-base sm:text-xl text-[#909090] max-w-3xl mx-auto">
                   See what real clients and professionals have to say – from seamless renovations to reliable, high-quality work.
                 </motion.p>
               </div>
@@ -577,10 +577,10 @@ export function Landing() {
               variants={container}
             >
               <div className="text-center mb-16">
-                <motion.h2 variants={item} className="text-4xl md:text-6xl font-extrabold text-brand-navy tracking-tight">
+                <motion.h2 variants={item} className="text-[1.9rem] sm:text-4xl md:text-6xl font-extrabold text-brand-navy tracking-tight">
                   Frequently Asked <br /> Questions
                 </motion.h2>
-                <motion.p variants={item} className="mt-4 text-xl text-[#909090] max-w-3xl mx-auto">
+                <motion.p variants={item} className="mt-3 sm:mt-4 text-base sm:text-xl text-[#909090] max-w-3xl mx-auto">
                   Got questions? We've got answers. Explore the most common inquiries about pricing, contractor reliability, project changes, and more.
                 </motion.p>
               </div>

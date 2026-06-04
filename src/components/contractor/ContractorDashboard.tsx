@@ -241,11 +241,11 @@ export function ContractorDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+        <div className="text-center mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 mb-2">
             Welcome Back, {profile?.full_name?.split(' ')[0] || 'Contractor'}!
           </h1>
-          <p className="text-gray-600">
+          <p className="text-gray-600 text-sm sm:text-base">
             Manage your bids, track ongoing projects, and stay updated—all in one place.
           </p>
         </div>
@@ -419,7 +419,7 @@ export function ContractorDashboard() {
                       </div>
                     </div>
 
-                    <div className="mt-4 flex items-center justify-between">
+                    <div className="mt-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
                         <img
                           src={`https://ui-avatars.com/api/?name=${bid.project.owner.full_name}&background=random`}
@@ -432,8 +432,8 @@ export function ContractorDashboard() {
                         </div>
                       </div>
 
-                      <button className="px-6 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-lg transition-all duration-200">
-                        Bid Amount: ${bid.total_price.toLocaleString()}
+                      <button className="w-full sm:w-auto px-5 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-lg transition-all duration-200 text-sm">
+                        Bid: ${bid.total_price.toLocaleString()}
                       </button>
                     </div>
                   </div>

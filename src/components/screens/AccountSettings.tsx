@@ -10,8 +10,8 @@ const inputBase =
 /* ── section card ── */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="border border-[#CFCFCF] rounded-2xl p-8 bg-white">
-      <h2 className="text-[22px] font-bold text-brand-navy mb-6">{title}</h2>
+    <div className="border border-[#CFCFCF] rounded-2xl p-5 sm:p-8 bg-white">
+      <h2 className="text-lg sm:text-[22px] font-bold text-brand-navy mb-4 sm:mb-6">{title}</h2>
       {children}
     </div>
   );
@@ -153,7 +153,7 @@ function Toggle({ checked, onChange, label }: { checked: boolean; onChange: () =
 /* ── toast ── */
 function Toast({ message, type, onDismiss }: { message: string; type: 'success' | 'error'; onDismiss: () => void }) {
   return (
-    <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-xl text-white text-sm font-semibold max-w-sm ${type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
+    <div className={`fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-xl text-white text-sm font-semibold sm:max-w-sm ${type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
       {type === 'success' ? <CheckCircle2 className="w-5 h-5 flex-shrink-0" /> : <AlertCircle className="w-5 h-5 flex-shrink-0" />}
       <span className="flex-1">{message}</span>
       <button onClick={onDismiss}><X className="w-4 h-4" /></button>
@@ -312,16 +312,16 @@ export function AccountSettings() {
   // ─── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-white py-12 px-4">
+    <div className="min-h-screen bg-white py-8 sm:py-12 px-4">
       {toast && <Toast message={toast.message} type={toast.type} onDismiss={() => setToast(null)} />}
 
       <div className="max-w-[999px] mx-auto">
 
-        <div className="mb-10">
-          <h1 className="text-[40px] leading-[1.2] font-extrabold text-brand-navy max-w-[771px]">
+        <div className="mb-6 sm:mb-10">
+          <h1 className="text-2xl sm:text-[40px] leading-[1.2] font-extrabold text-brand-navy max-w-[771px]">
             Manage Your Account – Update Your Information & Preferences
           </h1>
-          <p className="text-[20px] text-[#909090] mt-3">
+          <p className="text-base sm:text-[20px] text-[#909090] mt-2 sm:mt-3">
             Edit your profile details, adjust security settings, and manage notifications.
           </p>
         </div>

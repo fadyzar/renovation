@@ -226,16 +226,16 @@ export function OwnerDashboard() {
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-start sm:items-center justify-between gap-3 mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">My Projects</h1>
-            <p className="text-gray-600 mt-1">Manage your renovation projects</p>
+            <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">My Projects</h1>
+            <p className="text-gray-600 mt-1 text-sm sm:text-base">Manage your renovation projects</p>
           </div>
           <button
             onClick={() => navigate('/create-project')}
-            className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-all hover:shadow-lg hover:shadow-blue-500/30"
+            className="flex items-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-xl transition-all hover:shadow-lg hover:shadow-blue-500/30 text-sm sm:text-base whitespace-nowrap flex-shrink-0"
           >
-            <Plus className="w-5 h-5" />
+            <Plus className="w-4 h-4 sm:w-5 sm:h-5" />
             New Project
           </button>
         </div>
@@ -324,12 +324,12 @@ export function OwnerDashboard() {
                 key={project.id}
                 className="bg-white rounded-xl p-6 border border-gray-100 hover:shadow-lg transition-all"
               >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-2">{project.title}</h3>
+                <div className="flex items-start justify-between gap-3 mb-4">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2 break-words">{project.title}</h3>
                     <p className="text-gray-600 text-sm line-clamp-2">{project.description}</p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-col sm:flex-row items-end sm:items-center gap-2 flex-shrink-0">
                     {project.status === 'seeking_quotes' && (
                       <div className="flex items-center gap-1.5 px-3 py-1.5 bg-green-50 rounded-full">
                         <Eye className="w-4 h-4 text-green-600" />
@@ -338,7 +338,7 @@ export function OwnerDashboard() {
                     )}
                     <div className={`flex items-center gap-2 px-3 py-1.5 ${config.bg} rounded-full`}>
                       <StatusIcon className={`w-4 h-4 ${config.color}`} />
-                      <span className={`text-sm font-medium ${config.color}`}>{config.label}</span>
+                      <span className={`text-xs sm:text-sm font-medium ${config.color} whitespace-nowrap`}>{config.label}</span>
                     </div>
                   </div>
                 </div>

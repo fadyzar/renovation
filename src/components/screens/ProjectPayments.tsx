@@ -144,6 +144,11 @@ function ApproveMilestoneModal({ milestone, isFirstMilestone, totalPlatformFee, 
   const [errors, setErrors] = useState<Partial<Record<keyof CardDetails, string>>>({});
   const [errMsg, setErrMsg] = useState('');
 
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+
   function validate() {
     const errs: typeof errors = {};
     if (card.cardNumber.replace(/\D/g, '').length < 13) errs.cardNumber = 'Enter a valid card number';
@@ -187,7 +192,7 @@ function ApproveMilestoneModal({ milestone, isFirstMilestone, totalPlatformFee, 
       : '';
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
       <div className="bg-white rounded-2xl max-w-md w-full max-h-[92vh] overflow-y-auto shadow-2xl">
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
@@ -392,7 +397,7 @@ function SubmitMilestoneModal({ milestone, onSuccess, onClose }: SubmitModalProp
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
       <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl">
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
           <h2 className="text-base font-bold text-gray-900">Submit Milestone for Approval</h2>
@@ -615,25 +620,25 @@ export function ProjectPayments() {
 
         {/* Header */}
         <div className="mb-6">
-          <div className="flex items-start justify-between flex-wrap gap-4">
+          <div className="flex flex-col gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">{project.title}</h1>
-              <p className="text-gray-600 mt-1">
+              <h1 className="text-xl sm:text-3xl font-bold text-gray-900">{project.title}</h1>
+              <p className="text-sm sm:text-base text-gray-600 mt-1">
                 {isOwner ? 'Approve milestone completions and release payments to contractor.' : 'Submit milestones for owner approval to receive payment.'}
               </p>
               {(project.city || project.address) && (
                 <div className="flex items-center gap-1.5 mt-2 text-sm text-gray-500">
-                  <MapPin className="w-4 h-4 text-gray-400" />
-                  {[project.address, project.city, project.state].filter(Boolean).join(', ')}
+                  <MapPin className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  <span className="truncate">{[project.address, project.city, project.state].filter(Boolean).join(', ')}</span>
                 </div>
               )}
             </div>
 
             {/* Action buttons */}
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => navigate('/dashboard')}
-                className="flex items-center gap-2 px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors shadow-sm text-sm"
+                className="flex items-center gap-2 px-3 sm:px-4 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl transition-colors shadow-sm text-sm"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Dashboard
@@ -641,22 +646,22 @@ export function ProjectPayments() {
               {isContractor && ownerProfile && (
                 <button
                   onClick={() => navigate(`/profile/${ownerProfile.id}`)}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold rounded-xl transition-colors shadow-sm text-sm"
+                  className="flex items-center gap-2 px-3 sm:px-4 py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-semibold rounded-xl transition-colors shadow-sm text-sm"
                 >
                   {ownerProfile.avatar_url ? (
                     <img src={ownerProfile.avatar_url} alt="" className="w-5 h-5 rounded-full object-cover" />
                   ) : (
-                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-teal-400 flex items-center justify-center text-white text-xs font-bold">
+                    <div className="w-5 h-5 rounded-full bg-gradient-to-br from-blue-400 to-teal-400 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                       {ownerProfile.full_name?.charAt(0)?.toUpperCase() ?? 'O'}
                     </div>
                   )}
-                  {ownerProfile.full_name || 'Owner Profile'}
+                  <span className="truncate max-w-[120px]">{ownerProfile.full_name || 'Owner'}</span>
                 </button>
               )}
               {isContractor && (
                 <button
                   onClick={handleNavigate}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors shadow-sm text-sm"
+                  className="flex items-center gap-2 px-3 sm:px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-xl transition-colors shadow-sm text-sm"
                 >
                   <Navigation className="w-4 h-4" />
                   Navigate
@@ -664,10 +669,10 @@ export function ProjectPayments() {
               )}
               <button
                 onClick={handleOpenChat}
-                className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors shadow-sm text-sm"
+                className="flex items-center gap-2 px-3 sm:px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition-colors shadow-sm text-sm"
               >
                 <MessageCircle className="w-4 h-4" />
-                Open Chat
+                Chat
               </button>
             </div>
           </div>
@@ -682,22 +687,22 @@ export function ProjectPayments() {
             <h2 className="text-lg font-bold text-gray-900">Payment Overview</h2>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-gray-50 rounded-xl p-4 text-center">
-              <p className="text-xs text-gray-500 mb-1">Total Bid</p>
-              <p className="text-xl font-bold text-gray-900">{formatILS(totalBid)}</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="bg-gray-50 rounded-xl p-3 sm:p-4 text-center">
+              <p className="text-[10px] sm:text-xs text-gray-500 mb-1">Total Bid</p>
+              <p className="text-base sm:text-xl font-bold text-gray-900">{formatILS(totalBid)}</p>
             </div>
-            <div className="bg-orange-50 rounded-xl p-4 text-center">
-              <p className="text-xs text-orange-600 mb-1">Platform Fee (10%)</p>
-              <p className="text-xl font-bold text-orange-700">{formatILS(totalPlatformFee)}</p>
+            <div className="bg-orange-50 rounded-xl p-3 sm:p-4 text-center">
+              <p className="text-[10px] sm:text-xs text-orange-600 mb-1">Platform Fee</p>
+              <p className="text-base sm:text-xl font-bold text-orange-700">{formatILS(totalPlatformFee)}</p>
             </div>
-            <div className="bg-green-50 rounded-xl p-4 text-center">
-              <p className="text-xs text-green-600 mb-1">Released to Contractor</p>
-              <p className="text-xl font-bold text-green-700">{formatILS(releasedAmount)}</p>
+            <div className="bg-green-50 rounded-xl p-3 sm:p-4 text-center">
+              <p className="text-[10px] sm:text-xs text-green-600 mb-1">Released</p>
+              <p className="text-base sm:text-xl font-bold text-green-700">{formatILS(releasedAmount)}</p>
             </div>
-            <div className="bg-blue-50 rounded-xl p-4 text-center">
-              <p className="text-xs text-blue-600 mb-1">Remaining</p>
-              <p className="text-xl font-bold text-blue-700">{formatILS(remaining)}</p>
+            <div className="bg-blue-50 rounded-xl p-3 sm:p-4 text-center">
+              <p className="text-[10px] sm:text-xs text-blue-600 mb-1">Remaining</p>
+              <p className="text-base sm:text-xl font-bold text-blue-700">{formatILS(remaining)}</p>
             </div>
           </div>
 
@@ -746,39 +751,40 @@ export function ProjectPayments() {
                 const { fee, payout } = getMilestoneSplit(milestone.amount, isFirst, totalPlatformFee);
 
                 return (
-                  <div key={milestone.id} className="p-6">
+                  <div key={milestone.id} className="p-4 sm:p-6">
                     {/* Milestone header */}
-                    <div className="flex items-start justify-between gap-4 mb-3">
-                      <div className="flex items-start gap-3 flex-1">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${milestone.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex items-start gap-3 flex-1 min-w-0">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${milestone.status === 'paid' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
                           {milestone.status === 'paid' ? <CheckCircle className="w-4 h-4" /> : index + 1}
                         </div>
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-gray-900">{milestone.title}</h3>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-gray-900 text-sm sm:text-base">{milestone.title}</h3>
                           {milestone.description && milestone.description !== milestone.title && (
-                            <p className="text-sm text-gray-500 mt-0.5">{milestone.description}</p>
+                            <p className="text-xs sm:text-sm text-gray-500 mt-0.5">{milestone.description}</p>
                           )}
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <p className="text-lg font-bold text-gray-900">{formatILS(milestone.amount)}</p>
-                        <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color} mt-1`}>
+                        <p className="text-base sm:text-lg font-bold text-gray-900">{formatILS(milestone.amount)}</p>
+                        <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color} mt-1`}>
                           <StatusIcon className="w-3 h-3" />
-                          {cfg.label}
+                          <span className="hidden sm:inline">{cfg.label}</span>
+                          <span className="sm:hidden">{cfg.label.split(' ')[0]}</span>
                         </div>
                       </div>
                     </div>
 
                     {/* Payment split breakdown */}
-                    <div className="ml-11 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 mb-3">
+                    <div className="ml-11 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 mb-3">
                       <div className="flex items-center gap-1.5">
-                        <div className="w-2 h-2 rounded-full bg-green-400" />
+                        <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
                         Contractor: {formatILS(payout)}{isFirst ? ' (after fee)' : ' (100%)'}
                       </div>
                       {isFirst && (
                         <div className="flex items-center gap-1.5">
-                          <div className="w-2 h-2 rounded-full bg-orange-400" />
-                          Platform fee: {formatILS(fee)} (10% of total, once)
+                          <div className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0" />
+                          Fee: {formatILS(fee)}
                         </div>
                       )}
                     </div>
@@ -787,7 +793,7 @@ export function ProjectPayments() {
                     {milestone.proof_of_work_description && (
                       <div className="ml-11 mb-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
                         <p className="text-xs font-semibold text-blue-700 mb-1">Contractor's Completion Note:</p>
-                        <p className="text-sm text-blue-900">{milestone.proof_of_work_description}</p>
+                        <p className="text-xs sm:text-sm text-blue-900">{milestone.proof_of_work_description}</p>
                       </div>
                     )}
 
@@ -822,27 +828,28 @@ export function ProjectPayments() {
                       {/* CONTRACTOR: awaiting approval */}
                       {isContractor && milestone.status === 'awaiting_approval' && (
                         <div className="flex items-center gap-2 text-sm text-amber-600">
-                          <Clock className="w-4 h-4" />
-                          Waiting for owner to approve and pay…
+                          <Clock className="w-4 h-4 flex-shrink-0" />
+                          Waiting for owner to approve…
                         </div>
                       )}
 
                       {/* OWNER: approve & pay */}
                       {isOwner && milestone.status === 'awaiting_approval' && (
-                        <div className="flex items-center gap-3 flex-wrap">
+                        <div className="flex flex-wrap gap-2">
                           <button
                             onClick={() => setApproveModal({ milestone, isFirst })}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
+                            className="flex items-center gap-2 px-3 sm:px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
                           >
                             <CreditCard className="w-4 h-4" />
-                            Approve & Pay {formatILS(milestone.amount)}
+                            <span className="hidden sm:inline">Approve & Pay {formatILS(milestone.amount)}</span>
+                            <span className="sm:hidden">Approve {formatILS(milestone.amount)}</span>
                           </button>
                           <button
                             onClick={async () => {
                               await supabase.from('milestones').update({ status: 'disputed' }).eq('id', milestone.id);
                               loadData();
                             }}
-                            className="flex items-center gap-2 px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-semibold rounded-xl transition-colors border border-red-200"
+                            className="flex items-center gap-2 px-3 sm:px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-semibold rounded-xl transition-colors border border-red-200"
                           >
                             <AlertCircle className="w-4 h-4" />
                             Dispute
@@ -852,7 +859,7 @@ export function ProjectPayments() {
 
                       {/* OWNER: pending milestone */}
                       {isOwner && milestone.status === 'pending' && (
-                        <p className="text-xs text-gray-400 italic">Waiting for contractor to submit this milestone…</p>
+                        <p className="text-xs text-gray-400 italic">Waiting for contractor to submit…</p>
                       )}
                     </div>
                   </div>

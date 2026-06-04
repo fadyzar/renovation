@@ -39,7 +39,7 @@ function computeCompleteness(p: {
 
 function Toast({ message, type, onDismiss }: { message: string; type: 'success' | 'error'; onDismiss: () => void }) {
   return (
-    <div className={`fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-xl text-white text-sm font-semibold max-w-sm animate-slide-up ${type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
+    <div className={`fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:bottom-6 sm:max-w-sm z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-xl text-white text-sm font-semibold animate-slide-up ${type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
       {type === 'success' ? <CheckCircle2 className="w-5 h-5 flex-shrink-0" /> : <AlertCircle className="w-5 h-5 flex-shrink-0" />}
       <span className="flex-1">{message}</span>
       <button onClick={onDismiss}><X className="w-4 h-4" /></button>

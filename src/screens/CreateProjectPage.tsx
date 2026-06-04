@@ -93,7 +93,11 @@ export function CreateProjectPage() {
   const [scanData, setScanData] = useState<RoomMeasurements | null>(null);
 
   // Pre-generate project ID so scan record can reference it before DB insert
-  const projectIdRef = useRef<string>(crypto.randomUUID());
+  const projectIdRef = useRef<string>(
+    typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+  );
 
   const [formData, setFormData] = useState<ProjectFormData>({
     renovationType: '',
@@ -251,15 +255,15 @@ export function CreateProjectPage() {
   /* ─── Loading screen ─── */
   if (showLoading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
-        <div className="text-center">
+      <div className="min-h-screen bg-white flex items-center justify-center px-4">
+        <div className="text-center max-w-xl">
           <div className="w-[94px] h-[94px] rounded-full bg-white shadow-lg flex items-center justify-center mx-auto mb-8">
             <div className="w-14 h-14 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
           </div>
-          <h2 className="text-[40px] font-extrabold text-brand-navy leading-tight mb-4">
+          <h2 className="text-2xl sm:text-[40px] font-extrabold text-brand-navy leading-tight mb-4">
             We are looking for constructors...
           </h2>
-          <p className="text-[20px] text-[#909090]">
+          <p className="text-base sm:text-[20px] text-[#909090]">
             You will receive a notification when we made a match.
           </p>
         </div>
@@ -271,15 +275,15 @@ export function CreateProjectPage() {
   const progressWidth = currentStep === 1 ? '33%' : currentStep === 2 ? '66%' : '100%';
 
   return (
-    <div className="min-h-screen bg-white py-12 px-4">
+    <div className="min-h-screen bg-white py-8 sm:py-12 px-4">
       <div className="max-w-[999px] mx-auto">
 
         {/* ── Page heading (same across all steps) ── */}
-        <div className="mb-8">
-          <h1 className="text-[40px] leading-[1.2] font-extrabold text-brand-navy max-w-[737px]">
+        <div className="mb-6 sm:mb-8">
+          <h1 className="text-2xl sm:text-[40px] leading-[1.2] font-extrabold text-brand-navy max-w-[737px]">
             Create Your Project – Get Matched with Verified Contractors.
           </h1>
-          <p className="text-[20px] text-[#909090] mt-3">
+          <p className="text-base sm:text-[20px] text-[#909090] mt-2 sm:mt-3">
             Fill out the details below to receive contractor offers tailored to your needs.
           </p>
         </div>
@@ -585,7 +589,7 @@ export function CreateProjectPage() {
             />
 
             {/* Row 1: City + State */}
-            <div className="grid grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
               <div>
                 <input
                   type="text"
@@ -615,7 +619,7 @@ export function CreateProjectPage() {
             </div>
 
             {/* Row 2: ZIP + Country */}
-            <div className="grid grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
               <div>
                 <input
                   type="text"
@@ -638,7 +642,7 @@ export function CreateProjectPage() {
             </div>
 
             {/* Row 3: Finish level + Timeline */}
-            <div className="grid grid-cols-2 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
               <div className="relative">
                 <select
                   value={formData.finishLevel}
@@ -676,7 +680,7 @@ export function CreateProjectPage() {
             </p>
 
             {/* 3-column contact inputs */}
-            <div className="grid grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
               <div>
                 <input
                   type="text"

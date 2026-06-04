@@ -194,17 +194,18 @@ export function SubmitBid({ projectId, onSuccess, onCancel }: SubmitBidProps) {
             ))}
           </div>
 
-          <div className="flex items-center justify-between mb-6 pb-6 border-b border-gray-200">
+          <div className="flex items-center justify-between mb-6 pb-6 border-b border-gray-200 gap-3">
             <button
               onClick={addMilestone}
-              className="px-6 py-3 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors flex items-center gap-2"
+              className="px-4 sm:px-6 py-3 bg-gray-900 text-white rounded-lg font-semibold hover:bg-gray-800 transition-colors flex items-center gap-2 flex-shrink-0"
             >
               <Plus className="w-5 h-5" />
-              Add New Milestone
+              <span className="hidden sm:inline">Add New Milestone</span>
+              <span className="sm:hidden">Add Milestone</span>
             </button>
             <div className="text-right">
               <div className="text-sm text-gray-500">Total Price</div>
-              <div className="text-3xl font-bold text-gray-900">
+              <div className="text-2xl sm:text-3xl font-bold text-gray-900">
                 ${calculateTotal().toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
             </div>
