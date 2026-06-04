@@ -112,6 +112,12 @@ export function ScanSpaceModal({ projectId, renovationType, onConfirm, onClose }
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Lock body scroll while modal is open
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+
   // Auto-start camera when modal opens
   useEffect(() => {
     startCamera();
@@ -137,6 +143,13 @@ export function ScanSpaceModal({ projectId, renovationType, onConfirm, onClose }
   async function startCamera() {
     setCameraState('starting');
 
+    // Camera requires a secure context (HTTPS or localhost).
+    // On local network HTTP (e.g. 10.0.0.x), mediaDevices is undefined on mobile.
+    if (!navigator.mediaDevices || !window.isSecureContext) {
+      setCameraState('unavailable');
+      return;
+    }
+
     // Try rear camera first (mobile), fall back to any camera (desktop)
     const constraints: MediaStreamConstraints[] = [
       { video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } } },
@@ -147,7 +160,6 @@ export function ScanSpaceModal({ projectId, renovationType, onConfirm, onClose }
       try {
         const stream = await navigator.mediaDevices.getUserMedia(constraint);
         streamRef.current = stream;
-        // Wait one tick for React to render the video element
         setTimeout(() => {
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
@@ -340,7 +352,7 @@ export function ScanSpaceModal({ projectId, renovationType, onConfirm, onClose }
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
-    <div className="fixed inset-0 bg-black/80 flex items-end sm:items-center justify-center z-50">
+    <div className="fixed inset-0 bg-black/80 flex items-end sm:items-center justify-center z-[60]">
       <div className="bg-white w-full sm:rounded-2xl sm:max-w-xl max-h-[96vh] flex flex-col shadow-2xl">
 
         {/* Header */}
@@ -439,11 +451,17 @@ export function ScanSpaceModal({ projectId, renovationType, onConfirm, onClose }
                     </div>
                     <div>
                       <p className="text-white font-semibold mb-1">
-                        {cameraState === 'denied' ? 'Camera access blocked' : 'No camera detected'}
+                        {cameraState === 'denied'
+                          ? 'Camera access blocked'
+                          : !window.isSecureContext
+                          ? 'Camera needs HTTPS'
+                          : 'No camera detected'}
                       </p>
                       <p className="text-white/60 text-sm">
                         {cameraState === 'denied'
                           ? 'Allow camera in your browser settings, or upload photos below'
+                          : !window.isSecureContext
+                          ? 'Open your camera app, take photos of the room, then tap "Upload photos" below'
                           : 'Upload 2–5 photos of your space to use AI measurement'}
                       </p>
                     </div>
@@ -454,6 +472,13 @@ export function ScanSpaceModal({ projectId, renovationType, onConfirm, onClose }
                       >
                         Retry Camera
                       </button>
+                    )}
+                    {!window.isSecureContext && (
+                      <label className="px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl cursor-pointer flex items-center gap-2">
+                        <Upload className="w-4 h-4" />
+                        Upload from Gallery
+                        <input type="file" multiple accept="image/*" onChange={handleFileInput} className="hidden" />
+                      </label>
                     )}
                   </div>
                 )}

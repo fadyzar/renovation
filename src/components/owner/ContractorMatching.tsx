@@ -189,10 +189,10 @@ export function ContractorMatching() {
             <Award className="w-3.5 h-3.5" />
             AI-Powered Matching — {rankedBids.length} contractor{rankedBids.length !== 1 ? 's' : ''} scored
           </div>
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+          <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 mb-2">
             Your Matched Contractors
           </h1>
-          <p className="text-gray-500 max-w-xl mx-auto">
+          <p className="text-gray-500 max-w-xl mx-auto text-sm sm:text-base px-2">
             Each contractor is scored across 7 signals — license, experience, budget, proposal
             quality, specialty match, service area, and profile. Ranked from best to lowest fit.
           </p>
@@ -415,7 +415,7 @@ export function ContractorMatching() {
 
       {/* Profile + full score modal */}
       {selectedBid && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
           <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between z-10">
               <h2 className="text-xl font-bold text-gray-900">Contractor Profile & Match Score</h2>

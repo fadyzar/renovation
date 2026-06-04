@@ -41,6 +41,12 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
   const [costEstimate, setCostEstimate] = useState<CostEstimate | null>(null);
   const [messageWarning, setMessageWarning] = useState<string | null>(null);
 
+  // Lock body scroll while modal is open (prevents background page scrolling on mobile)
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = ''; };
+  }, []);
+
   // Check for duplicate bid on mount — contractor can only bid once per project
   useEffect(() => {
     async function checkExistingBid() {
@@ -243,16 +249,16 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
   const isOutsideBudget = totalPrice < project.budget_min || totalPrice > project.budget_max;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+    <div className="fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-[60] sm:p-4">
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl max-w-4xl w-full max-h-[92vh] overflow-y-auto overscroll-contain">
+        <div className="sticky top-0 bg-white border-b border-gray-200 px-4 sm:px-6 py-4 flex items-center justify-between z-10 rounded-t-2xl">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">Submit Bid</h2>
-            <p className="text-gray-600 mt-1">{project.title}</p>
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Submit Bid</h2>
+            <p className="text-sm text-gray-600 mt-0.5 truncate max-w-[220px] sm:max-w-none">{project.title}</p>
           </div>
           <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
           >
             <X className="w-6 h-6" />
           </button>
@@ -393,28 +399,31 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
           </div>
 
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">Project Milestones</h3>
-                <p className="text-sm text-gray-600 mb-2">Break down your work into phases with clear deliverables</p>
-                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900">
-                  <p className="font-semibold mb-1">💡 Milestone Tips:</p>
-                  <ul className="space-y-1 list-disc list-inside">
-                    <li>Each milestone represents a distinct phase of work (e.g., "Demo & Prep", "Installation", "Finishing")</li>
-                    <li>Include the cost and estimated days needed for each phase</li>
-                    <li>Property owners will release payment when each milestone is completed and approved</li>
-                    <li>Clear milestones help build trust and set expectations</li>
-                  </ul>
+            <div className="mb-4">
+              <div className="flex items-start justify-between gap-3 mb-2">
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900">Project Milestones</h3>
+                  <p className="text-sm text-gray-600">Break down your work into phases with clear deliverables</p>
                 </div>
+                <button
+                  type="button"
+                  onClick={addMilestone}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex-shrink-0"
+                >
+                  <Plus className="w-5 h-5" />
+                  <span className="hidden sm:inline">Add Milestone</span>
+                  <span className="sm:hidden">Add</span>
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={addMilestone}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex-shrink-0"
-              >
-                <Plus className="w-5 h-5" />
-                Add Milestone
-              </button>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-900">
+                <p className="font-semibold mb-1">💡 Milestone Tips:</p>
+                <ul className="space-y-1 list-disc list-inside">
+                  <li>Each milestone represents a distinct phase of work (e.g., "Demo & Prep", "Installation", "Finishing")</li>
+                  <li>Include the cost and estimated days needed for each phase</li>
+                  <li>Property owners will release payment when each milestone is completed and approved</li>
+                  <li>Clear milestones help build trust and set expectations</li>
+                </ul>
+              </div>
             </div>
 
             <div className="space-y-4">

@@ -36,18 +36,18 @@ export function LoginPage() {
     }
 
     return (
-        <div className="h-screen flex bg-white font-sans overflow-hidden">
+        <div className="min-h-screen flex bg-white font-sans">
             {/* Back to Landing */}
             <Link
                 to="/"
-                className="absolute top-8 left-8 z-10 p-2 text-gray-400 hover:text-gray-900 transition-colors flex items-center gap-2 font-medium"
+                className="absolute top-4 sm:top-8 left-4 sm:left-8 z-10 p-2 text-gray-400 hover:text-gray-900 transition-colors flex items-center gap-2 font-medium text-sm sm:text-base"
             >
                 <ArrowLeft className="w-5 h-5" />
                 Back to Home
             </Link>
 
             {/* Form Section */}
-            <div className="flex-1 flex flex-col justify-center px-8 sm:px-12 lg:px-24 py-12 overflow-y-auto">
+            <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-24 pt-16 pb-10 overflow-y-auto">
                 <div className="w-full max-w-[400px] mx-auto">
                     <div className="mb-10">
                         <img src={logo} alt="M.G.BIT" className="h-9 w-auto" />

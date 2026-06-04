@@ -26,7 +26,7 @@ export function PublishProjectModal({
   const maxBudget = project.budget_max.toLocaleString();
   
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm">
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm">
       <div className="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-slide-up">
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <h2 className="text-2xl font-semibold text-gray-900">Publish Project</h2>

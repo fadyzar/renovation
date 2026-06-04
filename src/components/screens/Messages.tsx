@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { MessageCircle, Search, Lock } from 'lucide-react';
+import { MessageCircle, Search, Lock, ArrowLeft } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Chat } from '../shared/Chat';
@@ -35,6 +35,7 @@ export function Messages() {
   const navigate = useNavigate();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<string | null>(null);
+  const [mobilePanelView, setMobilePanelView] = useState<'list' | 'chat'>('list');
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [unreadCount, setUnreadCount] = useState(0);
@@ -48,6 +49,7 @@ export function Messages() {
     const state = location.state as any;
     if (state?.conversationId) {
       setSelectedConversation(state.conversationId);
+      setMobilePanelView('chat');
     }
   }, [location.state]);
 
@@ -299,7 +301,7 @@ export function Messages() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-1 bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className={`lg:block lg:col-span-1 bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden ${mobilePanelView === 'list' ? 'block' : 'hidden'}`}>
             <div className="p-4 border-b border-gray-200">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -313,7 +315,7 @@ export function Messages() {
               </div>
             </div>
 
-            <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
+            <div className="divide-y divide-gray-100 max-h-[70vh] lg:max-h-[600px] overflow-y-auto">
               {filteredConversations.length === 0 ? (
                 <div className="p-8 text-center">
                   <MessageCircle className="w-12 h-12 text-gray-300 mx-auto mb-3" />
@@ -347,7 +349,7 @@ export function Messages() {
                   return (
                     <button
                       key={conv.id}
-                      onClick={() => setSelectedConversation(conv.id)}
+                      onClick={() => { setSelectedConversation(conv.id); setMobilePanelView('chat'); }}
                       className={`w-full p-4 text-left transition-all duration-200 border-l-4 ${
                         isSelected
                           ? 'bg-blue-50 border-l-blue-600'
@@ -406,7 +408,15 @@ export function Messages() {
             </div>
           </div>
 
-          <div className="lg:col-span-2">
+          <div className={`lg:block lg:col-span-2 ${mobilePanelView === 'chat' ? 'block' : 'hidden'}`}>
+            {/* Mobile back button */}
+            <button
+              onClick={() => setMobilePanelView('list')}
+              className="lg:hidden flex items-center gap-2 text-blue-600 font-medium text-sm mb-3 hover:text-blue-700 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              Back to conversations
+            </button>
             {selectedConversation ? (
               (() => {
                 const conv = conversations.find(c => c.id === selectedConversation);
@@ -415,7 +425,7 @@ export function Messages() {
 
                 if (isLocked) {
                   return (
-                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 h-[600px] flex items-center justify-center">
+                    <div className="bg-white rounded-2xl shadow-sm border border-gray-200 min-h-[400px] h-[600px] flex items-center justify-center">
                       <div className="text-center max-w-md px-4">
                         <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
                           <Lock className="w-8 h-8 text-amber-600" />
@@ -448,7 +458,7 @@ export function Messages() {
                 return <Chat conversationId={selectedConversation} />;
               })()
             ) : (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 h-[600px] flex items-center justify-center">
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 min-h-[400px] h-[600px] flex items-center justify-center">
                 <div className="text-center">
                   <MessageCircle className="w-16 h-16 text-gray-300 mx-auto mb-4" />
                   <h3 className="text-xl font-semibold text-gray-900 mb-2">

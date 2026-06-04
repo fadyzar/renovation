@@ -556,16 +556,16 @@ export function ProjectFeed() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Page header */}
-      <div className="bg-gray-900 text-white py-6 mb-8">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Available Projects</h1>
-            <p className="text-gray-400 text-sm mt-0.5">
+      <div className="bg-gray-900 text-white py-5 sm:py-6 mb-6 sm:mb-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-start sm:items-center justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold">Available Projects</h1>
+            <p className="text-gray-400 text-xs sm:text-sm mt-0.5 leading-snug">
               Each project is scored against your profile — match ≠ selection. You can always bid.
             </p>
           </div>
           {scoredProjects.length > 0 && (
-            <span className="text-gray-400 text-sm">
+            <span className="text-gray-400 text-sm flex-shrink-0">
               {scoredProjects.length} project{scoredProjects.length !== 1 ? 's' : ''}
             </span>
           )}
@@ -577,7 +577,7 @@ export function ProjectFeed() {
         {/* Location prompt */}
         {!userLocation && (
           <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200 rounded-2xl p-5 mb-6">
-            <div className="flex items-center gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
               <div className="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
                 <Navigation className="w-6 h-6 text-white" />
               </div>
@@ -589,7 +589,7 @@ export function ProjectFeed() {
               </div>
               <button
                 onClick={() => setShowLocationModal(true)}
-                className="px-5 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors text-sm whitespace-nowrap"
+                className="w-full sm:w-auto px-5 py-2.5 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors text-sm"
               >
                 Enable Location
               </button>

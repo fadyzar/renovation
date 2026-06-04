@@ -128,6 +128,16 @@ export function Header() {
             ))}
             <button
               onClick={() => {
+                navigate('/account-settings');
+                setMobileMenuOpen(false);
+              }}
+              className="flex items-center gap-2 w-full text-left px-4 py-3 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              <Settings className="w-4 h-4" />
+              <span>Account Settings</span>
+            </button>
+            <button
+              onClick={() => {
                 signOut();
                 setMobileMenuOpen(false);
               }}
