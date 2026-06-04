@@ -109,6 +109,7 @@ export function OwnerDashboard() {
           project_images(image_url),
           payments(id, status, is_deposit, paid_at)
         `)
+        .eq('owner_id', profile?.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
