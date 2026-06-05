@@ -31,6 +31,7 @@ import { SignUpPage } from "./components/auth/SignUpPage";
 import { ForgotPasswordPage } from "./components/auth/ForgotPasswordPage";
 import { ForceRefreshModal } from "./components/shared/ForceRefreshModal";
 import { ContractorOnboarding } from "./components/contractor/ContractorOnboarding";
+import { OwnerOnboarding } from "./components/owner/OwnerOnboarding";
 
 function SubmitBidPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -90,15 +91,19 @@ function App() {
     );
   }
 
-  // ─── Contractor onboarding gate ─────────────────────────────────────────
-  const needsOnboarding =
+  // ─── Onboarding gates ────────────────────────────────────────────────────
+  const contractorNeedsOnboarding =
     profile.role === 'contractor' &&
     !profile.onboarding_completed &&
     (!profile.phone || !profile.specialties?.length);
 
-  if (needsOnboarding) {
-    return <ContractorOnboarding onComplete={() => {}} />;
-  }
+  const ownerNeedsOnboarding =
+    profile.role === 'owner' &&
+    !profile.onboarding_completed &&
+    !profile.phone;
+
+  if (contractorNeedsOnboarding) return <ContractorOnboarding onComplete={() => {}} />;
+  if (ownerNeedsOnboarding)      return <OwnerOnboarding onComplete={() => {}} />;
 
   // ─── Regular user routes ──────────────────────────────────────────────────
   return (
