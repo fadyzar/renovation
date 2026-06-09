@@ -22,6 +22,8 @@ import { PaymentSuccess } from "./components/screens/PaymentSuccess";
 import { NotificationsPage } from "./components/screens/NotificationsPage";
 import { AdminDashboard } from "./components/screens/AdminDashboard";
 import { AdminProjects } from "./components/screens/AdminProjects";
+import { AdminAssignedProjects } from "./components/screens/AdminAssignedProjects";
+import { AdminWhatsApp } from "./components/screens/AdminWhatsApp";
 import { AdminRevenue } from "./components/screens/AdminRevenue";
 import { AdminSupport } from "./components/screens/AdminSupport";
 import { AdminVerificationReview } from "./components/admin/AdminVerificationReview";
@@ -79,6 +81,8 @@ function App() {
         <Routes>
           <Route path="/admin"                   element={<AdminDashboard />} />
           <Route path="/admin/projects"          element={<AdminProjects />} />
+          <Route path="/admin/assigned"          element={<AdminAssignedProjects />} />
+          <Route path="/admin/whatsapp"          element={<AdminWhatsApp />} />
           <Route path="/admin/verifications"     element={<AdminVerificationReview />} />
           <Route path="/admin/revenue"           element={<AdminRevenue />} />
           <Route path="/admin/support"           element={<AdminSupport />} />

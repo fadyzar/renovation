@@ -2,15 +2,25 @@ import { supabase } from './supabase';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
-async function send(phone: string | undefined | null, message: string): Promise<void> {
-  if (!phone) return;
+/** Public URL of the platform — used for "log in" links inside messages. */
+export const APP_URL = 'https://mgbit.io';
+
+/** A ready-to-paste login call-to-action appended to user-facing notifications. */
+const LOGIN_CTA = `👉 Log in to the platform:\n${APP_URL}`;
+
+async function send(
+  phone: string | undefined | null,
+  message: string,
+  opts?: { throwOnError?: boolean },
+): Promise<{ ok: boolean; error?: string }> {
+  if (!phone) return { ok: false, error: 'No phone number' };
 
   try {
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData.session?.access_token;
-    if (!token) return;
+    if (!token) return { ok: false, error: 'Not authenticated' };
 
-    await fetch(`${SUPABASE_URL}/functions/v1/send-whatsapp`, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/send-whatsapp`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -18,18 +28,39 @@ async function send(phone: string | undefined | null, message: string): Promise<
       },
       body: JSON.stringify({ phone, message }),
     });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data?.ok === false) {
+      const error = data?.error ?? `HTTP ${res.status}`;
+      if (opts?.throwOnError) throw new Error(error);
+      return { ok: false, error };
+    }
+    return { ok: true };
   } catch (err) {
     console.warn('WhatsApp notification failed (non-blocking):', err);
+    if (opts?.throwOnError) throw err;
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
 
 // ─── Smart notification templates ────────────────────────────────────────────
 
 export const whatsapp = {
+  /** Send any custom message as-is (used by the admin message sender). */
+  custom(phone: string, message: string) {
+    return send(phone, message, { throwOnError: true });
+  },
+
+  /** Contractor: a project was assigned to them by an admin. */
+  projectAssigned(phone: string, projectTitle: string, amount: number) {
+    return send(phone,
+      `🏗️ Project Assigned!\n\nYou have been assigned "${projectTitle}" for $${amount.toLocaleString()}.\n\n${LOGIN_CTA}\n\n— M.G.BIT Platform`
+    );
+  },
+
   /** Contractor: their bid was accepted by the owner */
   bidAccepted(phone: string, projectTitle: string, amount: number) {
     return send(phone,
-      `🏗️ Bid Accepted!\n\nYour bid of $${amount.toLocaleString()} for "${projectTitle}" was accepted by the owner.\n\nThe owner is about to make the first payment. You'll be notified once the project is active.\n\n— M.G.BIT Platform`
+      `🏗️ Bid Accepted!\n\nYour bid of $${amount.toLocaleString()} for "${projectTitle}" was accepted by the owner.\n\nThe owner is about to make the first payment. You'll be notified once the project is active.\n\n${LOGIN_CTA}\n\n— M.G.BIT Platform`
     );
   },
 
@@ -43,7 +74,7 @@ export const whatsapp = {
   /** Owner: contractor submitted a milestone for approval */
   milestoneSubmitted(phone: string, projectTitle: string, milestoneTitle: string, amount: number) {
     return send(phone,
-      `🔔 Milestone Ready for Review\n\nYour contractor submitted "${milestoneTitle}" for approval on "${projectTitle}".\n\nAmount: $${amount.toLocaleString()}\n\nLog in to review and release payment.\n\n— M.G.BIT Platform`
+      `🔔 Milestone Ready for Review\n\nYour contractor submitted "${milestoneTitle}" for approval on "${projectTitle}".\n\nAmount: $${amount.toLocaleString()}\n\n${LOGIN_CTA}`
     );
   },
 
@@ -57,7 +88,7 @@ export const whatsapp = {
   /** Owner: new bid received on their project */
   newBidReceived(phone: string, projectTitle: string, contractorName: string, amount: number) {
     return send(phone,
-      `📋 New Bid Received!\n\n${contractorName} submitted a bid of $${amount.toLocaleString()} on "${projectTitle}".\n\nLog in to review their offer.\n\n— M.G.BIT Platform`
+      `📋 New Bid Received!\n\n${contractorName} submitted a bid of $${amount.toLocaleString()} on "${projectTitle}".\n\n${LOGIN_CTA}\n\n— M.G.BIT Platform`
     );
   },
 
