@@ -1,21 +1,36 @@
 import { useEffect, useState } from 'react';
 import { RefreshCw, Shield, Zap, CheckCircle } from 'lucide-react';
 
-const APP_VERSION = '2.1.0';
-const VERSION_KEY = 'mgbit_app_version';
-
 export function ForceRefreshModal() {
   const [show, setShow] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem(VERSION_KEY);
-    if (stored !== APP_VERSION) {
-      setShow(true);
+    let cancelled = false;
+
+    // Compare the version this bundle was built with against the one currently
+    // deployed (/version.json). Only prompt when the user is genuinely behind —
+    // never on every visit, and never when offline or in dev (no version.json).
+    async function check() {
+      try {
+        const res = await fetch(`/version.json?t=${Date.now()}`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data?.buildId && data.buildId !== __BUILD_ID__ && !cancelled) {
+          setShow(true);
+        }
+      } catch {
+        /* offline / no version file — don't nag */
+      }
     }
+
+    check();
+    // Re-check when the tab regains focus, to catch a deploy mid-session.
+    const onFocus = () => check();
+    window.addEventListener('focus', onFocus);
+    return () => { cancelled = true; window.removeEventListener('focus', onFocus); };
   }, []);
 
   function handleRefresh() {
-    localStorage.setItem(VERSION_KEY, APP_VERSION);
     window.location.reload();
   }
 
@@ -31,7 +46,7 @@ export function ForceRefreshModal() {
             <RefreshCw className="w-7 h-7 text-white" />
           </div>
           <h2 className="text-xl font-bold text-white">Platform Update Available</h2>
-          <p className="text-blue-200 text-sm mt-1">Version {APP_VERSION}</p>
+          <p className="text-blue-200 text-sm mt-1">A newer version is ready</p>
         </div>
 
         <div className="p-6">

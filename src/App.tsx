@@ -25,6 +25,7 @@ import { AdminProjects } from "./components/screens/AdminProjects";
 import { AdminAssignedProjects } from "./components/screens/AdminAssignedProjects";
 import { AdminWhatsApp } from "./components/screens/AdminWhatsApp";
 import { AdminRevenue } from "./components/screens/AdminRevenue";
+import { AdminPayouts } from "./components/screens/AdminPayouts";
 import { AdminSupport } from "./components/screens/AdminSupport";
 import { AdminVerificationReview } from "./components/admin/AdminVerificationReview";
 
@@ -33,6 +34,7 @@ import { SignUpPage } from "./components/auth/SignUpPage";
 import { ForgotPasswordPage } from "./components/auth/ForgotPasswordPage";
 import { ForceRefreshModal } from "./components/shared/ForceRefreshModal";
 import { ContractorOnboarding } from "./components/contractor/ContractorOnboarding";
+import { ContractorPayoutSetup } from "./components/contractor/ContractorPayoutSetup";
 import { OwnerOnboarding } from "./components/owner/OwnerOnboarding";
 
 function SubmitBidPage() {
@@ -85,6 +87,7 @@ function App() {
           <Route path="/admin/whatsapp"          element={<AdminWhatsApp />} />
           <Route path="/admin/verifications"     element={<AdminVerificationReview />} />
           <Route path="/admin/revenue"           element={<AdminRevenue />} />
+          <Route path="/admin/payouts"           element={<AdminPayouts />} />
           <Route path="/admin/support"           element={<AdminSupport />} />
           {/* Allow admin to view any project page */}
           <Route path="/project/:projectId/payments"       element={<ProjectPayments />} />
@@ -108,6 +111,14 @@ function App() {
 
   if (contractorNeedsOnboarding) return <ContractorOnboarding onComplete={() => {}} />;
   if (ownerNeedsOnboarding)      return <OwnerOnboarding onComplete={() => {}} />;
+
+  // Contractors must provide payout/banking details before using the platform.
+  const contractorNeedsPayout =
+    profile.role === 'contractor' &&
+    profile.onboarding_completed &&
+    !profile.payout_details_completed;
+
+  if (contractorNeedsPayout) return <ContractorPayoutSetup onComplete={() => {}} />;
 
   // ─── Regular user routes ──────────────────────────────────────────────────
   return (

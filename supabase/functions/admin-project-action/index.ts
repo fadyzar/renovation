@@ -50,7 +50,7 @@ Deno.serve(async (req: Request) => {
       .from("profiles").select("role").eq("id", user.id).single();
     if (callerProfile?.role !== "admin") return json({ error: "Forbidden — admin only" }, 403);
 
-    const { action, projectId, status } = await req.json();
+    const { action, projectId, status, milestones } = await req.json();
     if (!projectId) return json({ error: "projectId is required" }, 400);
 
     const { data: project } = await admin
@@ -91,6 +91,56 @@ Deno.serve(async (req: Request) => {
       const { error } = await admin.from("projects").update({ status }).eq("id", projectId);
       if (error) return json({ error: error.message }, 500);
       return json({ ok: true, action, projectId, status });
+    }
+
+    if (action === "set_schedule") {
+      // Edit the payment schedule (number of payments + amount each) on the
+      // assigned contractor's bid, WITHOUT touching the project status.
+      const schedule = Array.isArray(milestones)
+        ? milestones
+            .map((m: any, i: number) => ({
+              description: String(m?.description ?? "").trim() || `Payment ${i + 1}`,
+              price: Math.round((Number(m?.price) || 0) * 100) / 100,
+            }))
+            .filter((m) => m.price > 0)
+        : [];
+      if (!schedule.length) return json({ error: "Provide at least one payment with a positive amount." }, 400);
+
+      const total = schedule.reduce((s, m) => s + m.price, 0);
+
+      // Target the accepted bid; fall back to the selected contractor's bid.
+      const { data: bid } = await admin
+        .from("bids")
+        .select("id")
+        .eq("project_id", projectId)
+        .eq("status", "accepted")
+        .maybeSingle();
+
+      let bidQuery;
+      if (bid) {
+        bidQuery = admin.from("bids").update({ milestones: schedule, total_price: total }).eq("id", bid.id);
+      } else if (project.selected_contractor_id) {
+        bidQuery = admin.from("bids")
+          .update({ milestones: schedule, total_price: total })
+          .eq("project_id", projectId)
+          .eq("contractor_id", project.selected_contractor_id);
+      } else {
+        return json({ error: "No assigned contractor — assign one first." }, 400);
+      }
+      const { error } = await bidQuery;
+      if (error) return json({ error: error.message }, 500);
+
+      if (project.selected_contractor_id) {
+        await admin.from("notifications").insert({
+          user_id: project.selected_contractor_id,
+          type: "project_update",
+          title: "Payment Schedule Updated",
+          message: `The payment schedule for "${project.title}" was updated: ${schedule.length} payment(s), $${total.toLocaleString()} total.`,
+          link: `/project/${projectId}/payments`,
+          metadata: { project_id: projectId, action: "schedule_updated_by_admin" },
+        });
+      }
+      return json({ ok: true, action, projectId, total, milestones: schedule });
     }
 
     return json({ error: `Unknown action: ${action}` }, 400);

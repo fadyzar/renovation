@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Plus, DollarSign, Calendar, FileText, Trash2, AlertCircle, CheckCircle, Ruler, Zap } from 'lucide-react';
+import { X, Plus, DollarSign, Calendar, FileText, Trash2, AlertCircle, CheckCircle, Ruler, Zap, Info } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { ScanDataPanel, type ScanData } from '../shared/ScanDataPanel';
@@ -511,6 +511,23 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
                 ${totalPrice.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
+
+            {/* Platform commission notice — shown only to the contractor */}
+            {totalPrice > 0 && (
+              <div className="mt-3 flex items-start gap-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
+                <Info className="w-4 h-4 text-orange-600 flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-orange-800 space-y-1">
+                  <p>
+                    <span className="font-semibold">M.G.BIT collects a 10% commission</span> on the total payment.
+                    You'll receive <span className="font-semibold">${(totalPrice * 0.9).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span> after commission.
+                  </p>
+                  <p>
+                    To take home your full asking price, we recommend adding 10% to your bid
+                    {' '}(≈ <span className="font-semibold">${(totalPrice * 1.1).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>).
+                  </p>
+                </div>
+              </div>
+            )}
 
             {isOutsideBudget && (
               <div className="mt-3 flex items-start gap-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">

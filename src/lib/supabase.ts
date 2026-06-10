@@ -42,5 +42,6 @@ export interface Profile {
   years_experience?: number;
   specialties?: string[];
   onboarding_completed?: boolean;
+  payout_details_completed?: boolean;
   service_area?: string;
 }

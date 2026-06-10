@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, FolderOpen, DollarSign, HeadphonesIcon,
-  LogOut, Menu, X, ShieldCheck, Bell, UserCheck, MessageCircle,
+  LogOut, Menu, X, ShieldCheck, Bell, UserCheck, MessageCircle, Banknote,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { NotificationDropdown } from '../shared/NotificationDropdown';
@@ -14,6 +14,7 @@ const NAV = [
   { label: 'WhatsApp',       path: '/admin/whatsapp',       icon: MessageCircle   },
   { label: 'Verifications',  path: '/admin/verifications',  icon: ShieldCheck     },
   { label: 'Revenue',        path: '/admin/revenue',        icon: DollarSign      },
+  { label: 'Payouts',        path: '/admin/payouts',        icon: Banknote        },
   { label: 'Support',        path: '/admin/support',        icon: HeadphonesIcon  },
 ];
 

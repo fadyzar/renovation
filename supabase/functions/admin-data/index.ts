@@ -57,7 +57,7 @@ Deno.serve(async (req: Request) => {
     // All bids (history), with contractor names
     const { data: bids } = await admin
       .from("bids")
-      .select(`id, project_id, contractor_id, total_price, status, message, created_at, responded_at,
+      .select(`id, project_id, contractor_id, total_price, status, message, milestones, created_at, responded_at,
         contractor:profiles!contractor_id(full_name)`)
       .order("created_at", { ascending: false });
 
@@ -70,6 +70,7 @@ Deno.serve(async (req: Request) => {
         total_price: b.total_price,
         status: b.status,
         message: b.message,
+        milestones: Array.isArray(b.milestones) ? b.milestones : [],
         created_at: b.created_at,
         responded_at: b.responded_at,
       };
@@ -93,6 +94,7 @@ Deno.serve(async (req: Request) => {
         owner: norm(p.owner),
         contractor: norm(p.contractor),
         agreed_amount: accepted?.total_price ?? null,
+        agreed_milestones: accepted?.milestones ?? [],
         bids: list,
       };
     });

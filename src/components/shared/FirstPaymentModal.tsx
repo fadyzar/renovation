@@ -26,8 +26,6 @@ interface Props {
   onClose: () => void;
 }
 
-const PLATFORM_FEE_PCT = 10;
-
 const PENDING_KEY = 'pending_stripe_payment';
 
 export function FirstPaymentModal({
@@ -39,8 +37,9 @@ export function FirstPaymentModal({
 }: Props) {
   const firstMilestone = milestones[0];
   const firstAmount    = firstMilestone?.price ?? Math.round(totalBidAmount * 0.25);
-  const platformFee    = Math.round(totalBidAmount * PLATFORM_FEE_PCT / 100);
-  const totalCharge    = firstAmount + platformFee;
+  // The owner pays only the bid amount. The platform's commission is collected
+  // from the contractor's payout — it is never charged to or shown to the owner.
+  const totalCharge    = firstAmount;
 
   const [loading, setLoading] = useState(false);
   const [errMsg, setErrMsg] = useState('');
@@ -144,15 +143,6 @@ export function FirstPaymentModal({
             <div className="flex items-center justify-between text-sm text-gray-600">
               <span>First milestone</span>
               <span className="font-semibold text-gray-900">${firstAmount.toLocaleString()}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm text-gray-600">
-              <div>
-                <span>MGBiT match fee</span>
-                <span className="ml-1.5 text-xs bg-orange-100 text-orange-700 font-semibold px-1.5 py-0.5 rounded-full">
-                  {PLATFORM_FEE_PCT}% of ${totalBidAmount.toLocaleString()}
-                </span>
-              </div>
-              <span className="font-semibold text-orange-700">${platformFee.toLocaleString()}</span>
             </div>
             <div className="border-t border-green-200 pt-2.5 flex items-center justify-between">
               <span className="text-sm font-bold text-green-800">Total you pay</span>

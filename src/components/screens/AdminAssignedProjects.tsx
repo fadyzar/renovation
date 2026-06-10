@@ -4,12 +4,14 @@ import {
   RefreshCw, Eye, Users, Wrench, DollarSign, Clock, MapPin, Search,
   UserPlus, X, CheckCircle2, AlertTriangle, MessageCircle, Loader2,
   ChevronDown, ChevronRight, RotateCcw, Settings2, Calendar,
+  Plus, Trash2, Receipt, Pencil, Wand2,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { whatsapp } from '../../lib/whatsapp';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
+interface Milestone { description?: string; price?: number }
 interface Bid {
   id: string;
   contractor_id: string;
@@ -17,6 +19,7 @@ interface Bid {
   total_price: number;
   status: string;
   message?: string;
+  milestones?: Milestone[];
   created_at: string;
   responded_at?: string;
 }
@@ -32,6 +35,7 @@ interface Project {
   owner: { id: string; full_name: string; phone?: string; email?: string } | null;
   contractor: { id: string; full_name: string; phone?: string } | null;
   agreed_amount: number | null;
+  agreed_milestones?: Milestone[];
   bids: Bid[];
 }
 interface ContractorOpt { id: string; full_name: string; phone?: string }
@@ -77,6 +81,121 @@ async function callFn(name: string, body: unknown) {
   return data;
 }
 
+// ─── Payment schedule editor ────────────────────────────────────────────────
+interface SchedRow { description: string; amount: string }
+
+function milestonesToRows(ms?: Milestone[]): SchedRow[] {
+  if (!ms?.length) return [{ description: 'Payment 1', amount: '' }];
+  return ms.map((m, i) => ({
+    description: m.description || `Payment ${i + 1}`,
+    amount: m.price != null ? String(m.price) : '',
+  }));
+}
+function rowsToMilestones(rows: SchedRow[]): Milestone[] {
+  return rows
+    .map((r, i) => ({
+      description: r.description.trim() || `Payment ${i + 1}`,
+      price: Math.round((parseFloat(r.amount) || 0) * 100) / 100,
+    }))
+    .filter(m => m.price > 0);
+}
+function rowsTotal(rows: SchedRow[]) {
+  return rows.reduce((s, r) => s + (parseFloat(r.amount) || 0), 0);
+}
+
+/** Big, plain-language editor: choose how many payments and how much each. */
+function PaymentScheduleEditor({ rows, setRows }: { rows: SchedRow[]; setRows: (r: SchedRow[]) => void }) {
+  const [quickTotal, setQuickTotal] = useState('');
+  const total = rowsTotal(rows);
+
+  function generate(count: number) {
+    const n = Math.max(1, count);
+    const t = parseFloat(quickTotal) || 0;
+    if (t <= 0) {
+      setRows(Array.from({ length: n }, (_, i) => ({ description: `Payment ${i + 1}`, amount: '' })));
+      return;
+    }
+    const base = Math.floor((t / n) * 100) / 100;
+    setRows(Array.from({ length: n }, (_, i) => ({
+      description: `Payment ${i + 1}`,
+      amount: String(i === n - 1 ? Math.round((t - base * (n - 1)) * 100) / 100 : base),
+    })));
+  }
+  function update(i: number, field: keyof SchedRow, val: string) {
+    setRows(rows.map((r, idx) => (idx === i ? { ...r, [field]: val } : r)));
+  }
+  function addRow() {
+    setRows([...rows, { description: `Payment ${rows.length + 1}`, amount: '' }]);
+  }
+  function removeRow(i: number) {
+    if (rows.length <= 1) return;
+    setRows(rows.filter((_, idx) => idx !== i));
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Quick setup — total + how many payments */}
+      <div className="bg-gray-800/60 border border-gray-700 rounded-xl p-3">
+        <p className="text-xs font-semibold text-gray-300 mb-2 flex items-center gap-1.5">
+          <Wand2 className="w-3.5 h-3.5 text-blue-400" /> Quick setup — split a total evenly
+        </p>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[140px]">
+            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+            <input type="number" min="0" value={quickTotal} onChange={e => setQuickTotal(e.target.value)}
+              placeholder="Total amount"
+              className="w-full pl-9 pr-3 py-2 bg-gray-900 border border-gray-700 rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500" />
+          </div>
+          <div className="flex items-center gap-1">
+            {[1, 2, 3, 4].map(n => (
+              <button key={n} type="button" onClick={() => generate(n)} title={`Split into ${n} payment${n > 1 ? 's' : ''}`}
+                className="w-9 h-9 rounded-lg bg-gray-900 border border-gray-700 text-sm font-semibold text-gray-200 hover:bg-blue-600 hover:border-blue-500 hover:text-white transition-colors">
+                {n}
+              </button>
+            ))}
+            <span className="text-[11px] text-gray-500 ml-1">payments</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Editable rows */}
+      <div className="space-y-2">
+        {rows.map((r, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <span className="w-6 h-6 flex-shrink-0 flex items-center justify-center rounded-full bg-blue-900/40 text-blue-300 text-xs font-bold">{i + 1}</span>
+            <input value={r.description} onChange={e => update(i, 'description', e.target.value)}
+              placeholder={`Payment ${i + 1}`}
+              className="flex-1 min-w-0 px-3 py-2 bg-gray-800 border border-gray-700 rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            <div className="relative w-28 flex-shrink-0">
+              <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500" />
+              <input type="number" min="0" value={r.amount} onChange={e => update(i, 'amount', e.target.value)}
+                placeholder="0"
+                className="w-full pl-8 pr-2 py-2 bg-gray-800 border border-gray-700 rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            </div>
+            <button type="button" onClick={() => removeRow(i)} disabled={rows.length <= 1}
+              title="Remove payment"
+              className="p-2 text-gray-500 hover:text-red-400 disabled:opacity-30 disabled:hover:text-gray-500">
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center justify-between">
+        <button type="button" onClick={addRow}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-blue-300 hover:text-blue-200 font-semibold">
+          <Plus className="w-4 h-4" /> Add payment
+        </button>
+        <div className="text-sm">
+          <span className="text-gray-500">Total: </span>
+          <span className="font-bold text-emerald-300">${total.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span>
+          <span className="text-gray-500"> · {rows.length} payment{rows.length !== 1 ? 's' : ''}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Manual assignment modal ────────────────────────────────────────────────
 function AssignModal({
   projects, contractors, presetProjectId, onClose, onDone,
@@ -86,7 +205,7 @@ function AssignModal({
 }) {
   const [projectId, setProjectId] = useState(presetProjectId ?? '');
   const [contractorId, setContractorId] = useState('');
-  const [amount, setAmount] = useState('');
+  const [rows, setRows] = useState<SchedRow[]>([{ description: 'Payment 1', amount: '' }]);
   const [notify, setNotify] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,19 +213,24 @@ function AssignModal({
 
   async function submit() {
     setError(null); setSuccess(null);
-    const price = Number(amount);
-    if (!projectId || !contractorId || !price || price <= 0) {
-      setError('Select a project, a contractor and a positive amount.'); return;
+    const milestones = rowsToMilestones(rows);
+    const price = milestones.reduce((s, m) => s + (m.price ?? 0), 0);
+    if (!projectId || !contractorId) {
+      setError('Select a project and a contractor.'); return;
+    }
+    if (!milestones.length || price <= 0) {
+      setError('Add at least one payment with a positive amount.'); return;
     }
     setSubmitting(true);
     try {
-      const data = await callFn('admin-assign-project', { projectId, contractorId, amount: price });
+      const data = await callFn('admin-assign-project', { projectId, contractorId, amount: price, milestones });
       if (notify && data.contractor?.phone) {
         try { await whatsapp.projectAssigned(data.contractor.phone, data.project.title, data.amount); }
         catch { /* non-blocking */ }
       }
       setSuccess(
-        `Assigned "${data.project.title}" to ${data.contractor.full_name} for $${data.amount.toLocaleString()}.` +
+        `Assigned "${data.project.title}" to ${data.contractor.full_name} for $${data.amount.toLocaleString()} ` +
+        `across ${milestones.length} payment${milestones.length !== 1 ? 's' : ''}.` +
         (notify ? (data.contractor?.phone ? ' WhatsApp sent.' : ' (No phone — WhatsApp skipped.)') : '')
       );
       onDone();
@@ -148,11 +272,11 @@ function AssignModal({
             </select>
           </div>
           <div>
-            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Agreed Amount (USD)</label>
-            <div className="mt-1 relative">
-              <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
-              <input type="number" min="1" value={amount} onChange={e => setAmount(e.target.value)} placeholder="6300"
-                className="w-full pl-9 pr-3 py-2 bg-gray-800 border border-gray-700 rounded-xl text-sm text-white focus:outline-none focus:ring-1 focus:ring-blue-500" />
+            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
+              <Receipt className="w-3.5 h-3.5" /> Payment schedule — how many payments & how much each
+            </label>
+            <div className="mt-2">
+              <PaymentScheduleEditor rows={rows} setRows={setRows} />
             </div>
           </div>
           <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer">
@@ -172,6 +296,94 @@ function AssignModal({
             </button>
           )}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Edit payment schedule (assigned projects) ──────────────────────────────
+function EditScheduleModal({
+  project, onClose, onDone,
+}: {
+  project: Project; onClose: () => void; onDone: () => void;
+}) {
+  const [rows, setRows] = useState<SchedRow[]>(milestonesToRows(project.agreed_milestones));
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  async function submit() {
+    setError(null); setSuccess(null);
+    const milestones = rowsToMilestones(rows);
+    if (!milestones.length) { setError('Add at least one payment with a positive amount.'); return; }
+    setSubmitting(true);
+    try {
+      const data = await callFn('admin-project-action', { action: 'set_schedule', projectId: project.id, milestones });
+      setSuccess(`Schedule saved: ${milestones.length} payment${milestones.length !== 1 ? 's' : ''}, $${Number(data.total).toLocaleString()} total. The contractor was notified.`);
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm" onClick={onClose}>
+      <div className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto shadow-2xl"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between px-6 py-5 border-b border-gray-800 sticky top-0 bg-gray-900 rounded-t-2xl">
+          <div className="flex items-center gap-2"><Receipt className="w-5 h-5 text-blue-400" />
+            <h3 className="text-white font-bold text-base">Payment Schedule</h3></div>
+          <button onClick={onClose} className="text-gray-500 hover:text-white p-1"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="px-6 py-5 space-y-4">
+          <div className="text-xs text-gray-400">
+            <span className="text-gray-300 font-semibold">{project.title}</span>
+            {project.contractor && <> · assigned to <span className="text-green-400">{project.contractor.full_name}</span></>}
+          </div>
+          <PaymentScheduleEditor rows={rows} setRows={setRows} />
+          <p className="text-[11px] text-gray-500 bg-gray-800/60 border border-gray-700/60 rounded-lg px-3 py-2">
+            Changes apply to the owner's payment plan. If the owner has already paid the first
+            payment, only the not-yet-paid payments are affected.
+          </p>
+          {error && <div className="flex items-start gap-2 text-sm text-red-300 bg-red-900/20 border border-red-800/40 rounded-lg px-3 py-2"><AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />{error}</div>}
+          {success && <div className="flex items-start gap-2 text-sm text-emerald-300 bg-emerald-900/20 border border-emerald-800/40 rounded-lg px-3 py-2"><CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" />{success}</div>}
+        </div>
+        <div className="flex justify-end gap-2 px-6 py-4 border-t border-gray-800 sticky bottom-0 bg-gray-900">
+          <button onClick={onClose} className="px-4 py-2 text-sm text-gray-300 hover:text-white">{success ? 'Close' : 'Cancel'}</button>
+          {!success && (
+            <button onClick={submit} disabled={submitting}
+              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-colors disabled:opacity-50">
+              {submitting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}Save Schedule
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Schedule summary (read-only, inside expanded row) ──────────────────────
+function ScheduleSummary({ milestones }: { milestones?: Milestone[] }) {
+  if (!milestones?.length) {
+    return <p className="text-xs text-gray-500 py-1">No payment schedule set yet.</p>;
+  }
+  const total = milestones.reduce((s, m) => s + (m.price ?? 0), 0);
+  return (
+    <div className="space-y-1 py-1">
+      {milestones.map((m, i) => (
+        <div key={i} className="flex items-center justify-between gap-3 text-xs bg-gray-800/60 rounded-lg px-3 py-1.5">
+          <span className="flex items-center gap-2 min-w-0">
+            <span className="w-5 h-5 flex items-center justify-center rounded-full bg-blue-900/40 text-blue-300 text-[10px] font-bold flex-shrink-0">{i + 1}</span>
+            <span className="text-gray-200 truncate">{m.description || `Payment ${i + 1}`}</span>
+          </span>
+          <span className="font-semibold text-emerald-300 flex-shrink-0">${Number(m.price ?? 0).toLocaleString()}</span>
+        </div>
+      ))}
+      <div className="flex items-center justify-between text-xs px-3 pt-1">
+        <span className="text-gray-500">{milestones.length} payment{milestones.length !== 1 ? 's' : ''}</span>
+        <span className="text-gray-400">Total <span className="font-bold text-emerald-300">${total.toLocaleString()}</span></span>
       </div>
     </div>
   );
@@ -216,6 +428,7 @@ export function AdminAssignedProjects() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [assign, setAssign] = useState<{ open: boolean; presetProjectId?: string }>({ open: false });
+  const [editSched, setEditSched] = useState<Project | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
@@ -358,10 +571,16 @@ export function AdminAssignedProjects() {
                         <Settings2 className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-gray-500 pointer-events-none" />
                       </div>
                       {p.contractor ? (
-                        <button onClick={() => unassign(p)} disabled={busy} title="Un-assign / restore to bidding"
-                          className="flex items-center gap-1 px-2.5 py-1.5 bg-amber-600/20 hover:bg-amber-600/40 text-amber-300 text-xs font-semibold rounded-lg border border-amber-600/30 disabled:opacity-50">
-                          <RotateCcw className="w-3.5 h-3.5" />Un-assign
-                        </button>
+                        <>
+                          <button onClick={() => setEditSched(p)} disabled={busy} title="Edit payment schedule"
+                            className="flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600/20 hover:bg-emerald-600/40 text-emerald-300 text-xs font-semibold rounded-lg border border-emerald-600/30 disabled:opacity-50">
+                            <Receipt className="w-3.5 h-3.5" />Schedule
+                          </button>
+                          <button onClick={() => unassign(p)} disabled={busy} title="Un-assign / restore to bidding"
+                            className="flex items-center gap-1 px-2.5 py-1.5 bg-amber-600/20 hover:bg-amber-600/40 text-amber-300 text-xs font-semibold rounded-lg border border-amber-600/30 disabled:opacity-50">
+                            <RotateCcw className="w-3.5 h-3.5" />Un-assign
+                          </button>
+                        </>
                       ) : (
                         <button onClick={() => setAssign({ open: true, presetProjectId: p.id })} disabled={busy} title="Assign a contractor"
                           className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600/20 hover:bg-blue-600/40 text-blue-300 text-xs font-semibold rounded-lg border border-blue-600/30 disabled:opacity-50">
@@ -377,6 +596,20 @@ export function AdminAssignedProjects() {
 
                   {isOpen && (
                     <div className="mt-3 ml-7 border-l-2 border-gray-800 pl-4">
+                      {p.contractor && (
+                        <div className="mb-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                              <Receipt className="w-3 h-3" />Payment schedule
+                            </p>
+                            <button onClick={() => setEditSched(p)}
+                              className="flex items-center gap-1 text-[11px] text-emerald-300 hover:text-emerald-200 font-semibold">
+                              <Pencil className="w-3 h-3" />Edit
+                            </button>
+                          </div>
+                          <ScheduleSummary milestones={p.agreed_milestones} />
+                        </div>
+                      )}
                       <p className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide mb-1">Bid history</p>
                       <BidHistory bids={p.bids} />
                       <div className="flex flex-wrap gap-x-6 gap-y-1 mt-2 text-xs text-gray-500">
@@ -399,6 +632,14 @@ export function AdminAssignedProjects() {
           contractors={contractors}
           presetProjectId={assign.presetProjectId}
           onClose={() => setAssign({ open: false })}
+          onDone={load}
+        />
+      )}
+
+      {editSched && (
+        <EditScheduleModal
+          project={editSched}
+          onClose={() => setEditSched(null)}
           onDone={load}
         />
       )}

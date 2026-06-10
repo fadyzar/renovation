@@ -53,9 +53,23 @@ Deno.serve(async (req: Request) => {
     if (callerProfile?.role !== "admin") return json({ error: "Forbidden — admin only" }, 403);
 
     // 4. Validate input
-    const { projectId, contractorId, amount, message } = await req.json();
+    const { projectId, contractorId, amount, message, milestones } = await req.json();
     if (!projectId || !contractorId) return json({ error: "projectId and contractorId are required" }, 400);
-    const price = Number(amount);
+
+    // Normalize an optional payment schedule. Each milestone => { description, price }.
+    // When a schedule is supplied the agreed amount is the sum of its payments.
+    const schedule = Array.isArray(milestones)
+      ? milestones
+          .map((m: any, i: number) => ({
+            description: String(m?.description ?? "").trim() || `Payment ${i + 1}`,
+            price: Math.round((Number(m?.price) || 0) * 100) / 100,
+          }))
+          .filter((m) => m.price > 0)
+      : [];
+
+    const price = schedule.length
+      ? schedule.reduce((s, m) => s + m.price, 0)
+      : Number(amount);
     if (!price || price <= 0) return json({ error: "amount must be a positive number" }, 400);
 
     // 5. Load project + contractor (validate they exist and roles are correct)
@@ -97,6 +111,7 @@ Deno.serve(async (req: Request) => {
           status: "accepted",
           responded_at: new Date().toISOString(),
           message: message ?? "Assigned by admin",
+          ...(schedule.length ? { milestones: schedule } : {}),
         })
         .eq("id", existingBid.id)
         .select("id")
@@ -111,7 +126,7 @@ Deno.serve(async (req: Request) => {
           contractor_id: contractorId,
           total_price: price,
           status: "accepted",
-          milestones: [],
+          milestones: schedule,
           message: message ?? "Assigned by admin",
           responded_at: new Date().toISOString(),
         })
