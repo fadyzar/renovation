@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Search,
   Shield,
@@ -77,6 +77,15 @@ function FAQItem({
 export function Landing() {
   const navigate = useNavigate();
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    const hash = window.location.hash.replace('#', '');
+    if (hash) {
+      setTimeout(() => {
+        document.getElementById(hash)?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  }, []);
 
   const [projectType, setProjectType] = useState("");
   const [budget, setBudget] = useState("");
@@ -293,7 +302,7 @@ export function Landing() {
             >
               <motion.h1
                 variants={item}
-                className="text-[2.4rem] sm:text-5xl md:text-8xl lg:text-[90px] font-extrabold tracking-[-0.03em] text-brand-navy leading-[1.1] md:leading-[1] max-w-5xl"
+                className="text-[2.4rem] sm:text-5xl md:text-8xl lg:text-[90px] font-extrabold tracking-[-0.03em] text-brand-navy leading-[1.2] md:leading-[1.15] max-w-5xl"
               >
                 Transparent & Hassle<br className="hidden md:block" />
                 -Free Renovations.
@@ -349,7 +358,7 @@ export function Landing() {
               variants={container}
             >
               <div className="text-center mb-20">
-                <motion.h2 variants={item} className="text-[1.9rem] sm:text-4xl md:text-[56px] font-extrabold text-brand-navy tracking-tight leading-[1.1]">
+                <motion.h2 variants={item} className="text-[1.9rem] sm:text-4xl md:text-[56px] font-extrabold text-brand-navy tracking-tight leading-[3.5rem] sm:leading-[3.5rem] md:leading-[3.5rem]">
                   Powerful Features for a <br className="hidden md:block" /> Smooth Renovation Process
                 </motion.h2>
                 <motion.p variants={item} className="mt-4 sm:mt-6 text-base sm:text-xl text-[#909090] max-w-3xl mx-auto">
@@ -397,8 +406,8 @@ export function Landing() {
               variants={container}
               className="rounded-[20px] bg-[#F6F7FF] border border-[#D0D6FF] p-6 sm:p-10 lg:p-20 relative"
             >
-              <div className="relative z-10 text-center mb-16">
-                <motion.h2 variants={item} className="text-[1.9rem] sm:text-4xl md:text-[56px] font-extrabold text-brand-navy tracking-tight leading-[1.1] mb-4 sm:mb-6">
+              <div id="how-it-works" className="relative z-10 text-center mb-16">
+                <motion.h2 variants={item} className="text-[1.9rem] sm:text-4xl md:text-[56px] font-extrabold text-brand-navy tracking-tight leading-[3.5rem] sm:leading-[3.5rem] md:leading-[3.5rem] mb-4 sm:mb-6">
                   Kickstart Your Renovation <br className="hidden md:block" /> in Just a Few Clicks
                 </motion.h2>
                 <motion.p variants={item} className="mt-3 sm:mt-4 text-base sm:text-xl text-[#909090] max-w-3xl mx-auto leading-relaxed">
@@ -473,7 +482,7 @@ export function Landing() {
               variants={container}
             >
               <div className="text-center mb-20">
-                <motion.h2 variants={item} className="text-4xl md:text-[56px] font-extrabold text-brand-navy tracking-tight leading-[1.1]">
+                <motion.h2 variants={item} className="text-4xl md:text-[56px] font-extrabold text-brand-navy tracking-tight leading-[1.25]">
                   How it Works
                 </motion.h2>
                 <motion.p variants={item} className="mt-6 text-xl text-[#909090] max-w-2xl mx-auto">
@@ -513,7 +522,7 @@ export function Landing() {
               variants={container}
             >
               <div className="text-center mb-20">
-                <motion.h2 variants={item} className="text-[1.9rem] sm:text-4xl md:text-[56px] font-extrabold text-brand-navy tracking-tight max-w-4xl mx-auto leading-[1.1]">
+                <motion.h2 variants={item} className="text-[1.9rem] sm:text-4xl md:text-[56px] font-extrabold text-brand-navy tracking-tight max-w-4xl mx-auto leading-[3.5rem] sm:leading-[3.5rem] md:leading-[3.5rem]">
                   What Our Customers Are Saying About Their Experience
                 </motion.h2>
                 <motion.p variants={item} className="mt-4 sm:mt-6 text-base sm:text-xl text-[#909090] max-w-3xl mx-auto">

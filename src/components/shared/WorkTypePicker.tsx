@@ -22,6 +22,19 @@ export function WorkTypePicker({ selected, onChange, singleSelect = false }: Pro
     onChange(next);
   }
 
+  function toggleAll(catId: string) {
+    const cat = WORK_CATEGORIES.find(c => c.id === catId);
+    if (!cat) return;
+    const allIds = cat.subs.map(s => s.id);
+    const allSelected = allIds.every(id => selected.includes(id));
+    if (allSelected) {
+      onChange(selected.filter(id => !allIds.includes(id)));
+    } else {
+      const toAdd = allIds.filter(id => !selected.includes(id));
+      onChange([...selected, ...toAdd]);
+    }
+  }
+
   return (
     <div className="space-y-2">
       {WORK_CATEGORIES.map(cat => {
@@ -53,7 +66,19 @@ export function WorkTypePicker({ selected, onChange, singleSelect = false }: Pro
 
             {/* Sub-specialties */}
             {isOpen && (
-              <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5 bg-white">
+              <div className="bg-white">
+                {!singleSelect && (
+                  <div className="px-3 pt-2 pb-1 flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => toggleAll(cat.id)}
+                      className="text-xs font-medium text-orange-600 hover:text-orange-800 transition-colors"
+                    >
+                      {cat.subs.every(s => selected.includes(s.id)) ? 'Deselect All' : 'Select All'}
+                    </button>
+                  </div>
+                )}
+              <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                 {cat.subs.map(sub => {
                   const active = selected.includes(sub.id);
                   return (
@@ -76,6 +101,7 @@ export function WorkTypePicker({ selected, onChange, singleSelect = false }: Pro
                     </button>
                   );
                 })}
+              </div>
               </div>
             )}
           </div>

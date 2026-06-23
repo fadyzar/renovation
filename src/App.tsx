@@ -122,11 +122,14 @@ function App() {
 
   // ─── Regular user routes ──────────────────────────────────────────────────
   return (
-    <Layout>
-      <ForceRefreshModal />
-      <ScrollToTop />
-      <Routes>
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+    <Routes>
+      <Route path="/landing" element={<Landing />} />
+      <Route path="/*" element={
+        <Layout>
+          <ForceRefreshModal />
+          <ScrollToTop />
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/login" element={<Navigate to="/dashboard" replace />} />
         <Route path="/signup" element={<Navigate to="/dashboard" replace />} />
         <Route path="/forgot-password" element={<Navigate to="/dashboard" replace />} />
@@ -155,9 +158,11 @@ function App() {
         <Route path="/settings"                          element={<Settings />} />
         <Route path="/support"                           element={<Support />} />
         <Route path="/notifications"                     element={<NotificationsPage />} />
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
-      </Routes>
-    </Layout>
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </Layout>
+      } />
+    </Routes>
   );
 }
 

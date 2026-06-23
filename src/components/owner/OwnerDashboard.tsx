@@ -242,7 +242,7 @@ export function OwnerDashboard() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-xl p-6 border border-gray-100">
+          <div className="bg-white rounded-xl p-6 border border-gray-300">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Total Projects</p>
@@ -254,7 +254,7 @@ export function OwnerDashboard() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl p-6 border border-gray-100">
+          <div className="bg-white rounded-xl p-6 border border-gray-300">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">In Progress</p>
@@ -268,7 +268,7 @@ export function OwnerDashboard() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl p-6 border border-gray-100">
+          <div className="bg-white rounded-xl p-6 border border-gray-300">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Completed</p>
@@ -282,7 +282,7 @@ export function OwnerDashboard() {
             </div>
           </div>
 
-          <div className="bg-white rounded-xl p-6 border border-gray-100">
+          <div className="bg-white rounded-xl p-6 border border-gray-300">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-gray-600">Seeking Quotes</p>
@@ -303,7 +303,7 @@ export function OwnerDashboard() {
           <div className="inline-block w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
         </div>
       ) : projects.length === 0 ? (
-        <div className="bg-white rounded-2xl p-12 text-center border border-gray-100">
+        <div className="bg-white rounded-2xl p-12 text-center border border-gray-300">
           <Home className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h3 className="text-xl font-semibold text-gray-900 mb-2">No projects yet</h3>
           <p className="text-gray-600 mb-6">Create your first renovation project to get started</p>
@@ -323,7 +323,7 @@ export function OwnerDashboard() {
             return (
               <div
                 key={project.id}
-                className="bg-white rounded-xl p-6 border border-gray-100 hover:shadow-lg transition-all"
+                className="bg-white rounded-xl p-6 border border-gray-300 hover:shadow-lg transition-all"
               >
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <div className="flex-1 min-w-0">

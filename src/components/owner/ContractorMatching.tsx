@@ -33,6 +33,7 @@ interface Bid {
     bio: string;
     avatar_url: string;
     rating: number | null;
+    years_experience: number | null;
   } | null;
 }
 
@@ -55,11 +56,10 @@ interface RankedBid extends Bid {
 function estimatedTime(bid: Bid): string {
   const total = bid.milestones.reduce((s, m) => s + (m.duration || 0), 0);
   if (total === 0) {
-    const mo = Math.max(1, Math.ceil(bid.milestones.length * 1.5));
-    return `${mo} Month${mo !== 1 ? 's' : ''}`;
+    const days = Math.max(7, bid.milestones.length * 7);
+    return `${days} Day${days !== 1 ? 's' : ''}`;
   }
-  const mo = Math.ceil(total / 30);
-  return `${mo} Month${mo !== 1 ? 's' : ''}`;
+  return `${total} Day${total !== 1 ? 's' : ''}`;
 }
 
 function avatarUrl(name?: string, url?: string | null): string {
@@ -119,7 +119,8 @@ export function ContractorMatching() {
             company_name,
             bio,
             avatar_url,
-            rating
+            rating,
+            years_experience
           )
         `)
         .eq('project_id', projectId)
