@@ -34,7 +34,6 @@ import {
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { processMockDeposit, type CardDetails } from '../../lib/mockPaymentService';
-import { whatsapp } from '../../lib/whatsapp';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -455,8 +454,6 @@ export function ProjectPayments() {
   const [bid, setBid] = useState<BidInfo | null>(null);
   const [milestones, setMilestones] = useState<PaymentMilestone[]>([]);
   const [ownerProfile, setOwnerProfile] = useState<{ id: string; full_name: string; avatar_url: string | null } | null>(null);
-  const [ownerPhone, setOwnerPhone] = useState<string | null>(null);
-  const [contractorPhone, setContractorPhone] = useState<string | null>(null);
   const [approveModal, setApproveModal] = useState<{ milestone: PaymentMilestone; isFirst: boolean } | null>(null);
   const [submitModal, setSubmitModal] = useState<PaymentMilestone | null>(null);
   const [completing, setCompleting] = useState(false);
@@ -487,17 +484,6 @@ export function ProjectPayments() {
         .eq('id', proj.owner_id)
         .maybeSingle();
       setOwnerProfile(ownerData ?? null);
-      setOwnerPhone((ownerData as any)?.phone ?? null);
-
-      // 1c. Load contractor phone (if project has one)
-      if (proj.selected_contractor_id) {
-        const { data: contractorData } = await supabase
-          .from('profiles')
-          .select('phone')
-          .eq('id', proj.selected_contractor_id)
-          .maybeSingle();
-        setContractorPhone((contractorData as any)?.phone ?? null);
-      }
 
       // 2. Load accepted bid
       const { data: bidData } = await supabase
@@ -922,15 +908,8 @@ export function ProjectPayments() {
           onSuccess={() => {
             setApproveModal(null);
             loadData();
-            // Notify contractor via WhatsApp
-            if (contractorPhone && project?.title) {
-              whatsapp.milestoneApproved(
-                contractorPhone,
-                project.title,
-                approveModal.milestone.title,
-                approveModal.milestone.amount
-              );
-            }
+            // Contractor notification (in-app + WhatsApp + email) is sent
+            // server-side via the milestone-paid DB trigger + dispatcher.
           }}
           onClose={() => setApproveModal(null)}
         />
@@ -941,15 +920,8 @@ export function ProjectPayments() {
           onSuccess={() => {
             setSubmitModal(null);
             loadData();
-            // Notify owner via WhatsApp
-            if (ownerPhone && project?.title) {
-              whatsapp.milestoneSubmitted(
-                ownerPhone,
-                project.title,
-                submitModal.title,
-                submitModal.amount
-              );
-            }
+            // Owner notification (in-app + WhatsApp + email) is sent server-side
+            // via the milestone-submitted DB trigger + dispatcher.
           }}
           onClose={() => setSubmitModal(null)}
         />

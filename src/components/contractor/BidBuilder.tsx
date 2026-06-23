@@ -5,7 +5,6 @@ import { useAuth } from '../../contexts/AuthContext';
 import { ScanDataPanel, type ScanData } from '../shared/ScanDataPanel';
 import { estimateCost, checkBidDeviation, type CostEstimate } from '../../lib/costEstimator';
 import { validateMessage, getViolationMessage } from '../../utils/contactDetection';
-import { whatsapp } from '../../lib/whatsapp';
 
 interface Project {
   id: string;
@@ -188,7 +187,7 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
 
       // status: 'submitted' — canonical status for a newly placed bid
       // ContractorMatching queries this status to show owner all received bids
-      const { data: bidData, error: insertError } = await supabase
+      const { error: insertError } = await supabase
         .from('bids')
         .insert({
           project_id: project.id,
@@ -197,43 +196,13 @@ export function BidBuilder({ project, onClose, onSuccess }: BidBuilderProps) {
           milestones: milestonesData,
           message: message,
           status: 'submitted'
-        })
-        .select()
-        .single();
+        });
 
       if (insertError) throw insertError;
 
-      // Get project owner to send notification
-      const { data: projectData } = await supabase
-        .from('projects')
-        .select('owner_id')
-        .eq('id', project.id)
-        .single();
-
-      // In-app notification is handled by the DB trigger (notify_new_bid).
-      // Only send WhatsApp here.
-      if (projectData?.owner_id) {
-        const { data: ownerProfile } = await supabase
-          .from('profiles')
-          .select('phone')
-          .eq('id', projectData.owner_id)
-          .maybeSingle();
-
-        if (ownerProfile?.phone) {
-          whatsapp.newBidReceived(
-            ownerProfile.phone,
-            project.title,
-            profile?.full_name ?? 'A contractor',
-            calculateTotal()
-          );
-        }
-      }
-
-      // Notify all admins
-      const { data: admins } = await supabase.from('profiles').select('phone').eq('role', 'admin');
-      (admins ?? []).forEach((a: { phone?: string }) => {
-        if (a.phone) whatsapp.adminNewBid(a.phone, project.title, profile?.full_name ?? 'A contractor', calculateTotal());
-      });
+      // Notifications (in-app + WhatsApp + email to owner and admins) are
+      // handled server-side: the notify_new_bid DB trigger inserts the rows and
+      // the dispatch-notification edge function fans them out to every channel.
 
       onSuccess();
       onClose();

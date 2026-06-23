@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { Send, X, MessageCircle, FileText, Image as ImageIcon, CheckCheck, Check, Paperclip, Lock, AlertCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { whatsapp } from '../../lib/whatsapp';
 
 interface Message {
   id: string;
@@ -396,21 +395,9 @@ export function Chat({ conversationId, projectId, contractorId, onClose }: ChatP
         .update({ last_message_at: new Date().toISOString() })
         .eq('id', conversation.id);
 
-      // WhatsApp notification to the other party (non-blocking)
-      const recipientId = profile.id === conversation.owner_id
-        ? conversation.contractor_id
-        : conversation.owner_id;
-
-      supabase
-        .from('profiles')
-        .select('phone')
-        .eq('id', recipientId)
-        .maybeSingle()
-        .then(({ data }) => {
-          if (data?.phone) {
-            whatsapp.newMessage(data.phone, profile.full_name ?? 'Someone', messageContent || '📎 Attachment');
-          }
-        });
+      // Recipient notification (in-app + WhatsApp) is sent server-side: the
+      // notify_new_message DB trigger inserts the row (throttled) and the
+      // dispatch-notification edge function delivers it.
 
       handleTyping(false);
     } catch (error) {

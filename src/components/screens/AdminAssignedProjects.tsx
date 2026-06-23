@@ -7,7 +7,6 @@ import {
   Plus, Trash2, Receipt, Pencil, Wand2,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { whatsapp } from '../../lib/whatsapp';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 
@@ -224,14 +223,11 @@ function AssignModal({
     setSubmitting(true);
     try {
       const data = await callFn('admin-assign-project', { projectId, contractorId, amount: price, milestones });
-      if (notify && data.contractor?.phone) {
-        try { await whatsapp.projectAssigned(data.contractor.phone, data.project.title, data.amount); }
-        catch { /* non-blocking */ }
-      }
+      // The edge function inserts the contractor's notification row; the
+      // dispatch-notification service delivers WhatsApp + email from it.
       setSuccess(
         `Assigned "${data.project.title}" to ${data.contractor.full_name} for $${data.amount.toLocaleString()} ` +
-        `across ${milestones.length} payment${milestones.length !== 1 ? 's' : ''}.` +
-        (notify ? (data.contractor?.phone ? ' WhatsApp sent.' : ' (No phone — WhatsApp skipped.)') : '')
+        `across ${milestones.length} payment${milestones.length !== 1 ? 's' : ''}.`
       );
       onDone();
     } catch (e) {

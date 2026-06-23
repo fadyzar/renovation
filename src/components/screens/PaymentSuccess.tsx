@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { CheckCircle, AlertCircle, MessageCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { whatsapp } from '../../lib/whatsapp';
 
 type State = 'activating' | 'success' | 'error';
 
@@ -28,7 +27,6 @@ export function PaymentSuccess() {
         projectId, bidId, ownerId, contractorId,
         contractorName, contractorPhone,
         totalBidAmount, firstAmount, milestones,
-        projectTitle,
       } = JSON.parse(raw);
 
       const sessionId = searchParams.get('session_id') ?? `stripe_${Date.now()}`;
@@ -55,33 +53,9 @@ export function PaymentSuccess() {
       setConversationId((rpcData as any)?.conversation_id);
       setState('success');
 
-      // Notify contractor via WhatsApp
-      const { data: contractorProfile } = await supabase
-        .from('profiles')
-        .select('phone, full_name')
-        .eq('id', contractorId)
-        .maybeSingle();
-
-      const { data: ownerProfile } = await supabase
-        .from('profiles')
-        .select('full_name')
-        .eq('id', ownerId)
-        .maybeSingle();
-
-      if (contractorProfile?.phone) {
-        whatsapp.projectActivated(
-          contractorProfile.phone,
-          projectTitle,
-          ownerProfile?.full_name ?? 'the owner'
-        );
-      }
-
-      // Notify all admins
-      const { data: admins } = await supabase.from('profiles').select('phone').eq('role', 'admin');
-      const platformFee = Math.round(totalBidAmount * 0.10);
-      (admins ?? []).forEach(a => {
-        if (a.phone) whatsapp.adminProjectActivated(a.phone, projectTitle, totalBidAmount, platformFee);
-      });
+      // Activation notifications (contractor + admins, in-app + WhatsApp + email)
+      // are sent server-side when the project flips to in_progress, via the
+      // notify_admins_payment DB trigger + dispatch-notification service.
     } catch (err: any) {
       console.error('Activation error:', err);
       setErrMsg(err?.message ?? 'Something went wrong activating your project.');
