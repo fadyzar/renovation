@@ -9,8 +9,11 @@ interface AuthContextType {
   refreshProfile: () => Promise<void>;
   signUp: (email: string, password: string, fullName: string, role: 'property_owner' | 'contractor') => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: (role?: 'property_owner' | 'contractor') => Promise<void>;
   signOut: () => Promise<void>;
 }
+
+const PENDING_ROLE_KEY = 'mgbit_pending_signup_role';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -53,6 +56,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .maybeSingle();
 
       if (error) throw error;
+
+      // First-time OAuth (e.g. Google) signups land here with the DB default
+      // role (property_owner). If the user picked a role before the OAuth
+      // redirect, apply it once — clamped to self-service roles only; the DB
+      // trigger blocks any attempt to reach 'admin'.
+      const pendingRole = localStorage.getItem(PENDING_ROLE_KEY);
+      if (data && pendingRole && (pendingRole === 'property_owner' || pendingRole === 'contractor')
+          && data.role !== 'admin' && data.role !== pendingRole) {
+        localStorage.removeItem(PENDING_ROLE_KEY);
+        const { data: updated } = await supabase
+          .from('profiles').update({ role: pendingRole }).eq('id', userId).select('*').maybeSingle();
+        setProfile(updated ?? data);
+        return;
+      }
+      localStorage.removeItem(PENDING_ROLE_KEY);
       setProfile(data);
     } catch (error) {
       console.error('Error loading profile:', error);
@@ -85,6 +103,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
   }
 
+  async function signInWithGoogle(role?: 'property_owner' | 'contractor') {
+    // Remember the chosen role so the first-time profile (created by the DB
+    // trigger as property_owner) can be corrected after the OAuth redirect.
+    if (role) localStorage.setItem(PENDING_ROLE_KEY, role);
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+        queryParams: { prompt: 'select_account' },
+      },
+    });
+    if (error) { localStorage.removeItem(PENDING_ROLE_KEY); throw error; }
+  }
+
   async function signOut() {
     try {
       await supabase.auth.signOut({ scope: 'local' });
@@ -97,7 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, refreshProfile, signUp, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, profile, loading, refreshProfile, signUp, signIn, signInWithGoogle, signOut }}>
       {children}
     </AuthContext.Provider>
   );

@@ -3,6 +3,7 @@ import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useNavigate, Link } from 'react-router-dom';
 import logo from '../../assets/logo.svg';
+import { GoogleButton } from './GoogleButton';
 
 export function LoginPage() {
     const [email, setEmail] = useState('');
@@ -121,6 +122,13 @@ export function LoginPage() {
                         >
                             {loading ? 'Logging in...' : 'Log In'}
                         </button>
+
+                        <div className="flex items-center gap-3 my-1">
+                            <div className="flex-1 h-px bg-gray-200" />
+                            <span className="text-xs text-brand-navy/40 font-medium">or</span>
+                            <div className="flex-1 h-px bg-gray-200" />
+                        </div>
+                        <GoogleButton />
 
                         <p className="text-center text-brand-navy/60 font-medium">
                             Need an account?{' '}

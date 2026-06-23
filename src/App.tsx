@@ -35,6 +35,7 @@ import { SignUpPage } from "./components/auth/SignUpPage";
 import { ForgotPasswordPage } from "./components/auth/ForgotPasswordPage";
 import { ForceRefreshModal } from "./components/shared/ForceRefreshModal";
 import { ContractorOnboarding } from "./components/contractor/ContractorOnboarding";
+import { ResetPassword } from "./components/auth/ResetPassword";
 import { OwnerOnboarding } from "./components/owner/OwnerOnboarding";
 
 function SubmitBidPage() {
@@ -58,6 +59,13 @@ function App() {
     );
   }
 
+  // Password recovery must render regardless of auth state — the email link
+  // establishes a temporary recovery session, which would otherwise route the
+  // user straight into the app.
+  if (window.location.pathname === '/reset-password') {
+    return (<><ScrollToTop /><ResetPassword /></>);
+  }
+
   if (!user || !profile) {
     return (
       <>
@@ -65,6 +73,7 @@ function App() {
         <ScrollToTop />
         <Routes>
           <Route path="/" element={<Landing />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignUpPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
