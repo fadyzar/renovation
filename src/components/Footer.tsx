@@ -86,13 +86,11 @@ export function Footer() {
             <div>
               <h4 className="text-[18px] font-semibold text-black mb-5">Company</h4>
               <ul className="space-y-3">
-                {['About Us'].map((item) => (//'Careers', 'Blog'
-                  <li key={item}>
-                    <a href="#" className="text-[14px] text-black hover:opacity-60 transition-opacity">
-                      {item}
-                    </a>
-                  </li>
-                ))}
+                <li>
+                  <button onClick={() => navigate('/about')} className="text-[14px] text-black hover:opacity-60 transition-opacity">
+                    About Us
+                  </button>
+                </li>
               </ul>
             </div>
 

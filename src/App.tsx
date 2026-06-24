@@ -2,6 +2,7 @@ import { Routes, Route, Navigate, useParams, useNavigate } from "react-router-do
 import { ScrollToTop } from "./components/ScrollToTop";
 import { useAuth } from "./contexts/AuthContext";
 import { Landing } from "./components/Landing";
+import { AboutPage } from "./components/AboutPage";
 import { Layout } from "./components/Layout";
 import { AdminLayout } from "./components/admin/AdminLayout";
 import { OwnerDashboard } from "./components/owner/OwnerDashboard";
@@ -65,6 +66,7 @@ function App() {
         <ScrollToTop />
         <Routes>
           <Route path="/" element={<Landing />} />
+          <Route path="/about" element={<AboutPage />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignUpPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -124,6 +126,7 @@ function App() {
   return (
     <Routes>
       <Route path="/landing" element={<Landing />} />
+      <Route path="/about" element={<AboutPage />} />
       <Route path="/*" element={
         <Layout>
           <ForceRefreshModal />
