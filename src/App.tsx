@@ -24,6 +24,7 @@ import { AdminDashboard } from "./components/screens/AdminDashboard";
 import { AdminProjects } from "./components/screens/AdminProjects";
 import { AdminAssignedProjects } from "./components/screens/AdminAssignedProjects";
 import { AdminWhatsApp } from "./components/screens/AdminWhatsApp";
+import { AdminTeamAlerts } from "./components/screens/AdminTeamAlerts";
 import { AdminEmail } from "./components/screens/AdminEmail";
 import { AdminRevenue } from "./components/screens/AdminRevenue";
 import { AdminPayouts } from "./components/screens/AdminPayouts";
@@ -94,6 +95,7 @@ function App() {
           <Route path="/admin/projects"          element={<AdminProjects />} />
           <Route path="/admin/assigned"          element={<AdminAssignedProjects />} />
           <Route path="/admin/whatsapp"          element={<AdminWhatsApp />} />
+          <Route path="/admin/team"              element={<AdminTeamAlerts />} />
           <Route path="/admin/email"             element={<AdminEmail />} />
           <Route path="/admin/verifications"     element={<AdminVerificationReview />} />
           <Route path="/admin/revenue"           element={<AdminRevenue />} />
