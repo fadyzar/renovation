@@ -237,7 +237,10 @@ Deno.serve(async (req: Request) => {
           message,
           status: r.ok ? "sent" : "failed",
           error: r.error ?? null,
-          recipient_id: m.id,
+          // Team members live in team_whatsapp_recipients, NOT profiles, but
+          // whatsapp_logs.recipient_id FKs profiles(id) — so writing the team id
+          // here silently failed the insert. Identity is kept in recipient_name.
+          recipient_id: null,
           recipient_type: "team",
           recipient_name: m.name,
           event_type: `team:${alert.event_type}`,
