@@ -17,7 +17,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { phone, message, recipient_id, recipient_type, event_type, project_id } = await req.json();
+    const { phone, message, recipient_id, recipient_type, recipient_name, event_type, project_id } = await req.json();
 
     if (!phone || !message) {
       return new Response(
@@ -42,6 +42,7 @@ Deno.serve(async (req: Request) => {
           error: result.error ?? null,
           recipient_id: recipient_id ?? null,
           recipient_type: recipient_type ?? null,
+          recipient_name: recipient_name ?? null,
           event_type: event_type ?? "admin_manual",
           project_id: project_id ?? null,
         });

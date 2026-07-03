@@ -8,7 +8,7 @@ export const APP_URL = 'https://mgbit.io';
 /** A ready-to-paste login call-to-action appended to user-facing notifications. */
 const LOGIN_CTA = `👉 Log in to the platform:\n${APP_URL}`;
 
-interface SendMeta { recipient_id?: string; recipient_type?: string; event_type?: string; project_id?: string }
+interface SendMeta { recipient_id?: string; recipient_type?: string; recipient_name?: string; event_type?: string; project_id?: string }
 
 async function send(
   phone: string | undefined | null,
