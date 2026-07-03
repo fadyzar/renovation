@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.57.4";
 import {
   sendResend, tplWelcome, tplNewProject, tplNewBid, tplGeneric, APP_URL as EMAIL_APP_URL, type Email,
 } from "../_shared/email.ts";
+import { sendWhatsApp, bodyForNotification, eventTypeFor } from "../_shared/whatsapp.ts";
 
 /**
  * Unified notification dispatcher.
@@ -24,10 +25,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey, x-webhook-secret",
 };
 
-const INSTANCE_ID = Deno.env.get("GREENAPI_INSTANCE_ID") ?? "7107609079";
-const API_TOKEN   = Deno.env.get("GREENAPI_API_TOKEN")   ?? "2ecdaa3dce4a4c0bb72f318d159280f339636ddb664a4a5388";
-const APP_URL     = Deno.env.get("APP_URL") ?? "https://mgbit.io";
-
 // ─── Channel routing ─────────────────────────────────────────────────────────
 // Which channels each notification type should reach, in addition to the
 // in-app row that already exists. Admin recipients are downgraded to WhatsApp
@@ -37,8 +34,9 @@ type Channel = "whatsapp" | "email";
 const TYPE_CHANNELS: Record<string, Channel[]> = {
   welcome:             ["whatsapp", "email"],
   new_bid:             ["whatsapp", "email"],
+  bid_submitted:       ["whatsapp", "email"],
   bid_accepted:        ["whatsapp", "email"],
-  bid_rejected:        ["email"],
+  bid_rejected:        ["whatsapp", "email"],
   deposit_paid:        ["whatsapp", "email"],
   milestone_submitted: ["whatsapp", "email"],
   milestone_completed: ["whatsapp", "email"],
@@ -54,48 +52,6 @@ function channelsFor(type: string, role: string | null): Channel[] {
   // Admins get WhatsApp pings only — no per-event email noise.
   if (role === "admin") return base.filter((c) => c === "whatsapp");
   return base;
-}
-
-// ─── Phone → WhatsApp chatId (mirrors send-whatsapp) ─────────────────────────
-function toWhatsAppId(phone: string): string | null {
-  const digits = phone.replace(/\D/g, "");
-  if (!digits || digits.length < 7) return null;
-  let n = digits;
-  if (n.startsWith("972")) { /* IL w/ cc */ }
-  else if (n.startsWith("1") && n.length === 11) { /* US w/ cc */ }
-  else if (n.startsWith("44") || n.startsWith("61") || n.startsWith("52")) { /* other cc */ }
-  else if (n.startsWith("0") && n.length === 10) n = "972" + n.slice(1);
-  else if (n.length === 10 && !n.startsWith("0")) n = "1" + n;
-  else if (n.length === 9 && n.startsWith("5")) n = "972" + n;
-  return `${n}@c.us`;
-}
-
-async function sendWhatsApp(phone: string, message: string): Promise<{ ok: boolean; error?: string }> {
-  const chatId = toWhatsAppId(phone);
-  if (!chatId) return { ok: false, error: "Invalid phone number" };
-  const url = `https://api.green-api.com/waInstance${INSTANCE_ID}/sendMessage/${API_TOKEN}`;
-  try {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ chatId, message }),
-    });
-    if (!res.ok) {
-      const body = await res.text();
-      return { ok: false, error: `Green API ${res.status}: ${body.slice(0, 200)}` };
-    }
-    return { ok: true };
-  } catch (err) {
-    return { ok: false, error: String(err) };
-  }
-}
-
-// ─── WhatsApp body (single source of truth = notification.title/message) ─────
-function buildWhatsAppBody(title: string, message: string, type: string): string {
-  const cta = type === "new_message"
-    ? `Reply via the M.G.BIT platform.`
-    : `👉 Log in to the platform:\n${APP_URL}`;
-  return `*${title}*\n\n${message}\n\n${cta}\n\n— M.G.BIT`;
 }
 
 function absUrl(path?: string | null): string {
@@ -212,16 +168,24 @@ Deno.serve(async (req: Request) => {
     // WhatsApp
     if (channels.includes("whatsapp")) {
       if (profile?.phone) {
-        const waBody = buildWhatsAppBody(notif.title, notif.message, notif.type);
+        const meta = notif.metadata ?? {};
+        const waBody = await bodyForNotification(supabase, notif, profile);
         const r = await sendWhatsApp(profile.phone, waBody);
         results.whatsapp = r;
-        await supabase.from("whatsapp_logs").insert({
-          phone: profile.phone,
-          message: waBody,
-          status: r.ok ? "sent" : "failed",
-          error: r.error ?? null,
-          recipient_id: notif.user_id,
-        });
+        // Skipped by the kill-switch is not a failure — don't log a phantom row.
+        if (!r.skipped) {
+          await supabase.from("whatsapp_logs").insert({
+            phone: r.to ?? profile.phone,
+            message: waBody,
+            status: r.ok ? "sent" : "failed",
+            error: r.error ?? null,
+            recipient_id: notif.user_id,
+            recipient_type: profile.role ?? null,
+            event_type: eventTypeFor(notif),
+            project_id: meta.project_id ?? null,
+            quote_id: meta.bid_id ?? null,
+          });
+        }
       } else {
         results.whatsapp = { ok: false, skipped: "no phone" };
       }
