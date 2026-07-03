@@ -22,11 +22,12 @@ const corsHeaders = {
 
 // event_type → which per-member flag gates delivery.
 const FLAG_FOR: Record<string, string> = {
-  new_project:    "receive_project_alerts",
-  new_quote:      "receive_quote_alerts",
-  quote_accepted: "receive_status_alerts",
-  quote_rejected: "receive_status_alerts",
-  status_update:  "receive_status_alerts",
+  new_project:       "receive_project_alerts",
+  new_quote:         "receive_quote_alerts",
+  quote_accepted:    "receive_status_alerts",
+  quote_rejected:    "receive_status_alerts",
+  status_update:     "receive_status_alerts",
+  contractor_joined: "receive_status_alerts",
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -55,6 +56,28 @@ function clean(lines: (string | false | undefined)[]): string {
 // deno-lint-ignore no-explicit-any
 async function buildMessage(supabase: any, alert: any): Promise<string | null> {
   const meta = alert.metadata ?? {};
+
+  // New contractor completed onboarding.
+  if (alert.event_type === "contractor_joined" && meta.profile_id) {
+    const { data: c } = await supabase.from("profiles")
+      .select("full_name, company_name, phone, email, city, state, specialties")
+      .eq("id", meta.profile_id).maybeSingle();
+    if (!c) return null;
+    const specialties = Array.isArray(c.specialties) && c.specialties.length ? c.specialties.join(", ") : "";
+    const loc = [c.city, c.state].filter(Boolean).join(", ");
+    return clean([
+      `🚨 *MGbit Team Alert* — New Contractor Joined`, ``,
+      `👷 ${c.full_name || "Unnamed"}`,
+      c.company_name && `🏢 ${c.company_name}`,
+      c.phone && `📞 ${c.phone}`,
+      c.email && `✉️ ${c.email}`,
+      loc && `📍 ${loc}`,
+      specialties && `🔧 ${specialties}`, ``,
+      `🔗 ${APP_URL}/admin/verifications`,
+      `🕒 ${nowUtc()}`,
+    ]);
+  }
+
   const projectId: string | undefined = meta.project_id;
   const bidId: string | undefined = meta.bid_id;
   const adminLink = projectId ? `${APP_URL}/contractor-matching/${projectId}` : `${APP_URL}/admin`;
