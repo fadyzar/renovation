@@ -56,6 +56,8 @@ export function ContractorOnboarding({ onComplete }: { onComplete: () => void })
   const [step, setStep]       = useState(1);
   const [saving, setSaving]   = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarError, setAvatarError] = useState<string | null>(null);
+  const [avatarBroken, setAvatarBroken] = useState(false);
   const [errors, setErrors]   = useState<Partial<Record<keyof FormData | 'phone_full', string>>>({});
 
   const [form, setForm] = useState<FormData>({
@@ -112,16 +114,30 @@ export function ContractorOnboarding({ onComplete }: { onComplete: () => void })
   async function handleAvatarUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file || !profile?.id) return;
+    setAvatarError(null);
+    if (file.size > 5 * 1024 * 1024) { setAvatarError('Image must be under 5MB.'); return; }
     setAvatarUploading(true);
     try {
-      const ext  = file.name.split('.').pop();
-      const path = `avatars/${profile.id}.${ext}`;
-      await supabase.storage.from('avatars').upload(path, file, { upsert: true });
+      const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+      // First path segment MUST be the user id — the storage RLS policy checks
+      // (storage.foldername(name))[1] = auth.uid(). Uploading to "avatars/<id>.ext"
+      // (folder = "avatars") was silently rejected, leaving a broken image URL.
+      const path = `${profile.id}/avatar.${ext}`;
+      const { error: upErr } = await supabase.storage
+        .from('avatars').upload(path, file, { upsert: true, contentType: file.type });
+      if (upErr) throw upErr;
       const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-      set('avatar_url', data.publicUrl);
-    } catch { /* ignore */ }
-    finally { setAvatarUploading(false); }
+      // Cache-bust so a re-upload to the same path shows immediately.
+      setAvatarBroken(false);
+      set('avatar_url', `${data.publicUrl}?t=${Date.now()}`);
+    } catch (err) {
+      console.error('Avatar upload failed:', err);
+      setAvatarError('Upload failed — please try a JPG or PNG.');
+    } finally { setAvatarUploading(false); }
   }
+
+  const initials = (form.full_name.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('') || 'U').toUpperCase();
+  const showAvatar = !!form.avatar_url && !avatarBroken;
 
   async function handleSubmit() {
     if (!validateStep() || !profile?.id) return;
@@ -138,6 +154,8 @@ export function ContractorOnboarding({ onComplete }: { onComplete: () => void })
         license_verified:     false,
         specialties:          form.specialties,
         service_area:         form.service_area.trim(),
+        city:                 form.city.trim() || null,
+        state:                form.state || null,
         avatar_url:           form.avatar_url || null,
         onboarding_completed: true,
       }).eq('id', profile.id);
@@ -236,18 +254,23 @@ export function ContractorOnboarding({ onComplete }: { onComplete: () => void })
                   {/* Avatar */}
                   <div className="flex flex-col items-center pb-2">
                     <div className="relative mb-2">
-                      <div className="w-20 h-20 rounded-full bg-gray-100 border-4 border-white shadow-md flex items-center justify-center overflow-hidden">
-                        {form.avatar_url
-                          ? <img src={form.avatar_url} alt="avatar" className="w-full h-full object-cover" />
-                          : <Camera className="w-8 h-8 text-gray-300" />
+                      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#1e3a5f] to-[#2d5a8f] border-4 border-white shadow-md flex items-center justify-center overflow-hidden">
+                        {showAvatar
+                          ? <img src={form.avatar_url} alt={form.full_name || 'Profile'} onError={() => setAvatarBroken(true)} className="w-full h-full object-cover" />
+                          : form.full_name.trim()
+                            ? <span className="text-white font-bold text-xl">{initials}</span>
+                            : <Camera className="w-8 h-8 text-white/60" />
                         }
                       </div>
                       <label className="absolute -bottom-1 -right-1 w-7 h-7 bg-[#e85d04] hover:bg-orange-600 rounded-full flex items-center justify-center cursor-pointer shadow transition-colors">
-                        <Upload className="w-3.5 h-3.5 text-white" />
-                        <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} />
+                        {avatarUploading
+                          ? <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          : <Upload className="w-3.5 h-3.5 text-white" />}
+                        <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={avatarUploading} />
                       </label>
                     </div>
                     <span className="text-xs text-gray-400">{avatarUploading ? 'Uploading…' : 'Profile photo (optional)'}</span>
+                    {avatarError && <span className="text-xs text-red-500 mt-1">{avatarError}</span>}
                   </div>
 
                   <Field label="Full Name *" error={errors.full_name}>
@@ -383,10 +406,10 @@ export function ContractorOnboarding({ onComplete }: { onComplete: () => void })
                 <div className="space-y-3">
                   {/* Profile card */}
                   <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                    {form.avatar_url
-                      ? <img src={form.avatar_url} alt="avatar" className="w-14 h-14 rounded-full object-cover flex-shrink-0 border-2 border-white shadow" />
-                      : <div className="w-14 h-14 rounded-full bg-[#1e3a5f]/10 flex items-center justify-center flex-shrink-0">
-                          <User className="w-6 h-6 text-[#1e3a5f]" />
+                    {showAvatar
+                      ? <img src={form.avatar_url} alt={form.full_name || 'Profile'} onError={() => setAvatarBroken(true)} className="w-14 h-14 rounded-full object-cover flex-shrink-0 border-2 border-white shadow" />
+                      : <div className="w-14 h-14 rounded-full bg-gradient-to-br from-[#1e3a5f] to-[#2d5a8f] flex items-center justify-center flex-shrink-0 text-white font-bold">
+                          {form.full_name.trim() ? initials : <User className="w-6 h-6 text-white/70" />}
                         </div>
                     }
                     <div>

@@ -190,19 +190,9 @@ export function OwnerDashboard() {
 
       if (error) throw error;
 
-      // Notify all contractors by email (fire-and-forget)
-      const { data: { session } } = await supabase.auth.getSession();
-      fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/notify-contractors-new-project`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session?.access_token}`,
-          },
-          body: JSON.stringify({ projectId: project.id }),
-        }
-      ).catch(err => console.error('Email notification failed:', err));
+      // Contractor notifications (in-app + WhatsApp + email) are sent
+      // server-side: flipping status to seeking_quotes fires the
+      // notify_contractors_new_project DB trigger + dispatch service.
 
       setPublishingProject(null);
       loadProjects();

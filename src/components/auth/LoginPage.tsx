@@ -1,14 +1,15 @@
 import { useState } from 'react';
 import { Eye, EyeOff, ArrowLeft } from 'lucide-react';
-import { supabase } from '../../lib/supabase';
+import { supabase, setKeepLoggedIn as persistKeepChoice } from '../../lib/supabase';
 import { useNavigate, Link } from 'react-router-dom';
 import logo from '../../assets/logo.svg';
+import { GoogleButton } from './GoogleButton';
 
 export function LoginPage() {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
-    const [keepLoggedIn, setKeepLoggedIn] = useState(false);
+    const [keepLoggedIn, setKeepLoggedIn] = useState(true);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const navigate = useNavigate();
@@ -19,6 +20,10 @@ export function LoginPage() {
         setLoading(true);
 
         try {
+            // Record the persistence choice before signing in so the session is
+            // stored in the right place (local vs session storage).
+            persistKeepChoice(keepLoggedIn);
+
             const { error: authError } = await supabase.auth.signInWithPassword({
                 email,
                 password,
@@ -121,6 +126,13 @@ export function LoginPage() {
                         >
                             {loading ? 'Logging in...' : 'Log In'}
                         </button>
+
+                        <div className="flex items-center gap-3 my-1">
+                            <div className="flex-1 h-px bg-gray-200" />
+                            <span className="text-xs text-brand-navy/40 font-medium">or</span>
+                            <div className="flex-1 h-px bg-gray-200" />
+                        </div>
+                        <GoogleButton />
 
                         <p className="text-center text-brand-navy/60 font-medium">
                             Need an account?{' '}

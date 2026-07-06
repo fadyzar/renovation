@@ -34,6 +34,8 @@ interface Bid {
     avatar_url: string;
     rating: number | null;
     years_experience: number | null;
+    specialties: string[] | null;
+    license_verified: boolean | null;
   } | null;
 }
 
@@ -54,6 +56,8 @@ interface RankedBid extends Bid {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function estimatedTime(bid: Bid): string {
+  // Milestone durations are expressed in DAYS (see the per-milestone "X days"
+  // label), so the summary must be in days too — not months.
   const total = bid.milestones.reduce((s, m) => s + (m.duration || 0), 0);
   if (total === 0) {
     const days = Math.max(7, bid.milestones.length * 7);
@@ -120,7 +124,9 @@ export function ContractorMatching() {
             bio,
             avatar_url,
             rating,
-            years_experience
+            years_experience,
+            specialties,
+            license_verified
           )
         `)
         .eq('project_id', projectId)
@@ -260,7 +266,7 @@ export function ContractorMatching() {
                         alt={c?.full_name}
                         className="w-14 h-14 rounded-full object-cover shadow"
                       />
-                      {c?.license_verified && c?.license_status === 'approved' && (
+                      {c?.license_verified && (
                         <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-blue-600 rounded-full flex items-center justify-center border-2 border-white">
                           <Shield className="w-2.5 h-2.5 text-white" />
                         </div>
@@ -274,7 +280,7 @@ export function ContractorMatching() {
                         {c?.company_name || c?.specialties?.[0] || 'General Contractor'}
                       </p>
                       <div className="flex items-center gap-1.5 mt-1 flex-wrap">
-                        {c?.license_verified && c?.license_status === 'approved' && (
+                        {c?.license_verified && (
                           <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
                             <Shield className="w-3 h-3" />
                             Licensed
@@ -442,7 +448,7 @@ export function ContractorMatching() {
                     {selectedBid.contractor?.company_name || 'Independent Contractor'}
                   </p>
                   <div className="flex items-center gap-2 flex-wrap mb-2">
-                    {selectedBid.contractor?.license_verified && selectedBid.contractor?.license_status === 'approved' && (
+                    {selectedBid.contractor?.license_verified && (
                       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
                         <Shield className="w-3.5 h-3.5" />
                         Licensed
@@ -487,7 +493,7 @@ export function ContractorMatching() {
                 <div>
                   <h4 className="font-bold text-gray-900 mb-2">Specialties</h4>
                   <div className="flex flex-wrap gap-2">
-                    {selectedBid.contractor!.specialties.map((s, i) => (
+                    {(selectedBid.contractor?.specialties ?? []).map((s, i) => (
                       <span key={i} className="px-3 py-1 bg-blue-50 text-blue-700 rounded-full text-sm font-medium">
                         {s}
                       </span>

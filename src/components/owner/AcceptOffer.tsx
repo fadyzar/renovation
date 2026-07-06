@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Briefcase, Calendar, Star, CheckCircle, MapPin, User, Mail, Phone, Maximize2, BarChart3 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { whatsapp } from '../../lib/whatsapp';
 import { useAuth } from '../../contexts/AuthContext';
 import { FirstPaymentModal } from '../shared/FirstPaymentModal';
 
@@ -152,7 +151,8 @@ export function AcceptOffer() {
         })
         .eq('id', projectId);
 
-      // 4. Send notification to contractor (in-app + WhatsApp)
+      // 4. Notify the contractor. We insert the in-app row here; the
+      //    dispatch-notification edge function delivers WhatsApp + email from it.
       if (bid?.contractor_id) {
         await supabase.from('notifications').insert({
           user_id: bid.contractor_id,
@@ -165,10 +165,6 @@ export function AcceptOffer() {
             total_amount: bid.total_price
           }
         });
-
-        if (bid.contractor?.phone && project?.title) {
-          whatsapp.bidAccepted(bid.contractor.phone, project.title, bid.total_price);
-        }
       }
 
       // 5. Open payment modal immediately instead of navigating away
@@ -182,14 +178,11 @@ export function AcceptOffer() {
   }
 
   function calculateEstimatedTime(): string {
-    if (!bid) return '1 Month';
+    // Milestone durations are in DAYS — report the total in days.
+    if (!bid) return '—';
     const totalDuration = bid.milestones.reduce((sum, m) => sum + (m.duration || 0), 0);
-    if (totalDuration === 0) {
-      const monthsEstimate = Math.ceil(bid.milestones.length * 2);
-      return monthsEstimate === 1 ? '1 Month' : `${monthsEstimate / 2} Months`;
-    }
-    const months = Math.ceil(totalDuration / 30);
-    return months === 1 ? '1 Month' : `${months / 2} Months`;
+    const days = totalDuration > 0 ? totalDuration : Math.max(1, bid.milestones.length * 7);
+    return days === 1 ? '1 Day' : `${days} Days`;
   }
 
   if (loading) {

@@ -25,6 +25,8 @@ import { AdminDashboard } from "./components/screens/AdminDashboard";
 import { AdminProjects } from "./components/screens/AdminProjects";
 import { AdminAssignedProjects } from "./components/screens/AdminAssignedProjects";
 import { AdminWhatsApp } from "./components/screens/AdminWhatsApp";
+import { AdminTeamAlerts } from "./components/screens/AdminTeamAlerts";
+import { AdminEmail } from "./components/screens/AdminEmail";
 import { AdminRevenue } from "./components/screens/AdminRevenue";
 import { AdminPayouts } from "./components/screens/AdminPayouts";
 import { AdminSupport } from "./components/screens/AdminSupport";
@@ -35,7 +37,7 @@ import { SignUpPage } from "./components/auth/SignUpPage";
 import { ForgotPasswordPage } from "./components/auth/ForgotPasswordPage";
 import { ForceRefreshModal } from "./components/shared/ForceRefreshModal";
 import { ContractorOnboarding } from "./components/contractor/ContractorOnboarding";
-import { ContractorPayoutSetup } from "./components/contractor/ContractorPayoutSetup";
+import { ResetPassword } from "./components/auth/ResetPassword";
 import { OwnerOnboarding } from "./components/owner/OwnerOnboarding";
 
 function SubmitBidPage() {
@@ -59,6 +61,13 @@ function App() {
     );
   }
 
+  // Password recovery must render regardless of auth state — the email link
+  // establishes a temporary recovery session, which would otherwise route the
+  // user straight into the app.
+  if (window.location.pathname === '/reset-password') {
+    return (<><ScrollToTop /><ResetPassword /></>);
+  }
+
   if (!user || !profile) {
     return (
       <>
@@ -67,6 +76,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/about" element={<AboutPage />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignUpPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -87,6 +97,8 @@ function App() {
           <Route path="/admin/projects"          element={<AdminProjects />} />
           <Route path="/admin/assigned"          element={<AdminAssignedProjects />} />
           <Route path="/admin/whatsapp"          element={<AdminWhatsApp />} />
+          <Route path="/admin/team"              element={<AdminTeamAlerts />} />
+          <Route path="/admin/email"             element={<AdminEmail />} />
           <Route path="/admin/verifications"     element={<AdminVerificationReview />} />
           <Route path="/admin/revenue"           element={<AdminRevenue />} />
           <Route path="/admin/payouts"           element={<AdminPayouts />} />
@@ -114,13 +126,9 @@ function App() {
   if (contractorNeedsOnboarding) return <ContractorOnboarding onComplete={() => {}} />;
   if (ownerNeedsOnboarding)      return <OwnerOnboarding onComplete={() => {}} />;
 
-  // Contractors must provide payout/banking details before using the platform.
-  const contractorNeedsPayout =
-    profile.role === 'contractor' &&
-    profile.onboarding_completed &&
-    !profile.payout_details_completed;
-
-  if (contractorNeedsPayout) return <ContractorPayoutSetup onComplete={() => {}} />;
+  // Payout/banking details are NOT required to sign up or bid. The contractor is
+  // prompted for them (as a popup) only once a payment has actually been
+  // approved for them — see ContractorDashboard.
 
   // ─── Regular user routes ──────────────────────────────────────────────────
   return (

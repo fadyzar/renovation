@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { BidBuilder } from './BidBuilder';
 import { LocationSettings } from './LocationSettings';
+import { ContractorPayoutSetup } from './ContractorPayoutSetup';
 
 interface Bid {
   id: string;
@@ -86,7 +87,16 @@ export function ContractorDashboard() {
   const [expandedProjectId, setExpandedProjectId] = useState<string | null>(null);
   const [uploadingInvoice, setUploadingInvoice] = useState<string | null>(null);
   const [invoiceSuccess, setInvoiceSuccess] = useState<string | null>(null);
+  const [payoutPromptDismissed, setPayoutPromptDismissed] = useState(false);
   const loadingRef = useRef(false);
+
+  // Prompt for bank details only once a payment has been approved for the
+  // contractor — i.e. they have an active (paid) project — and they haven't
+  // provided payout details yet.
+  const needsPayoutPrompt =
+    ongoingProjects.length > 0 &&
+    !profile?.payout_details_completed &&
+    !payoutPromptDismissed;
 
   const loadData = useCallback(async () => {
     if (!profile?.id) {
@@ -240,6 +250,12 @@ export function ContractorDashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {needsPayoutPrompt && (
+        <ContractorPayoutSetup
+          onClose={() => setPayoutPromptDismissed(true)}
+          onComplete={() => setPayoutPromptDismissed(true)}
+        />
+      )}
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="text-center mb-6 sm:mb-8">
           <h1 className="text-2xl sm:text-4xl font-bold text-gray-900 mb-2">

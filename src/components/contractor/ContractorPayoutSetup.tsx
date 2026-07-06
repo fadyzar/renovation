@@ -1,13 +1,11 @@
 import { useState } from 'react';
 import {
   Landmark, User, Hash, Mail, Phone, Shield, AlertCircle,
-  CheckCircle, Lock, Building2, CreditCard,
+  CheckCircle, Lock, Building2, CreditCard, X,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import logo from '../../assets/logo.svg';
-
-type HolderType = 'individual' | 'business';
 
 interface Form {
   full_name: string;
@@ -18,11 +16,9 @@ interface Form {
   account_type: 'checking' | 'savings';
   email: string;
   phone: string;
-  holder_type: HolderType;
-  tax_id_value: string;
 }
 
-export function ContractorPayoutSetup({ onComplete }: { onComplete: () => void }) {
+export function ContractorPayoutSetup({ onComplete, onClose }: { onComplete: () => void; onClose?: () => void }) {
   const { profile, refreshProfile } = useAuth();
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof Form, string>>>({});
@@ -37,18 +33,12 @@ export function ContractorPayoutSetup({ onComplete }: { onComplete: () => void }
     account_type:   'checking',
     email:          profile?.email ?? '',
     phone:          profile?.phone ?? '',
-    holder_type:    'individual',
-    tax_id_value:   '',
   });
 
   function set<K extends keyof Form>(field: K, value: Form[K]) {
     setForm(f => ({ ...f, [field]: value }));
     setErrors(e => ({ ...e, [field]: undefined }));
   }
-
-  const isBusiness = form.holder_type === 'business';
-  const taxLabel = isBusiness ? 'EIN (Employer ID Number) *' : 'SSN *';
-  const taxPlaceholder = isBusiness ? '12-3456789' : '123-45-6789';
 
   function validate(): boolean {
     const e: Partial<Record<keyof Form, string>> = {};
@@ -61,7 +51,6 @@ export function ContractorPayoutSetup({ onComplete }: { onComplete: () => void }
     if (!/^\d{9}$/.test(form.routing_number.replace(/\s/g, '')))
       e.routing_number = 'Routing number must be 9 digits';
     if (form.email && !/\S+@\S+\.\S+/.test(form.email)) e.email = 'Enter a valid email';
-    if (!form.tax_id_value.trim())  e.tax_id_value = 'Required';
     setErrors(e);
     return Object.keys(e).length === 0;
   }
@@ -82,8 +71,6 @@ export function ContractorPayoutSetup({ onComplete }: { onComplete: () => void }
           account_type:   form.account_type,
           email:          form.email.trim() || null,
           phone:          form.phone.trim() || null,
-          tax_id_type:    isBusiness ? 'ein' : 'ssn',
-          tax_id_value:   form.tax_id_value.trim(),
           updated_at:     new Date().toISOString(),
         }, { onConflict: 'contractor_id' });
       if (upErr) throw upErr;
@@ -104,36 +91,35 @@ export function ContractorPayoutSetup({ onComplete }: { onComplete: () => void }
     }
   }
 
-  return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
-      <div className="bg-white border-b border-gray-100 px-4 sm:px-8 py-4 flex items-center justify-between">
-        <img src={logo} alt="MGBiT" className="h-8 w-auto" />
-        <span className="flex items-center gap-1.5 text-xs text-gray-500">
-          <Lock className="w-3.5 h-3.5" /> Encrypted & private
-        </span>
-      </div>
-
-      <div className="flex-1 flex items-start justify-center px-4 py-6 sm:py-10">
-        <div className="w-full max-w-lg">
+  const inner = (
+    <div className="w-full max-w-lg">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
 
             <div className="px-6 py-5 border-b border-gray-100 bg-gradient-to-r from-[#1e3a5f] to-[#2d5a8f]">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
-                  <Landmark className="w-5 h-5 text-white" />
+              <div className="flex items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
+                    <Landmark className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-white font-bold text-lg">Payout details</h2>
+                    <p className="text-blue-200 text-sm">Where should we send your payments?</p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-white font-bold text-lg">Payout details</h2>
-                  <p className="text-blue-200 text-sm">Where should we send your payments?</p>
-                </div>
+                {onClose && (
+                  <button onClick={onClose} aria-label="Close"
+                    className="w-8 h-8 rounded-lg flex items-center justify-center text-white/80 hover:bg-white/15 transition-colors">
+                    <X className="w-5 h-5" />
+                  </button>
+                )}
               </div>
             </div>
 
             <div className="p-5 sm:p-6 space-y-4">
               <p className="flex items-start gap-2 text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded-xl px-3 py-2.5">
                 <Shield className="w-4 h-4 flex-shrink-0 mt-0.5 text-blue-600" />
-                Payments are released by bank transfer. We keep a 10% platform commission
-                from each project's total — you receive the rest. This info is required before you can bid.
+                A payment has been approved for you. Add your bank details so we can transfer
+                your funds — we keep a 10% platform commission and you receive the rest.
               </p>
 
               <Field label="Account holder name *" error={errors.full_name}>
@@ -220,32 +206,6 @@ export function ContractorPayoutSetup({ onComplete }: { onComplete: () => void }
                 </Field>
               </div>
 
-              <div className="pt-1 border-t border-gray-100">
-                <Field label="Tax classification *">
-                  <div className="grid grid-cols-2 gap-2">
-                    {([['individual', 'Individual (SSN)'], ['business', 'Business (EIN)']] as const).map(([t, label]) => (
-                      <button key={t} type="button" onClick={() => set('holder_type', t)}
-                        className={`py-2.5 rounded-xl text-sm font-semibold border transition-colors ${
-                          form.holder_type === t
-                            ? 'bg-[#1e3a5f] text-white border-[#1e3a5f]'
-                            : 'bg-white text-gray-600 border-gray-200 hover:border-gray-300'
-                        }`}>
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </Field>
-              </div>
-
-              <Field label={taxLabel} error={errors.tax_id_value}>
-                <div className="relative">
-                  <Shield className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                  <input value={form.tax_id_value} onChange={e => set('tax_id_value', e.target.value)}
-                    placeholder={taxPlaceholder} className={inp(errors.tax_id_value, true)} />
-                </div>
-                <p className="text-xs text-gray-400 mt-1.5">Used for tax reporting (1099). Kept private and secure.</p>
-              </Field>
-
               {serverError && (
                 <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
                   <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
@@ -264,10 +224,34 @@ export function ContractorPayoutSetup({ onComplete }: { onComplete: () => void }
             </div>
           </div>
 
-          <p className="text-center text-xs text-gray-400 mt-4">
-            MGBiT · 855-826-4248 · office@mgbit.com
-          </p>
-        </div>
+          {!onClose && (
+            <p className="text-center text-xs text-gray-400 mt-4">
+              MGBiT · 855-826-4248 · office@mgbit.com
+            </p>
+          )}
+    </div>
+  );
+
+  // Popup mode — shown when a payment has been approved for the contractor.
+  if (onClose) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/50 p-4 overflow-y-auto">
+        {inner}
+      </div>
+    );
+  }
+
+  // Full-page mode (e.g. a dedicated settings route).
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col">
+      <div className="bg-white border-b border-gray-100 px-4 sm:px-8 py-4 flex items-center justify-between">
+        <img src={logo} alt="MGBiT" className="h-8 w-auto" />
+        <span className="flex items-center gap-1.5 text-xs text-gray-500">
+          <Lock className="w-3.5 h-3.5" /> Encrypted & private
+        </span>
+      </div>
+      <div className="flex-1 flex items-start justify-center px-4 py-6 sm:py-10">
+        {inner}
       </div>
     </div>
   );
