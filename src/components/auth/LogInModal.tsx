@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { X, Eye, EyeOff } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../../lib/supabase';
 
 interface LogInModalProps {
@@ -9,6 +10,7 @@ interface LogInModalProps {
 }
 
 export function LogInModal({ onClose, onSwitchToSignUp, onSwitchToForgotPassword }: LogInModalProps) {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -29,7 +31,7 @@ export function LogInModal({ onClose, onSwitchToSignUp, onSwitchToForgotPassword
 
       if (authError) throw authError;
 
-      window.location.reload();
+      navigate('/dashboard');
     } catch (err: any) {
       setError(err.message || 'Failed to log in');
     } finally {

@@ -60,7 +60,7 @@ function estimatedTime(bid: Bid): string {
   // label), so the summary must be in days too — not months.
   const total = bid.milestones.reduce((s, m) => s + (m.duration || 0), 0);
   if (total === 0) {
-    const days = Math.max(1, bid.milestones.length * 7);
+    const days = Math.max(7, bid.milestones.length * 7);
     return `${days} Day${days !== 1 ? 's' : ''}`;
   }
   return `${total} Day${total !== 1 ? 's' : ''}`;
