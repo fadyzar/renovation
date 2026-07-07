@@ -3,6 +3,7 @@ import { ScrollToTop } from "./components/ScrollToTop";
 import { useAuth } from "./contexts/AuthContext";
 import { Landing } from "./components/Landing";
 import { AboutPage } from "./components/AboutPage";
+import { InvestorLanding } from "./components/InvestorLanding";
 import { Layout } from "./components/Layout";
 import { AdminLayout } from "./components/admin/AdminLayout";
 import { OwnerDashboard } from "./components/owner/OwnerDashboard";
@@ -66,6 +67,12 @@ function App() {
   // user straight into the app.
   if (window.location.pathname === '/reset-password') {
     return (<><ScrollToTop /><ResetPassword /></>);
+  }
+
+  // Investor landing page — public, accessible regardless of auth state so it
+  // can be shared with prospective investors via a direct link.
+  if (window.location.pathname === '/investors') {
+    return (<><ScrollToTop /><InvestorLanding /></>);
   }
 
   if (!user || !profile) {

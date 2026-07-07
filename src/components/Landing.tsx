@@ -248,6 +248,12 @@ export function Landing() {
             <div className="flex items-center gap-2">
               <div className="hidden md:flex items-center gap-4">
                 <button
+                  onClick={() => navigate("/investors")}
+                  className="px-6 py-2.5 rounded-full text-brand-navy font-bold border border-brand-navy/15 hover:bg-slate-50 transition-all"
+                >
+                  For Investors
+                </button>
+                <button
                   onClick={() => navigate("/login")}
                   className="px-6 py-2.5 rounded-full text-brand-navy font-bold hover:bg-slate-50 transition-all"
                 >
@@ -279,6 +285,7 @@ export function Landing() {
               <a onClick={() => setMobileOpen(false)} href="#how" className="block text-brand-navy py-2">How it Works</a>
               <a onClick={() => setMobileOpen(false)} href="#contractors" className="block text-brand-navy py-2">Find Contractors</a>
               <a onClick={() => setMobileOpen(false)} href="#support" className="block text-brand-navy py-2">Contact & Support</a>
+              <button onClick={() => { setMobileOpen(false); navigate("/investors"); }} className="block w-full text-left text-brand-navy py-2 font-medium">For Investors</button>
               <div className="pt-2 border-t border-slate-100 mt-2 flex flex-col gap-2">
                 <button onClick={() => navigate("/login")} className="w-full px-4 py-2 rounded-full border border-[#D9D9D9] text-brand-navy text-sm font-semibold">Log In</button>
                 <button onClick={() => navigate("/signup")} className="w-full px-4 py-2 rounded-full bg-brand-orange text-white text-sm font-semibold">Sign Up</button>
