@@ -491,7 +491,7 @@ export function ContractorOnboarding({ onComplete }: { onComplete: () => void })
           </div>
 
           <p className="text-center text-xs text-gray-400 mt-4">
-            MGBiT · 855-826-4248 · office@mgbit.com
+            MGBiT · 855-826-4248 · mgbit@mgbit.io
           </p>
         </div>
       </div>

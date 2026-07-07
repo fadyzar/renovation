@@ -50,7 +50,7 @@ export function Footer() {
               Woodland Hills, CA 91367
             </p>
             <p className="text-[14px] text-black mb-1">Phone: 855-826-4248</p>
-            <p className="text-[14px] text-black mb-6">Email: office@mgbit.com</p>
+            <p className="text-[14px] text-black mb-6">Email: mgbit@mgbit.io</p>
 
           </div>
 

@@ -172,7 +172,7 @@ Deno.serve(async (req: Request) => {
           <td style="background:#f8f8f8;padding:20px 40px;text-align:center;border-top:1px solid #eee;">
             <p style="color:#aaa;font-size:12px;margin:0;">
               MGBiT · 21550 Oxnard St, Suite 300, Woodland Hills, CA 91367<br>
-              855-826-4248 · office@mgbit.com
+              855-826-4248 · mgbit@mgbit.io
             </p>
           </td>
         </tr>

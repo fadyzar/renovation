@@ -102,7 +102,7 @@ export function layout(opts: {
       </td></tr>
       <tr><td style="background:#f8f8f8;padding:22px 40px;text-align:center;border-top:1px solid #eee;">
         <p style="color:#aaa;font-size:12px;margin:0;line-height:1.6;">
-          M.G.BIT · <a href="mailto:office@mgbit.com" style="color:#999;">office@mgbit.com</a> · 855-826-4248<br>
+          M.G.BIT · <a href="mailto:mgbit@mgbit.io" style="color:#999;">mgbit@mgbit.io</a> · 855-826-4248<br>
           You're receiving this because you have an account on M.G.BIT.
         </p>
       </td></tr>
