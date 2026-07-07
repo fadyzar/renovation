@@ -93,7 +93,7 @@ export function Footer() {
                 </li>
                 <li>
                   <button onClick={() => navigate('/investors')} className="text-[14px] text-black hover:opacity-60 transition-opacity">
-                    For Investors
+                    Investor Relations
                   </button>
                 </li>
               </ul>
