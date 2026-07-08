@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useParams, useNavigate } from "react-router-dom";
+import { Routes, Route, Navigate, useParams, useNavigate, useLocation } from "react-router-dom";
 import { ScrollToTop } from "./components/ScrollToTop";
 import { useAuth } from "./contexts/AuthContext";
 import { Landing } from "./components/Landing";
@@ -50,6 +50,11 @@ function SubmitBidPage() {
 
 function App() {
   const { user, profile, loading } = useAuth();
+  // Subscribe to the router location so App re-renders on client-side
+  // navigation. Reading window.location.pathname directly is not reactive, so
+  // navigating away from the pathname-gated screens below (e.g. "Back to site"
+  // from /investors) would change the URL without unmounting the screen.
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -65,13 +70,13 @@ function App() {
   // Password recovery must render regardless of auth state — the email link
   // establishes a temporary recovery session, which would otherwise route the
   // user straight into the app.
-  if (window.location.pathname === '/reset-password') {
+  if (location.pathname === '/reset-password') {
     return (<><ScrollToTop /><ResetPassword /></>);
   }
 
   // Investor landing page — public, accessible regardless of auth state so it
   // can be shared with prospective investors via a direct link.
-  if (window.location.pathname === '/investors') {
+  if (location.pathname === '/investors') {
     return (<><ScrollToTop /><InvestorLanding /></>);
   }
 
