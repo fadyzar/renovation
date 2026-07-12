@@ -388,13 +388,13 @@ export function AboutPage() {
               Have questions? Our support team is available Monday – Friday, 6am to 8pm EST.
             </motion.p>
             <motion.div variants={item} className="flex flex-col sm:flex-row gap-6 justify-center">
-              <a href="mailto:office@mgbit.com" className="flex items-center gap-3 px-6 py-4 bg-white rounded-xl border border-gray-200 hover:shadow-md transition-shadow group">
+              <a href="mailto:mgbit@mgbit.io" className="flex items-center gap-3 px-6 py-4 bg-white rounded-xl border border-gray-200 hover:shadow-md transition-shadow group">
                 <div className="w-10 h-10 rounded-lg bg-orange-100 flex items-center justify-center group-hover:bg-brand-orange transition-colors">
                   <Mail className="w-5 h-5 text-brand-orange group-hover:text-white transition-colors" />
                 </div>
                 <div className="text-left">
                   <p className="text-xs text-[#909090]">Email Us</p>
-                  <p className="text-sm font-semibold text-brand-navy">office@mgbit.com</p>
+                  <p className="text-sm font-semibold text-brand-navy">mgbit@mgbit.io</p>
                 </div>
               </a>
               <a href="tel:+18558264248" className="flex items-center gap-3 px-6 py-4 bg-white rounded-xl border border-gray-200 hover:shadow-md transition-shadow group">
