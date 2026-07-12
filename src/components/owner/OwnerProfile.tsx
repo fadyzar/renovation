@@ -19,11 +19,11 @@ const PROPERTY_TYPES = [
 ];
 
 const BUDGET_RANGES = [
-  { id: 'under_10k', label: 'Under ₪10,000' },
-  { id: '10k_50k', label: '₪10,000 – ₪50,000' },
-  { id: '50k_150k', label: '₪50,000 – ₪150,000' },
-  { id: '150k_500k', label: '₪150,000 – ₪500,000' },
-  { id: 'over_500k', label: 'Over ₪500,000' },
+  { id: 'under_10k', label: 'Under $10,000' },
+  { id: '10k_50k', label: '$10,000 – $50,000' },
+  { id: '50k_150k', label: '$50,000 – $150,000' },
+  { id: '150k_500k', label: '$150,000 – $500,000' },
+  { id: 'over_500k', label: 'Over $500,000' },
 ];
 
 // ─── Profile completeness ─────────────────────────────────────────────────────

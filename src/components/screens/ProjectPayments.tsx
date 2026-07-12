@@ -102,8 +102,8 @@ function getMilestoneSplit(amount: number, isFirst: boolean, totalFee: number) {
   return { fee: 0, payout: amount };
 }
 
-function formatILS(n: number) {
-  return '₪' + n.toLocaleString('he-IL', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+function formatUSD(n: number) {
+  return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
 function formatCardNumber(v: string) {
@@ -128,14 +128,11 @@ const STATUS_CONFIG: Record<MilestoneStatus, { label: string; color: string; bg:
 
 interface PayModalProps {
   milestone: PaymentMilestone;
-  isFirstMilestone: boolean;
-  totalPlatformFee: number;
   onSuccess: () => void;
   onClose: () => void;
 }
 
-function ApproveMilestoneModal({ milestone, isFirstMilestone, totalPlatformFee, onSuccess, onClose }: PayModalProps) {
-  const { fee, payout } = getMilestoneSplit(milestone.amount, isFirstMilestone, totalPlatformFee);
+function ApproveMilestoneModal({ milestone, onSuccess, onClose }: PayModalProps) {
   const [modalState, setModalState] = useState<'form' | 'processing' | 'success' | 'error'>('form');
   const [card, setCard] = useState<CardDetails>({
     cardNumber: '', cardholderName: '', expiryMonth: '', expiryYear: '', cvv: '',
@@ -162,7 +159,7 @@ function ApproveMilestoneModal({ milestone, isFirstMilestone, totalPlatformFee, 
     if (!validate()) return;
     setModalState('processing');
 
-    const result = await processMockDeposit(milestone.amount, card, 'ILS');
+    const result = await processMockDeposit(milestone.amount, card, 'USD');
     if (!result.success) {
       setErrMsg(result.errorMessage ?? 'Payment failed.');
       setModalState('error');
@@ -222,29 +219,12 @@ function ApproveMilestoneModal({ milestone, isFirstMilestone, totalPlatformFee, 
                 <div className="space-y-2 text-sm">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Milestone Amount</span>
-                    <span className="font-semibold">{formatILS(milestone.amount)}</span>
+                    <span className="font-semibold">{formatUSD(milestone.amount)}</span>
                   </div>
-                  {isFirstMilestone ? (
-                    <>
-                      <div className="flex justify-between text-green-700">
-                        <span>→ Contractor Receives</span>
-                        <span className="font-semibold">{formatILS(payout)}</span>
-                      </div>
-                      <div className="flex justify-between text-orange-600">
-                        <span>→ Platform Fee (10% of total, collected once)</span>
-                        <span className="font-semibold">{formatILS(fee)}</span>
-                      </div>
-                    </>
-                  ) : (
-                    <div className="flex justify-between text-green-700">
-                      <span>→ Contractor Receives (100%)</span>
-                      <span className="font-semibold">{formatILS(payout)}</span>
-                    </div>
-                  )}
                 </div>
                 <div className="border-t border-green-200 mt-3 pt-3 flex justify-between">
                   <span className="font-bold text-gray-900">You Pay</span>
-                  <span className="text-xl font-bold text-green-700">{formatILS(milestone.amount)}</span>
+                  <span className="text-xl font-bold text-green-700">{formatUSD(milestone.amount)}</span>
                 </div>
               </div>
 
@@ -304,7 +284,7 @@ function ApproveMilestoneModal({ milestone, isFirstMilestone, totalPlatformFee, 
                 className="w-full mt-6 py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold text-base rounded-xl transition-all shadow-lg flex items-center justify-center gap-2"
               >
                 <Lock className="w-4 h-4" />
-                Pay {formatILS(milestone.amount)} & Release to Contractor
+                Pay {formatUSD(milestone.amount)} & Release to Contractor
               </button>
 
               <div className="flex items-center justify-center gap-6 mt-4">
@@ -324,7 +304,7 @@ function ApproveMilestoneModal({ milestone, isFirstMilestone, totalPlatformFee, 
               </div>
               <div className="text-center">
                 <p className="text-lg font-semibold text-gray-900 mb-1">Processing payment…</p>
-                <p className="text-sm text-gray-500">Securely authorizing {formatILS(milestone.amount)}</p>
+                <p className="text-sm text-gray-500">Securely authorizing {formatUSD(milestone.amount)}</p>
               </div>
             </div>
           )}
@@ -337,8 +317,7 @@ function ApproveMilestoneModal({ milestone, isFirstMilestone, totalPlatformFee, 
               <div>
                 <h3 className="text-xl font-bold text-gray-900 mb-1">Payment Released!</h3>
                 <p className="text-gray-600 text-sm">
-                  {formatILS(payout)} sent to contractor
-                  {isFirstMilestone && fee > 0 ? ` · ${formatILS(fee)} platform fee retained` : ''}
+                  {formatUSD(milestone.amount)} released to contractor
                 </p>
               </div>
               <button onClick={onSuccess} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition-colors">
@@ -408,7 +387,7 @@ function SubmitMilestoneModal({ milestone, onSuccess, onClose }: SubmitModalProp
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
             <p className="text-sm font-semibold text-blue-900">{milestone.title}</p>
             <p className="text-xs text-blue-700 mt-1">
-              Owner will be asked to approve and pay {formatILS(milestone.amount)} for this milestone.
+              Owner will be asked to approve and pay {formatUSD(milestone.amount)} for this milestone.
             </p>
           </div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -673,22 +652,25 @@ export function ProjectPayments() {
             <h2 className="text-lg font-bold text-gray-900">Payment Overview</h2>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className={`grid grid-cols-2 ${isOwner ? 'md:grid-cols-3' : 'md:grid-cols-4'} gap-3`}>
             <div className="bg-gray-50 rounded-xl p-3 sm:p-4 text-center">
               <p className="text-[10px] sm:text-xs text-gray-500 mb-1">Total Bid</p>
-              <p className="text-base sm:text-xl font-bold text-gray-900">{formatILS(totalBid)}</p>
+              <p className="text-base sm:text-xl font-bold text-gray-900">{formatUSD(totalBid)}</p>
             </div>
-            <div className="bg-orange-50 rounded-xl p-3 sm:p-4 text-center">
-              <p className="text-[10px] sm:text-xs text-orange-600 mb-1">Platform Fee</p>
-              <p className="text-base sm:text-xl font-bold text-orange-700">{formatILS(totalPlatformFee)}</p>
-            </div>
+            {/* Platform Fee is internal — never shown to the client (owner). */}
+            {!isOwner && (
+              <div className="bg-orange-50 rounded-xl p-3 sm:p-4 text-center">
+                <p className="text-[10px] sm:text-xs text-orange-600 mb-1">Platform Fee</p>
+                <p className="text-base sm:text-xl font-bold text-orange-700">{formatUSD(totalPlatformFee)}</p>
+              </div>
+            )}
             <div className="bg-green-50 rounded-xl p-3 sm:p-4 text-center">
               <p className="text-[10px] sm:text-xs text-green-600 mb-1">Released</p>
-              <p className="text-base sm:text-xl font-bold text-green-700">{formatILS(releasedAmount)}</p>
+              <p className="text-base sm:text-xl font-bold text-green-700">{formatUSD(releasedAmount)}</p>
             </div>
             <div className="bg-blue-50 rounded-xl p-3 sm:p-4 text-center">
               <p className="text-[10px] sm:text-xs text-blue-600 mb-1">Remaining</p>
-              <p className="text-base sm:text-xl font-bold text-blue-700">{formatILS(remaining)}</p>
+              <p className="text-base sm:text-xl font-bold text-blue-700">{formatUSD(remaining)}</p>
             </div>
           </div>
 
@@ -706,13 +688,16 @@ export function ProjectPayments() {
             </div>
           </div>
 
-          <div className="mt-4 flex items-start gap-2 bg-orange-50 border border-orange-200 rounded-xl p-3">
-            <Shield className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
-            <p className="text-xs text-orange-700">
-              <strong>Platform Fee:</strong> {platformCollected > 0 ? `${formatILS(platformCollected)} collected` : 'Not collected yet'} of {formatILS(totalPlatformFee)} total.
-              10% of the total bid is deducted once from the first milestone payment.
-            </p>
-          </div>
+          {/* Platform-fee note is internal — never shown to the client (owner). */}
+          {!isOwner && (
+            <div className="mt-4 flex items-start gap-2 bg-orange-50 border border-orange-200 rounded-xl p-3">
+              <Shield className="w-4 h-4 text-orange-500 mt-0.5 flex-shrink-0" />
+              <p className="text-xs text-orange-700">
+                <strong>Platform Fee:</strong> {platformCollected > 0 ? `${formatUSD(platformCollected)} collected` : 'Not collected yet'} of {formatUSD(totalPlatformFee)} total.
+                10% of the total bid is deducted once from the first milestone payment.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Milestones */}
@@ -752,7 +737,7 @@ export function ProjectPayments() {
                         </div>
                       </div>
                       <div className="text-right flex-shrink-0">
-                        <p className="text-base sm:text-lg font-bold text-gray-900">{formatILS(milestone.amount)}</p>
+                        <p className="text-base sm:text-lg font-bold text-gray-900">{formatUSD(milestone.amount)}</p>
                         <div className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color} mt-1`}>
                           <StatusIcon className="w-3 h-3" />
                           <span className="hidden sm:inline">{cfg.label}</span>
@@ -761,19 +746,22 @@ export function ProjectPayments() {
                       </div>
                     </div>
 
-                    {/* Payment split breakdown */}
-                    <div className="ml-11 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 mb-3">
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
-                        Contractor: {formatILS(payout)}{isFirst ? ' (after fee)' : ' (100%)'}
-                      </div>
-                      {isFirst && (
+                    {/* Payment split breakdown — contractor-facing only; the
+                        client (owner) never sees the platform-fee split. */}
+                    {!isOwner && (
+                      <div className="ml-11 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 mb-3">
                         <div className="flex items-center gap-1.5">
-                          <div className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0" />
-                          Fee: {formatILS(fee)}
+                          <div className="w-2 h-2 rounded-full bg-green-400 flex-shrink-0" />
+                          Contractor: {formatUSD(payout)}{isFirst ? ' (after fee)' : ' (100%)'}
                         </div>
-                      )}
-                    </div>
+                        {isFirst && (
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0" />
+                            Fee: {formatUSD(fee)}
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Contractor note (shown when submitted) */}
                     {milestone.proof_of_work_description && (
@@ -792,7 +780,9 @@ export function ProjectPayments() {
                             Payment Released — {new Date(milestone.paid_at).toLocaleDateString()}
                           </p>
                           <p className="text-xs text-green-600">
-                            {formatILS(payout)} to contractor{isFirst && fee > 0 ? ` · ${formatILS(fee)} platform fee` : ''}
+                            {isOwner
+                              ? `${formatUSD(milestone.amount)} paid`
+                              : `${formatUSD(payout)} to contractor${isFirst && fee > 0 ? ` · ${formatUSD(fee)} platform fee` : ''}`}
                           </p>
                         </div>
                       </div>
@@ -819,33 +809,33 @@ export function ProjectPayments() {
                         </div>
                       )}
 
-                      {/* OWNER: approve & pay */}
-                      {isOwner && milestone.status === 'awaiting_approval' && (
+                      {/* OWNER: can release payment for any milestone that isn't
+                          already paid — independent of the contractor's status.
+                          The contractor's "Submit as Complete" only advances the
+                          milestone's progress status; it never gates payment. */}
+                      {isOwner && milestone.status !== 'paid' && (
                         <div className="flex flex-wrap gap-2">
                           <button
                             onClick={() => setApproveModal({ milestone, isFirst })}
                             className="flex items-center gap-2 px-3 sm:px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
                           >
                             <CreditCard className="w-4 h-4" />
-                            <span className="hidden sm:inline">Approve & Pay {formatILS(milestone.amount)}</span>
-                            <span className="sm:hidden">Approve {formatILS(milestone.amount)}</span>
+                            <span className="hidden sm:inline">Approve & Pay {formatUSD(milestone.amount)}</span>
+                            <span className="sm:hidden">Pay {formatUSD(milestone.amount)}</span>
                           </button>
-                          <button
-                            onClick={async () => {
-                              await supabase.from('milestones').update({ status: 'disputed' }).eq('id', milestone.id);
-                              loadData();
-                            }}
-                            className="flex items-center gap-2 px-3 sm:px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-semibold rounded-xl transition-colors border border-red-200"
-                          >
-                            <AlertCircle className="w-4 h-4" />
-                            Dispute
-                          </button>
+                          {milestone.status === 'awaiting_approval' && (
+                            <button
+                              onClick={async () => {
+                                await supabase.from('milestones').update({ status: 'disputed' }).eq('id', milestone.id);
+                                loadData();
+                              }}
+                              className="flex items-center gap-2 px-3 sm:px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-semibold rounded-xl transition-colors border border-red-200"
+                            >
+                              <AlertCircle className="w-4 h-4" />
+                              Dispute
+                            </button>
+                          )}
                         </div>
-                      )}
-
-                      {/* OWNER: pending milestone */}
-                      {isOwner && milestone.status === 'pending' && (
-                        <p className="text-xs text-gray-400 italic">Waiting for contractor to submit…</p>
                       )}
                     </div>
                   </div>
@@ -863,7 +853,7 @@ export function ProjectPayments() {
               {project.status === 'completed' ? 'Project Completed!' : 'All Milestones Paid!'}
             </h3>
             <p className="text-green-100 text-sm mb-4">
-              All {milestones.length} milestones have been paid. Total released: {formatILS(releasedAmount)}.
+              All {milestones.length} milestones have been paid. Total released: {formatUSD(releasedAmount)}.
             </p>
             {isOwner && project.status !== 'completed' && (
               <button
@@ -903,8 +893,6 @@ export function ProjectPayments() {
       {approveModal && (
         <ApproveMilestoneModal
           milestone={approveModal.milestone}
-          isFirstMilestone={approveModal.isFirst}
-          totalPlatformFee={totalPlatformFee}
           onSuccess={() => {
             setApproveModal(null);
             loadData();
