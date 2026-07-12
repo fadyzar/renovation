@@ -49,7 +49,7 @@ Deno.serve(async (req: Request) => {
     const body = await req.json();
     const {
       amount, projectId, bidId, ownerId, contractorId,
-      projectTitle, successUrl, cancelUrl,
+      projectTitle, productName, successUrl, cancelUrl,
     } = body;
 
     if (user.id !== ownerId) {
@@ -75,7 +75,7 @@ Deno.serve(async (req: Request) => {
             currency: "usd",
             unit_amount: Math.round(amount * 100),
             product_data: {
-              name: `First Milestone Payment`,
+              name: productName ?? `Milestone Payment`,
               description: projectTitle ?? `Project ${projectId}`,
             },
           },

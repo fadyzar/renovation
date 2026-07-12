@@ -19,9 +19,7 @@ import {
   Clock,
   AlertCircle,
   DollarSign,
-  Lock,
   Shield,
-  Building2,
   CreditCard,
   ChevronRight,
   FileText,
@@ -33,7 +31,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
-import { processMockDeposit, type CardDetails } from '../../lib/mockPaymentService';
+
+const PENDING_KEY = 'pending_stripe_payment';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -106,15 +105,6 @@ function formatUSD(n: number) {
   return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
 }
 
-function formatCardNumber(v: string) {
-  return v.replace(/\D/g, '').slice(0, 16).replace(/(.{4})/g, '$1 ').trim();
-}
-
-function formatExpiry(v: string) {
-  const d = v.replace(/\D/g, '').slice(0, 4);
-  return d.length >= 3 ? `${d.slice(0, 2)}/${d.slice(2)}` : d;
-}
-
 const STATUS_CONFIG: Record<MilestoneStatus, { label: string; color: string; bg: string; icon: React.ElementType }> = {
   pending:           { label: 'Pending',           color: 'text-gray-600',   bg: 'bg-gray-100',   icon: CircleDot },
   in_progress:       { label: 'In Progress',        color: 'text-blue-600',   bg: 'bg-blue-100',   icon: Clock },
@@ -124,228 +114,6 @@ const STATUS_CONFIG: Record<MilestoneStatus, { label: string; color: string; bg:
   disputed:          { label: 'Disputed',           color: 'text-red-600',    bg: 'bg-red-100',    icon: AlertCircle },
 };
 
-// ─── Approve & Pay Modal ──────────────────────────────────────────────────────
-
-interface PayModalProps {
-  milestone: PaymentMilestone;
-  onSuccess: () => void;
-  onClose: () => void;
-}
-
-function ApproveMilestoneModal({ milestone, onSuccess, onClose }: PayModalProps) {
-  const [modalState, setModalState] = useState<'form' | 'processing' | 'success' | 'error'>('form');
-  const [card, setCard] = useState<CardDetails>({
-    cardNumber: '', cardholderName: '', expiryMonth: '', expiryYear: '', cvv: '',
-  });
-  const [errors, setErrors] = useState<Partial<Record<keyof CardDetails, string>>>({});
-  const [errMsg, setErrMsg] = useState('');
-
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
-  }, []);
-
-  function validate() {
-    const errs: typeof errors = {};
-    if (card.cardNumber.replace(/\D/g, '').length < 13) errs.cardNumber = 'Enter a valid card number';
-    if (!card.cardholderName.trim()) errs.cardholderName = 'Enter cardholder name';
-    if (!card.expiryMonth || !card.expiryYear) errs.expiryMonth = 'Enter expiry date';
-    if (card.cvv.length < 3) errs.cvv = 'Enter CVV';
-    setErrors(errs);
-    return Object.keys(errs).length === 0;
-  }
-
-  async function handlePay() {
-    if (!validate()) return;
-    setModalState('processing');
-
-    const result = await processMockDeposit(milestone.amount, card, 'USD');
-    if (!result.success) {
-      setErrMsg(result.errorMessage ?? 'Payment failed.');
-      setModalState('error');
-      return;
-    }
-
-    const { error } = await supabase
-      .from('milestones')
-      .update({
-        status: 'paid',
-        approved_at: new Date().toISOString(),
-        paid_at: new Date().toISOString(),
-      })
-      .eq('id', milestone.id);
-
-    if (error) {
-      console.error('Failed to update milestone:', error);
-    }
-
-    setModalState('success');
-  }
-
-  const expiryDisplay =
-    card.expiryMonth || card.expiryYear
-      ? `${card.expiryMonth}${card.expiryYear ? `/${card.expiryYear}` : ''}`
-      : '';
-
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
-      <div className="bg-white rounded-2xl max-w-md w-full max-h-[92vh] overflow-y-auto shadow-2xl">
-        {/* Header */}
-        <div className="sticky top-0 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl z-10">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-              <Lock className="w-4 h-4 text-green-600" />
-            </div>
-            <div>
-              <h2 className="text-base font-bold text-gray-900">Approve & Pay Milestone</h2>
-              <p className="text-xs text-gray-500">Funds released to contractor after payment</p>
-            </div>
-          </div>
-          {(modalState === 'form' || modalState === 'error' || modalState === 'success') && (
-            <button onClick={onClose} className="p-1.5 hover:bg-gray-100 rounded-lg">
-              <X className="w-5 h-5 text-gray-500" />
-            </button>
-          )}
-        </div>
-
-        <div className="p-6">
-          {modalState === 'form' && (
-            <>
-              {/* Payment breakdown */}
-              <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-xl p-4 mb-6">
-                <p className="text-xs font-semibold text-green-700 uppercase tracking-wider mb-3">
-                  Payment Breakdown — {milestone.title}
-                </p>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Milestone Amount</span>
-                    <span className="font-semibold">{formatUSD(milestone.amount)}</span>
-                  </div>
-                </div>
-                <div className="border-t border-green-200 mt-3 pt-3 flex justify-between">
-                  <span className="font-bold text-gray-900">You Pay</span>
-                  <span className="text-xl font-bold text-green-700">{formatUSD(milestone.amount)}</span>
-                </div>
-              </div>
-
-              {/* Card form */}
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Card Number</label>
-                  <input
-                    type="text" inputMode="numeric" placeholder="1234 5678 9012 3456"
-                    value={card.cardNumber}
-                    onChange={e => { setCard(p => ({ ...p, cardNumber: formatCardNumber(e.target.value) })); setErrors(p => ({ ...p, cardNumber: undefined })); }}
-                    className={`w-full px-4 py-3 border rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500 ${errors.cardNumber ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-                  />
-                  {errors.cardNumber && <p className="text-xs text-red-500 mt-1">{errors.cardNumber}</p>}
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cardholder Name</label>
-                  <input
-                    type="text" placeholder="John Smith"
-                    value={card.cardholderName}
-                    onChange={e => setCard(p => ({ ...p, cardholderName: e.target.value }))}
-                    className={`w-full px-4 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-green-500 ${errors.cardholderName ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-                  />
-                  {errors.cardholderName && <p className="text-xs text-red-500 mt-1">{errors.cardholderName}</p>}
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Expiry</label>
-                    <input
-                      type="text" inputMode="numeric" placeholder="MM/YY"
-                      value={expiryDisplay}
-                      onChange={e => {
-                        const f = formatExpiry(e.target.value);
-                        const parts = f.split('/');
-                        setCard(p => ({ ...p, expiryMonth: parts[0] ?? '', expiryYear: parts[1] ?? '' }));
-                        setErrors(p => ({ ...p, expiryMonth: undefined }));
-                      }}
-                      className={`w-full px-4 py-3 border rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500 ${errors.expiryMonth ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-                    />
-                    {errors.expiryMonth && <p className="text-xs text-red-500 mt-1">{errors.expiryMonth}</p>}
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">CVV</label>
-                    <input
-                      type="password" inputMode="numeric" placeholder="•••" maxLength={4}
-                      value={card.cvv}
-                      onChange={e => setCard(p => ({ ...p, cvv: e.target.value.replace(/\D/g, '').slice(0, 4) }))}
-                      className={`w-full px-4 py-3 border rounded-xl text-sm font-mono focus:outline-none focus:ring-2 focus:ring-green-500 ${errors.cvv ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-                    />
-                    {errors.cvv && <p className="text-xs text-red-500 mt-1">{errors.cvv}</p>}
-                  </div>
-                </div>
-              </div>
-
-              <button
-                onClick={handlePay}
-                className="w-full mt-6 py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white font-bold text-base rounded-xl transition-all shadow-lg flex items-center justify-center gap-2"
-              >
-                <Lock className="w-4 h-4" />
-                Pay {formatUSD(milestone.amount)} & Release to Contractor
-              </button>
-
-              <div className="flex items-center justify-center gap-6 mt-4">
-                <div className="flex items-center gap-1.5 text-xs text-gray-500"><Lock className="w-3.5 h-3.5 text-green-500" />256-bit SSL</div>
-                <div className="flex items-center gap-1.5 text-xs text-gray-500"><Building2 className="w-3.5 h-3.5 text-blue-500" />Escrow</div>
-                <div className="flex items-center gap-1.5 text-xs text-gray-500"><Shield className="w-3.5 h-3.5 text-orange-500" />PCI DSS</div>
-              </div>
-            </>
-          )}
-
-          {modalState === 'processing' && (
-            <div className="py-12 flex flex-col items-center gap-6">
-              <div className="relative">
-                <div className="w-20 h-20 border-4 border-green-100 rounded-full" />
-                <div className="absolute inset-0 w-20 h-20 border-4 border-green-600 border-t-transparent rounded-full animate-spin" />
-                <Lock className="absolute inset-0 m-auto w-7 h-7 text-green-600" />
-              </div>
-              <div className="text-center">
-                <p className="text-lg font-semibold text-gray-900 mb-1">Processing payment…</p>
-                <p className="text-sm text-gray-500">Securely authorizing {formatUSD(milestone.amount)}</p>
-              </div>
-            </div>
-          )}
-
-          {modalState === 'success' && (
-            <div className="py-8 flex flex-col items-center text-center gap-4">
-              <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center">
-                <CheckCircle className="w-10 h-10 text-green-600" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-gray-900 mb-1">Payment Released!</h3>
-                <p className="text-gray-600 text-sm">
-                  {formatUSD(milestone.amount)} released to contractor
-                </p>
-              </div>
-              <button onClick={onSuccess} className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition-colors">
-                Done
-              </button>
-            </div>
-          )}
-
-          {modalState === 'error' && (
-            <div className="py-8 flex flex-col items-center text-center gap-4">
-              <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center">
-                <AlertCircle className="w-10 h-10 text-red-500" />
-              </div>
-              <div>
-                <h3 className="text-xl font-bold text-gray-900 mb-1">Payment Failed</h3>
-                <p className="text-sm text-red-600">{errMsg}</p>
-              </div>
-              <div className="flex gap-3 w-full">
-                <button onClick={() => setModalState('form')} className="flex-1 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl">Try Again</button>
-                <button onClick={onClose} className="flex-1 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold rounded-xl">Cancel</button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // ─── Submit Milestone Modal ───────────────────────────────────────────────────
 
@@ -433,12 +201,73 @@ export function ProjectPayments() {
   const [bid, setBid] = useState<BidInfo | null>(null);
   const [milestones, setMilestones] = useState<PaymentMilestone[]>([]);
   const [ownerProfile, setOwnerProfile] = useState<{ id: string; full_name: string; avatar_url: string | null } | null>(null);
-  const [approveModal, setApproveModal] = useState<{ milestone: PaymentMilestone; isFirst: boolean } | null>(null);
   const [submitModal, setSubmitModal] = useState<PaymentMilestone | null>(null);
   const [completing, setCompleting] = useState(false);
+  const [payingId, setPayingId] = useState<string | null>(null);
+  const [payError, setPayError] = useState('');
 
   const isOwner = profile?.id === project?.owner_id;
   const isContractor = profile?.id === project?.selected_contractor_id;
+
+  // ── Real Stripe Checkout for a milestone ──────────────────────────────────────
+  // Every milestone payment (first and all later ones) goes through the same
+  // Stripe Checkout session as the initial deposit. On return, PaymentSuccess
+  // marks THIS milestone paid (payload carries `kind: 'milestone'` + milestoneId).
+  async function startMilestoneCheckout(m: PaymentMilestone) {
+    if (!project || !bid) return;
+    setPayingId(m.id);
+    setPayError('');
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error('Not authenticated');
+
+      const origin = window.location.origin;
+      const successUrl = `${origin}/payment-success?projectId=${project.id}&milestoneId=${m.id}`;
+      const cancelUrl = `${origin}/project/${project.id}/payments`;
+
+      localStorage.setItem(PENDING_KEY, JSON.stringify({
+        kind: 'milestone',
+        projectId: project.id,
+        milestoneId: m.id,
+        ownerId: project.owner_id,
+        contractorId: project.selected_contractor_id,
+        amount: m.amount,
+        projectTitle: project.title,
+      }));
+
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-payment-intent`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            amount: m.amount,
+            projectId: project.id,
+            bidId: bid.id,
+            ownerId: project.owner_id,
+            contractorId: project.selected_contractor_id,
+            projectTitle: project.title,
+            productName: m.title,
+            successUrl,
+            cancelUrl,
+          }),
+        }
+      );
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? `Server error ${res.status}`);
+      }
+
+      const { sessionUrl } = await res.json();
+      window.location.href = sessionUrl;
+    } catch (err: any) {
+      console.error('Milestone checkout error:', err);
+      setPayError(err?.message ?? 'Payment could not be started. Please try again.');
+      setPayingId(null);
+    }
+  }
 
   // ── Data loading ────────────────────────────────────────────────────────────
 
@@ -814,26 +643,41 @@ export function ProjectPayments() {
                           The contractor's "Submit as Complete" only advances the
                           milestone's progress status; it never gates payment. */}
                       {isOwner && milestone.status !== 'paid' && (
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            onClick={() => setApproveModal({ milestone, isFirst })}
-                            className="flex items-center gap-2 px-3 sm:px-4 py-2.5 bg-green-600 hover:bg-green-700 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
-                          >
-                            <CreditCard className="w-4 h-4" />
-                            <span className="hidden sm:inline">Approve & Pay {formatUSD(milestone.amount)}</span>
-                            <span className="sm:hidden">Pay {formatUSD(milestone.amount)}</span>
-                          </button>
-                          {milestone.status === 'awaiting_approval' && (
+                        <div className="flex flex-col gap-2">
+                          <div className="flex flex-wrap gap-2">
                             <button
-                              onClick={async () => {
-                                await supabase.from('milestones').update({ status: 'disputed' }).eq('id', milestone.id);
-                                loadData();
-                              }}
-                              className="flex items-center gap-2 px-3 sm:px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-semibold rounded-xl transition-colors border border-red-200"
+                              onClick={() => startMilestoneCheckout(milestone)}
+                              disabled={payingId !== null}
+                              className="flex items-center gap-2 px-3 sm:px-4 py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors shadow-sm"
                             >
-                              <AlertCircle className="w-4 h-4" />
-                              Dispute
+                              {payingId === milestone.id ? (
+                                <>
+                                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                  Redirecting to Stripe…
+                                </>
+                              ) : (
+                                <>
+                                  <CreditCard className="w-4 h-4" />
+                                  <span className="hidden sm:inline">Pay {formatUSD(milestone.amount)} with Stripe</span>
+                                  <span className="sm:hidden">Pay {formatUSD(milestone.amount)}</span>
+                                </>
+                              )}
                             </button>
+                            {milestone.status === 'awaiting_approval' && (
+                              <button
+                                onClick={async () => {
+                                  await supabase.from('milestones').update({ status: 'disputed' }).eq('id', milestone.id);
+                                  loadData();
+                                }}
+                                className="flex items-center gap-2 px-3 sm:px-4 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 text-sm font-semibold rounded-xl transition-colors border border-red-200"
+                              >
+                                <AlertCircle className="w-4 h-4" />
+                                Dispute
+                              </button>
+                            )}
+                          </div>
+                          {payError && payingId === null && (
+                            <p className="text-xs text-red-600">{payError}</p>
                           )}
                         </div>
                       )}
@@ -890,18 +734,6 @@ export function ProjectPayments() {
       </div>
 
       {/* Modals */}
-      {approveModal && (
-        <ApproveMilestoneModal
-          milestone={approveModal.milestone}
-          onSuccess={() => {
-            setApproveModal(null);
-            loadData();
-            // Contractor notification (in-app + WhatsApp + email) is sent
-            // server-side via the milestone-paid DB trigger + dispatcher.
-          }}
-          onClose={() => setApproveModal(null)}
-        />
-      )}
       {submitModal && (
         <SubmitMilestoneModal
           milestone={submitModal}

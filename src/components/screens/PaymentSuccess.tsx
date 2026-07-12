@@ -13,6 +13,8 @@ export function PaymentSuccess() {
   const [state, setState] = useState<State>('activating');
   const [conversationId, setConversationId] = useState<string | undefined>();
   const [errMsg, setErrMsg] = useState('');
+  const [kind, setKind] = useState<'activation' | 'milestone'>('activation');
+  const [paidProjectId, setPaidProjectId] = useState<string | undefined>();
 
   useEffect(() => {
     activate();
@@ -23,11 +25,33 @@ export function PaymentSuccess() {
       const raw = localStorage.getItem(PENDING_KEY);
       if (!raw) throw new Error('Payment data not found. If you already paid, your project will be activated shortly.');
 
+      const parsed = JSON.parse(raw);
+
+      // ── Later milestone payment (2nd, 3rd, …) ──────────────────────────────
+      // Same Stripe Checkout as the first payment; here we just mark the one
+      // milestone paid. (First payment uses the activation path below.)
+      if (parsed.kind === 'milestone') {
+        setKind('milestone');
+        setPaidProjectId(parsed.projectId);
+        const nowIso = new Date().toISOString();
+        const { error: mErr } = await supabase
+          .from('milestones')
+          .update({ status: 'paid', approved_at: nowIso, paid_at: nowIso })
+          .eq('id', parsed.milestoneId);
+        if (mErr) throw new Error(mErr.message);
+
+        localStorage.removeItem(PENDING_KEY);
+        setState('success');
+        // Contractor notification (in-app + WhatsApp + email) is sent server-side
+        // via the milestone-paid DB trigger + dispatch-notification service.
+        return;
+      }
+
       const {
         projectId, bidId, ownerId, contractorId,
         contractorName, contractorPhone,
         totalBidAmount, firstAmount, milestones,
-      } = JSON.parse(raw);
+      } = parsed;
 
       const sessionId = searchParams.get('session_id') ?? `stripe_${Date.now()}`;
 
@@ -86,13 +110,26 @@ export function PaymentSuccess() {
           <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-5">
             <CheckCircle className="w-10 h-10 text-green-600" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Project Activated!</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            {kind === 'milestone' ? 'Payment Confirmed!' : 'Project Activated!'}
+          </h1>
           <p className="text-sm text-gray-600 mb-6">
-            Payment confirmed by Stripe. Your contractor has been notified and will reach out shortly.
+            {kind === 'milestone'
+              ? 'Payment confirmed by Stripe and released for this milestone. Your contractor has been notified.'
+              : 'Payment confirmed by Stripe. Your contractor has been notified and will reach out shortly.'}
           </p>
 
           <div className="space-y-3">
-            {conversationId && (
+            {kind === 'milestone' && paidProjectId && (
+              <button
+                onClick={() => navigate(`/project/${paidProjectId}/payments`)}
+                className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
+              >
+                <CheckCircle className="w-5 h-5" />
+                Back to Payments
+              </button>
+            )}
+            {kind === 'activation' && conversationId && (
               <button
                 onClick={() => navigate('/messages')}
                 className="w-full py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-colors"
