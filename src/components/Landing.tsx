@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Search,
   Shield,
@@ -15,8 +15,7 @@ import {
   CreditCard,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { motion, useReducedMotion, useScroll, useTransform, type Variants } from "framer-motion";
-import landingPage from '../assets/landingPage.svg';
+import { motion, type Variants } from "framer-motion";
 import backgroundLandingPAge from '../assets/backgroundLandingPAge.svg';
 import logo from '../assets/logo.svg';
 import { Footer } from './Footer';
@@ -92,15 +91,6 @@ export function Landing() {
   const [budget, setBudget] = useState("");
   const [faqOpen, setFaqOpen] = useState(0);
 
-  const reduceMotion = useReducedMotion();
-
-  const heroRef = useRef<HTMLDivElement | null>(null);
-  const { scrollYProgress } = useScroll({
-    target: heroRef,
-    offset: ["start start", "end start"],
-  });
-  useTransform(scrollYProgress, [0, 1], [0, reduceMotion ? 0 : 70]);
-  useTransform(scrollYProgress, [0, 1], [1, reduceMotion ? 1 : 0.65]);
 
   const features = useMemo(
     () => [
@@ -291,66 +281,53 @@ export function Landing() {
 
       <div className="z-10">
 
-        {/* ── HERO ── */}
-        <section id="home" ref={heroRef} className="relative pt-12 sm:pt-20 pb-12 sm:pb-24 min-h-[80vh] sm:min-h-[90vh] flex items-center">
-          <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-            <motion.div
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true, amount: 0.35 }}
-              variants={container}
-              className="flex flex-col items-center"
+        {/* ── HERO (full-bleed renovation carousel) ── */}
+        <WorkCarousel hero>
+          <motion.div
+            initial="hidden"
+            animate="show"
+            variants={container}
+            className="max-w-2xl"
+          >
+            <motion.span
+              variants={item}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/20 backdrop-blur text-white/90 text-sm font-semibold mb-6"
             >
-              <motion.h1
-                variants={item}
-                className="text-[2.4rem] sm:text-5xl md:text-8xl lg:text-[90px] font-extrabold tracking-[-0.03em] text-brand-navy leading-[1.2] md:leading-[1.15] max-w-5xl"
-              >
-                Transparent & Hassle<br className="hidden md:block" />
-                -Free Renovations.
-              </motion.h1>
+              <span className="w-2 h-2 rounded-full bg-brand-orange" />
+              Verified contractors · Escrow-protected payments
+            </motion.span>
 
-              <motion.p
-                variants={item}
-                className="mt-8 text-xl md:text-2xl text-brand-navy/60 max-w-3xl leading-relaxed"
-              >
-                Get fair pricing, verified contractors, and full project control – all in one place.
-              </motion.p>
+            <motion.h1
+              variants={item}
+              className="text-4xl sm:text-6xl lg:text-7xl font-extrabold tracking-[-0.03em] text-white leading-[1.05]"
+            >
+              Transparent &amp; Hassle-Free Renovations.
+            </motion.h1>
 
-              <motion.div variants={item} className="mt-8 sm:mt-12 flex flex-col sm:flex-row gap-3 sm:gap-4 w-full sm:w-auto">
-                <button
-                  onClick={() => navigate("/signup")}
-                  className="px-8 sm:px-10 py-4 sm:py-5 rounded-full bg-brand-orange hover:bg-orange-600 text-white font-bold text-base sm:text-lg transition-all shadow-[0_8px_30px_rgb(254,95,32,0.3)] flex items-center justify-center gap-2 active:scale-95"
-                >
-                  Start Your Project
-                  <ArrowRight className="w-5 h-5" />
-                </button>
-                <button
-                  onClick={() => navigate("/signup")}
-                  className="px-8 sm:px-10 py-4 sm:py-5 rounded-full bg-white hover:bg-slate-50 text-brand-navy font-bold text-base sm:text-lg border border-slate-200 transition-all flex items-center justify-center gap-2 active:scale-95"
-                >
-                  View Pricing
-                </button>
-              </motion.div>
+            <motion.p
+              variants={item}
+              className="mt-6 text-lg sm:text-2xl text-white/80 max-w-xl leading-relaxed"
+            >
+              Get fair pricing, verified contractors, and full project control — all in one place.
+            </motion.p>
 
-              <motion.div
-                variants={item}
-                className="mt-10 sm:mt-20 relative w-full h-[260px] sm:h-[400px] md:h-[600px] flex justify-center items-end"
+            <motion.div variants={item} className="mt-8 flex flex-col sm:flex-row gap-3 sm:gap-4">
+              <button
+                onClick={() => navigate("/signup")}
+                className="px-8 sm:px-10 py-4 sm:py-5 rounded-full bg-brand-orange hover:bg-orange-600 text-white font-bold text-base sm:text-lg transition-all shadow-[0_8px_30px_rgb(254,95,32,0.4)] flex items-center justify-center gap-2 active:scale-95"
               >
-                <div className="relative w-full max-w-6xl aspect-[2/1] pointer-events-none">
-                  <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-transparent z-10" />
-                  <img
-                    src={landingPage}
-                    alt="Renovation Illustration"
-                    className="w-full h-full object-contain object-bottom opacity-90"
-                  />
-                </div>
-              </motion.div>
+                Start Your Project
+                <ArrowRight className="w-5 h-5" />
+              </button>
+              <button
+                onClick={() => navigate("/signup")}
+                className="px-8 sm:px-10 py-4 sm:py-5 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold text-base sm:text-lg border border-white/30 backdrop-blur transition-all flex items-center justify-center gap-2 active:scale-95"
+              >
+                View Pricing
+              </button>
             </motion.div>
-          </div>
-        </section>
-
-        {/* ── WORK CAROUSEL ── */}
-        <WorkCarousel />
+          </motion.div>
+        </WorkCarousel>
 
         {/* ── FEATURES ── */}
         <section className="py-24 bg-[#FAFAFB]">

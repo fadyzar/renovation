@@ -3,10 +3,13 @@ import { ChevronLeft, ChevronRight } from "lucide-react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 
 /* ─────────────────────────────────────────────────────────────
-   Landing-page carousel of renovation / contractor work.
-   To use your own project photos, just swap the `src` values below
-   (any image URL or an imported local asset works). Keep 16:9-ish
-   landscape images for a consistent frame.
+   Renovation / contractor work carousel.
+   Two modes:
+     • <WorkCarousel />          → framed "Our Work" section
+     • <WorkCarousel hero>…</>   → full-bleed hero background with the
+                                   passed children overlaid on top.
+   To use your own project photos, swap the `src` values in SLIDES.
+   Keep landscape (≈16:9) images for a consistent frame.
    ───────────────────────────────────────────────────────────── */
 
 interface Slide {
@@ -15,7 +18,7 @@ interface Slide {
 }
 
 const IMG = (id: string) =>
-  `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=1600&q=80`;
+  `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=1920&q=80`;
 
 const SLIDES: Slide[] = [
   { src: IMG("1600585154340-be6161a56a0c"), label: "Full-home renovation" },
@@ -28,7 +31,13 @@ const SLIDES: Slide[] = [
 
 const AUTOPLAY_MS = 5000;
 
-export function WorkCarousel() {
+export function WorkCarousel({
+  hero = false,
+  children,
+}: {
+  hero?: boolean;
+  children?: React.ReactNode;
+}) {
   const reduce = useReducedMotion();
   const [[index, dir], setState] = useState<[number, number]>([0, 0]);
   const [paused, setPaused] = useState(false);
@@ -62,6 +71,84 @@ export function WorkCarousel() {
 
   const slide = SLIDES[index];
 
+  // Animated full-bleed image layer, shared by both modes.
+  const imageLayer = (
+    <AnimatePresence initial={false} custom={dir} mode="popLayout">
+      <motion.div
+        key={index}
+        custom={dir}
+        initial={reduce ? { opacity: 0 } : { opacity: 0, x: dir > 0 ? 60 : -60 }}
+        animate={{ opacity: 1, x: 0 }}
+        exit={reduce ? { opacity: 0 } : { opacity: 0, x: dir > 0 ? -60 : 60 }}
+        transition={{ duration: 0.7, ease: "easeInOut" }}
+        className="absolute inset-0"
+      >
+        <img
+          src={slide.src}
+          alt={slide.label}
+          className="absolute inset-0 w-full h-full object-cover"
+        />
+      </motion.div>
+    </AnimatePresence>
+  );
+
+  const Dot = ({ i }: { i: number }) => (
+    <button
+      onClick={() => go(i, i > index ? 1 : -1)}
+      aria-label={`Go to slide ${i + 1}`}
+      className={`h-2 rounded-full transition-all ${
+        i === index ? "w-7 bg-brand-orange" : "w-2 bg-white/50 hover:bg-white"
+      }`}
+    />
+  );
+
+  const ArrowBtn = ({ dirBtn }: { dirBtn: "prev" | "next" }) => (
+    <button
+      onClick={dirBtn === "prev" ? prev : next}
+      aria-label={dirBtn === "prev" ? "Previous" : "Next"}
+      className="w-11 h-11 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur border border-white/25 text-white flex items-center justify-center transition-colors active:scale-95"
+    >
+      {dirBtn === "prev" ? <ChevronLeft className="w-5 h-5" /> : <ChevronRight className="w-5 h-5" />}
+    </button>
+  );
+
+  // ── HERO MODE ────────────────────────────────────────────────────────────
+  if (hero) {
+    return (
+      <section
+        id="home"
+        className="relative min-h-[86vh] flex items-center overflow-hidden"
+        onMouseEnter={() => setPaused(true)}
+        onMouseLeave={() => setPaused(false)}
+      >
+        <div className="absolute inset-0">{imageLayer}</div>
+        {/* Brand scrim — darkest on the left/bottom where the copy sits */}
+        <div className="absolute inset-0 bg-gradient-to-r from-brand-navy/90 via-brand-navy/60 to-brand-navy/20" />
+        <div className="absolute inset-0 bg-gradient-to-t from-brand-navy/80 via-transparent to-transparent" />
+
+        <div className="relative z-10 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+          {children}
+        </div>
+
+        {/* Controls */}
+        <div className="absolute z-10 bottom-6 sm:bottom-8 left-0 right-0">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {SLIDES.map((_, i) => (
+                <Dot key={i} i={i} />
+              ))}
+            </div>
+            <div className="hidden sm:flex items-center gap-2">
+              <ArrowBtn dirBtn="prev" />
+              <ArrowBtn dirBtn="next" />
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  // ── SECTION MODE ─────────────────────────────────────────────────────────
   return (
     <section className="py-24 bg-white">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -84,32 +171,14 @@ export function WorkCarousel() {
           onMouseLeave={() => setPaused(false)}
         >
           <div className="relative aspect-[16/10] sm:aspect-[16/9]">
-            {/* Image + caption animate together so they never fall out of sync */}
-            <AnimatePresence initial={false} custom={dir} mode="popLayout">
-              <motion.div
-                key={index}
-                custom={dir}
-                initial={reduce ? { opacity: 0 } : { opacity: 0, x: dir > 0 ? 60 : -60 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={reduce ? { opacity: 0 } : { opacity: 0, x: dir > 0 ? -60 : 60 }}
-                transition={{ duration: 0.6, ease: "easeInOut" }}
-                className="absolute inset-0"
-              >
-                <img
-                  src={slide.src}
-                  alt={slide.label}
-                  className="absolute inset-0 w-full h-full object-cover"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent pointer-events-none" />
-                <div className="absolute left-5 bottom-5 sm:left-8 sm:bottom-8">
-                  <span className="inline-flex items-center px-4 py-2 rounded-full bg-white/15 backdrop-blur text-white text-sm font-semibold border border-white/20">
-                    {slide.label}
-                  </span>
-                </div>
-              </motion.div>
-            </AnimatePresence>
+            {imageLayer}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent pointer-events-none" />
+            <div className="absolute left-5 bottom-5 sm:left-8 sm:bottom-8">
+              <span className="inline-flex items-center px-4 py-2 rounded-full bg-white/15 backdrop-blur text-white text-sm font-semibold border border-white/20">
+                {slide.label}
+              </span>
+            </div>
 
-            {/* Arrows */}
             <button
               onClick={prev}
               aria-label="Previous"
@@ -126,17 +195,9 @@ export function WorkCarousel() {
             </button>
           </div>
 
-          {/* Dots */}
           <div className="absolute bottom-5 left-1/2 -translate-x-1/2 flex items-center gap-2">
-            {SLIDES.map((s, i) => (
-              <button
-                key={s.src}
-                onClick={() => go(i, i > index ? 1 : -1)}
-                aria-label={`Go to slide ${i + 1}`}
-                className={`h-2 rounded-full transition-all ${
-                  i === index ? "w-7 bg-brand-orange" : "w-2 bg-white/60 hover:bg-white"
-                }`}
-              />
+            {SLIDES.map((_, i) => (
+              <Dot key={i} i={i} />
             ))}
           </div>
         </div>
