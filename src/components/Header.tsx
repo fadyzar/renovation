@@ -37,15 +37,16 @@ export function Header() {
             <img src={logo} alt="M.G.BIT Logo" className="h-5 w-auto" />
           </div>
 
-          <nav className="hidden md:flex items-center gap-8">
+          <nav className="hidden md:flex items-center gap-8 h-16">
             {navItems.map((item) => (
               <button
                 key={item.path}
                 onClick={() => navigate(item.path)}
-                className={`text-sm font-medium transition-colors ${
+                aria-current={isActive(item.path) ? 'page' : undefined}
+                className={`h-full inline-flex items-center text-sm border-b-2 -mb-px transition-colors ${
                   isActive(item.path)
-                    ? 'text-gray-900'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'border-brand-orange text-brand-navy font-semibold'
+                    : 'border-transparent text-gray-500 font-medium hover:text-brand-navy hover:border-gray-300'
                 }`}
               >
                 {item.label}
@@ -117,10 +118,10 @@ export function Header() {
                   navigate(item.path);
                   setMobileMenuOpen(false);
                 }}
-                className={`block w-full text-left px-4 py-3 rounded-lg text-sm font-medium transition-colors ${
+                className={`block w-full text-left px-4 py-3 rounded-lg text-sm transition-colors border-l-2 ${
                   isActive(item.path)
-                    ? 'bg-blue-50 text-blue-600'
-                    : 'text-gray-700 hover:bg-gray-50'
+                    ? 'bg-brand-orange/10 text-brand-orange font-semibold border-brand-orange'
+                    : 'text-gray-700 font-medium border-transparent hover:bg-gray-50'
                 }`}
               >
                 {item.label}
