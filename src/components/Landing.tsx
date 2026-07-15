@@ -20,6 +20,7 @@ import landingPage from '../assets/landingPage.svg';
 import backgroundLandingPAge from '../assets/backgroundLandingPAge.svg';
 import logo from '../assets/logo.svg';
 import { Footer } from './Footer';
+import { WorkCarousel } from './WorkCarousel';
 
 function cn(...classes: Array<string | false | undefined | null>) {
   return classes.filter(Boolean).join(" ");
@@ -347,6 +348,9 @@ export function Landing() {
             </motion.div>
           </div>
         </section>
+
+        {/* ── WORK CAROUSEL ── */}
+        <WorkCarousel />
 
         {/* ── FEATURES ── */}
         <section className="py-24 bg-[#FAFAFB]">
