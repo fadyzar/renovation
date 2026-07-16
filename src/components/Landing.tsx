@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { motion, type Variants } from "framer-motion";
+import landingPage from '../assets/landingPage.svg';
 import backgroundLandingPAge from '../assets/backgroundLandingPAge.svg';
 import logo from '../assets/logo.svg';
 import { Footer } from './Footer';
@@ -377,6 +378,69 @@ export function Landing() {
           </div>
         </section>
 
+        {/* ── HOW IT WORKS (workers illustration) ── */}
+        <section className="py-24 bg-white overflow-hidden">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <motion.div
+              initial="hidden"
+              whileInView="show"
+              viewport={{ once: true, amount: 0.2 }}
+              variants={container}
+              className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center"
+            >
+              {/* Workers illustration */}
+              <motion.div variants={item} className="relative order-last lg:order-first">
+                <div className="absolute -inset-6 bg-gradient-to-tr from-brand-blue/10 via-transparent to-brand-orange/10 rounded-[40px] blur-2xl" />
+                <img
+                  src={landingPage}
+                  alt="MGBiT verified contractors at work"
+                  className="relative w-full h-auto object-contain drop-shadow-[0_20px_40px_rgba(31,38,62,0.12)]"
+                />
+              </motion.div>
+
+              {/* Copy + steps */}
+              <motion.div variants={item}>
+                <p className="text-sm font-bold uppercase tracking-widest text-brand-orange mb-3">
+                  How it works
+                </p>
+                <h2 className="text-3xl sm:text-4xl md:text-[52px] font-extrabold text-brand-navy tracking-tight leading-[1.1]">
+                  Your renovation, managed end to end.
+                </h2>
+                <p className="mt-5 text-lg text-[#909090] leading-relaxed">
+                  From the first quote to the final milestone, MGBiT keeps every step transparent —
+                  so you always know what's happening, who's doing it, and where your money is.
+                </p>
+
+                <div className="mt-8 space-y-5">
+                  {[
+                    { n: "1", t: "Post your project", d: "Describe the job in minutes and get an instant, fair-market estimate." },
+                    { n: "2", t: "Get matched with verified pros", d: "Compare transparent bids from vetted, accountable contractors." },
+                    { n: "3", t: "Pay safely by milestone", d: "Funds sit in escrow and release only as work is approved." },
+                  ].map((s) => (
+                    <div key={s.n} className="flex gap-4">
+                      <div className="w-10 h-10 shrink-0 rounded-xl bg-brand-orange/10 text-brand-orange font-extrabold flex items-center justify-center">
+                        {s.n}
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-brand-navy text-lg leading-tight">{s.t}</h3>
+                        <p className="text-[#909090] text-[15px] mt-1 leading-relaxed">{s.d}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => navigate("/signup")}
+                  className="mt-9 px-8 py-4 rounded-full bg-brand-navy hover:bg-[#161c30] text-white font-bold text-base transition-all shadow-lg flex items-center gap-2 active:scale-95"
+                >
+                  Start Your Project
+                  <ArrowRight className="w-5 h-5" />
+                </button>
+              </motion.div>
+            </motion.div>
+          </div>
+        </section>
+
         {/* ── KICKSTART FORM ── */}
         <section id="kickstart" className="py-24 bg-white">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -553,6 +617,50 @@ export function Landing() {
                   </motion.div>
                 ))}
               </motion.div>
+            </motion.div>
+          </div>
+        </section>
+
+        {/* ── PHOTO CTA BAND ── */}
+        <section className="py-16 sm:py-24 bg-white">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <motion.div
+              initial="hidden"
+              whileInView="show"
+              viewport={{ once: true, amount: 0.3 }}
+              variants={container}
+              className="relative overflow-hidden rounded-[28px]"
+            >
+              <img
+                src="https://images.unsplash.com/photo-1618221195710-dd6b41faaea6?auto=format&fit=crop&w=1920&q=80"
+                alt="Beautifully renovated home interior"
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-brand-navy/90 via-brand-navy/75 to-brand-navy/55" />
+              <div className="relative px-6 py-16 sm:px-16 sm:py-24 text-center max-w-3xl mx-auto">
+                <motion.h2 variants={item} className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight leading-tight">
+                  Ready to transform your home?
+                </motion.h2>
+                <motion.p variants={item} className="mt-5 text-lg sm:text-xl text-white/80 leading-relaxed">
+                  Join homeowners renovating with fair pricing, verified contractors, and
+                  escrow-protected payments — from first quote to finished home.
+                </motion.p>
+                <motion.div variants={item} className="mt-9 flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
+                  <button
+                    onClick={() => navigate("/signup")}
+                    className="px-8 sm:px-10 py-4 sm:py-5 rounded-full bg-brand-orange hover:bg-orange-600 text-white font-bold text-base sm:text-lg transition-all shadow-[0_8px_30px_rgb(254,95,32,0.4)] flex items-center justify-center gap-2 active:scale-95"
+                  >
+                    Start Your Project
+                    <ArrowRight className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => navigate("/signup")}
+                    className="px-8 sm:px-10 py-4 sm:py-5 rounded-full bg-white/10 hover:bg-white/20 text-white font-bold text-base sm:text-lg border border-white/30 backdrop-blur transition-all flex items-center justify-center gap-2 active:scale-95"
+                  >
+                    View Pricing
+                  </button>
+                </motion.div>
+              </div>
             </motion.div>
           </div>
         </section>
