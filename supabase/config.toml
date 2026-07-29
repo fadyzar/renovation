@@ -1,0 +1,13 @@
+project_id = "siycwirvlkbfemqqwwcs"
+
+# These two functions are invoked by DB triggers via pg_net and authenticate
+# with a shared `x-webhook-secret` header (they validate it themselves), NOT a
+# Supabase JWT. They MUST be deployed with verify_jwt = false, otherwise the
+# gateway rejects the trigger's call with 401 UNAUTHORIZED_NO_AUTH_HEADER and
+# no email / WhatsApp is ever sent. Pinning it here keeps plain
+# `supabase functions deploy` from silently re-enabling JWT verification.
+[functions.dispatch-notification]
+verify_jwt = false
+
+[functions.dispatch-team-alert]
+verify_jwt = false
