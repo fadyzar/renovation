@@ -1,17 +1,19 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.57.4";
-import { sendWhatsApp, APP_URL } from "../_shared/whatsapp.ts";
+import { sendResend, layout, APP_URL } from "../_shared/email.ts";
 
 /**
- * Internal MGbit Team WhatsApp alerts.
+ * Internal MGbit Team alerts — EMAIL ONLY (via Resend).
  *
- * Invoked (via pg_net) by an AFTER INSERT trigger on `team_alerts`. Builds one
- * English "MGbit Team Alert" message for the event and sends it to every ACTIVE
- * team member whose matching alert flag is on. Reuses the shared WhatsApp layer
- * (feature flags + test-mode + Green API) — it never talks to Green API directly.
+ * Moved off WhatsApp on purpose (July 2026): repeated automated WhatsApp blasts
+ * to several team numbers risked Meta/Green API blocking the sender number.
+ * This function NEVER touches WhatsApp or Green API — every team alert goes out
+ * as a branded email through Resend, exactly like customer/contractor emails.
  *
- * Idempotent: team_alerts.idempotency_key allows one alert per event, and
- * dispatched_at guards against double delivery here.
+ * Invoked (via pg_net) by an AFTER INSERT trigger on `team_alerts`. Recipients
+ * come from `team_whatsapp_recipients` (active, with an email, matching the
+ * event's flag OR `always_all`). Dedup: the alert is claimed atomically
+ * (dispatched_at set under a NULL guard) so an event is delivered exactly once.
  */
 
 const corsHeaders = {
@@ -20,7 +22,7 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey, x-webhook-secret",
 };
 
-// event_type → which per-member flag gates delivery.
+// event_type → which per-member flag gates delivery (always_all bypasses this).
 const FLAG_FOR: Record<string, string> = {
   new_project:       "receive_project_alerts",
   new_quote:         "receive_quote_alerts",
@@ -28,15 +30,32 @@ const FLAG_FOR: Record<string, string> = {
   quote_rejected:    "receive_status_alerts",
   status_update:     "receive_status_alerts",
   contractor_joined: "receive_status_alerts",
+  owner_joined:      "receive_status_alerts",
+  payment:           "receive_status_alerts",
+};
+
+const EVENT_LABEL: Record<string, string> = {
+  new_project:       "New project posted",
+  new_quote:         "New bid submitted",
+  quote_accepted:    "Quote accepted",
+  quote_rejected:    "Quote rejected",
+  status_update:     "Project status changed",
+  contractor_joined: "New contractor registered",
+  owner_joined:      "New client registered",
+  payment:           "Payment received",
 };
 
 const STATUS_LABEL: Record<string, string> = {
+  seeking_quotes:   "Seeking quotes",
   awaiting_deposit: "Awaiting deposit",
   in_progress:      "In progress",
   completed:        "Completed",
   cancelled:        "Cancelled",
 };
 
+function esc(s: unknown): string {
+  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
 function money(v: unknown): string {
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? `$${n.toLocaleString()}` : "";
@@ -46,59 +65,98 @@ function budgetRange(min: unknown, max: unknown): string {
   if (lo && hi) return `${lo}–${hi}`;
   return lo || hi || "Not specified";
 }
-function nowUtc(): string {
-  return new Date().toISOString().replace("T", " ").slice(0, 16) + " UTC";
+function when(ts?: string): string {
+  const d = ts ? new Date(ts) : new Date();
+  return d.toISOString().replace("T", " ").slice(0, 16) + " UTC";
 }
-function clean(lines: (string | false | undefined)[]): string {
-  return lines.filter((l) => l !== "" && l !== false && l !== undefined).join("\n");
+
+interface Built {
+  subject: string;
+  eventLabel: string;
+  rows: Array<[string, string]>;
+  link: string;
+  linkText: string;
+  customHtml?: string; // when set, replaces the rows table (announcement / summary)
+  customText?: string;
 }
 
 // deno-lint-ignore no-explicit-any
-async function buildMessage(supabase: any, alert: any): Promise<string | null> {
+async function buildEmail(supabase: any, alert: any): Promise<Built | null> {
   const meta = alert.metadata ?? {};
 
-  // New contractor completed onboarding.
-  if (alert.event_type === "contractor_joined" && meta.profile_id) {
-    const { data: c } = await supabase.from("profiles")
-      .select("full_name, company_name, phone, email, city, state, specialties")
-      .eq("id", meta.profile_id).maybeSingle();
-    if (!c) return null;
-    const specialties = Array.isArray(c.specialties) && c.specialties.length ? c.specialties.join(", ") : "";
-    const loc = [c.city, c.state].filter(Boolean).join(", ");
-    return clean([
-      `🚨 *MGbit Team Alert* — New Contractor Joined`, ``,
-      `👷 ${c.full_name || "Unnamed"}`,
-      c.company_name && `🏢 ${c.company_name}`,
-      c.phone && `📞 ${c.phone}`,
-      c.email && `✉️ ${c.email}`,
-      loc && `📍 ${loc}`,
-      specialties && `🔧 ${specialties}`, ``,
-      `🔗 ${APP_URL}/admin/verifications`,
-      `🕒 ${nowUtc()}`,
-    ]);
+  // ── Free-text announcement (e.g. the WhatsApp→email migration notice) ─────
+  if (alert.event_type === "announcement") {
+    const msg = String(meta.message ?? "");
+    return {
+      subject: meta.subject || "M.G.BIT — Team update",
+      eventLabel: "Announcement",
+      rows: [],
+      link: meta.link || `${APP_URL}/admin`,
+      linkText: meta.link_text || "Open Admin",
+      customHtml: `<p dir="rtl" style="text-align:right;white-space:pre-line;margin:0;">${esc(msg)}</p>`,
+      customText: msg,
+    };
   }
 
+  // ── Recent-activity summary (last N days) ────────────────────────────────
+  if (alert.event_type === "summary") {
+    return await buildSummary(supabase, Number(meta.days) || 14);
+  }
+
+  const eventLabel = EVENT_LABEL[alert.event_type];
+  if (!eventLabel) return null;
+  const ts = when(alert.created_at);
+
+  // ── New client / contractor registered ──────────────────────────────────
+  if (alert.event_type === "owner_joined" || alert.event_type === "contractor_joined") {
+    const pid = meta.profile_id;
+    const { data: u } = await supabase.from("profiles")
+      .select("full_name, email, phone, company_name, city, state, specialties, role, created_at")
+      .eq("id", pid).maybeSingle();
+    if (!u) return null;
+    const loc = [u.city, u.state].filter(Boolean).join(", ");
+    const specialties = Array.isArray(u.specialties) && u.specialties.length ? u.specialties.join(", ") : "";
+    const rows: Array<[string, string]> = [
+      ["Event", eventLabel],
+      ["Name", u.full_name || "Unnamed"],
+      ["Email", u.email || ""],
+      ["Phone", u.phone || ""],
+      ["User type", u.role === "contractor" ? "Contractor" : u.role === "property_owner" ? "Client (owner)" : (u.role || "")],
+      ["Company", u.company_name || ""],
+      ["Location", loc],
+      ["Specialties", specialties],
+      ["Joined", when(u.created_at)],
+    ];
+    const link = alert.event_type === "contractor_joined" ? `${APP_URL}/admin/verifications` : `${APP_URL}/admin`;
+    return { subject: `👤 Team Alert — ${eventLabel}: ${u.full_name || "Unnamed"}`, eventLabel, rows, link, linkText: "Open Admin" };
+  }
+
+  // ── Project / bid / payment events ───────────────────────────────────────
   const projectId: string | undefined = meta.project_id;
   const bidId: string | undefined = meta.bid_id;
-  const adminLink = projectId ? `${APP_URL}/contractor-matching/${projectId}` : `${APP_URL}/admin`;
+  const link = projectId ? `${APP_URL}/contractor-matching/${projectId}` : `${APP_URL}/admin`;
 
   // deno-lint-ignore no-explicit-any
   let proj: any = null;
+  let ownerName = "", ownerEmail = "";
   if (projectId) {
     const { data } = await supabase.from("projects")
-      .select("title, work_types, city, budget_min, budget_max, owner_id").eq("id", projectId).maybeSingle();
+      .select("title, work_types, city, state, budget_min, budget_max, status, owner_id, created_at").eq("id", projectId).maybeSingle();
     proj = data;
+    if (proj?.owner_id) {
+      const { data: o } = await supabase.from("profiles").select("full_name, email").eq("id", proj.owner_id).maybeSingle();
+      ownerName = o?.full_name ?? ""; ownerEmail = o?.email ?? "";
+    }
   }
   const projectTitle = proj?.title ?? "a project";
   const category = Array.isArray(proj?.work_types) && proj.work_types.length ? proj.work_types.join(", ") : "";
-  const location = proj?.city ?? "";
+  const location = [proj?.city, proj?.state].filter(Boolean).join(", ");
 
   // deno-lint-ignore no-explicit-any
   let bid: any = null;
   let contractorName = "";
   if (bidId) {
-    const { data } = await supabase.from("bids")
-      .select("total_price, milestones, contractor_id, project_id").eq("id", bidId).maybeSingle();
+    const { data } = await supabase.from("bids").select("total_price, milestones, contractor_id").eq("id", bidId).maybeSingle();
     bid = data;
     if (bid?.contractor_id) {
       const { data: c } = await supabase.from("profiles").select("full_name").eq("id", bid.contractor_id).maybeSingle();
@@ -109,68 +167,174 @@ async function buildMessage(supabase: any, alert: any): Promise<string | null> {
   // deno-lint-ignore no-explicit-any
   const days = ms.reduce((s: number, m: any) => s + (Number(m?.duration) || 0), 0);
   const timeline = days > 0 ? `${days} day${days !== 1 ? "s" : ""}` : "";
-  const summary = ms.length ? `${ms.length} milestone${ms.length !== 1 ? "s" : ""}` : "";
 
   switch (alert.event_type) {
-    case "new_project": {
-      let ownerName = "";
-      if (proj?.owner_id) {
-        const { data: o } = await supabase.from("profiles").select("full_name").eq("id", proj.owner_id).maybeSingle();
-        ownerName = o?.full_name ?? "";
-      }
-      return clean([
-        `🚨 *MGbit Team Alert* — New Project`, ``,
-        `📋 ${projectTitle}`,
-        category && `🔧 ${category}`,
-        location && `📍 ${location}`,
-        `💰 ${budgetRange(proj?.budget_min, proj?.budget_max)}`,
-        ownerName && `👤 Owner: ${ownerName}`, ``,
-        `🔗 ${adminLink}`,
-        `🕒 ${nowUtc()}`,
-      ]);
-    }
+    case "new_project":
+      return {
+        subject: `🏗️ Team Alert — New project: ${projectTitle}`, eventLabel,
+        rows: [
+          ["Event", eventLabel], ["Project", projectTitle], ["Category", category],
+          ["Location", location], ["Budget", budgetRange(proj?.budget_min, proj?.budget_max)],
+          ["Owner", ownerName], ["Owner email", ownerEmail],
+          ["Status", STATUS_LABEL[proj?.status] ?? proj?.status ?? ""], ["When", ts],
+        ], link, linkText: "View Project",
+      };
     case "new_quote":
-      return clean([
-        `🚨 *MGbit Team Alert* — New Quote`, ``,
-        `📋 Project: ${projectTitle}`,
-        contractorName && `👷 Contractor: ${contractorName}`,
-        `💵 Price: ${money(bid?.total_price) || "N/A"}`,
-        timeline && `🗓️ Timeline: ${timeline}`,
-        summary && `📝 ${summary}`, ``,
-        `🔗 ${adminLink}`,
-        `🕒 ${nowUtc()}`,
-      ]);
+      return {
+        subject: `📋 Team Alert — New bid on "${projectTitle}"`, eventLabel,
+        rows: [
+          ["Event", eventLabel], ["Project", projectTitle], ["Contractor", contractorName],
+          ["Bid amount", money(bid?.total_price) || "N/A"], ["Timeline", timeline],
+          ["Milestones", ms.length ? String(ms.length) : ""], ["When", ts],
+        ], link, linkText: "View Project",
+      };
     case "quote_accepted":
-      return clean([
-        `🚨 *MGbit Team Alert* — Quote Accepted ✅`, ``,
-        `📋 Project: ${projectTitle}`,
-        contractorName && `👷 Contractor: ${contractorName}`,
-        `💵 Accepted price: ${money(bid?.total_price) || "N/A"}`,
-        `➡️ Next: owner completes the secure deposit into escrow to activate the project.`, ``,
-        `🔗 ${adminLink}`,
-        `🕒 ${nowUtc()}`,
-      ]);
+      return {
+        subject: `✅ Team Alert — Quote accepted on "${projectTitle}"`, eventLabel,
+        rows: [
+          ["Event", eventLabel], ["Project", projectTitle], ["Contractor", contractorName],
+          ["Accepted price", money(bid?.total_price) || "N/A"],
+          ["Next", "Owner completes the escrow deposit to activate the project."], ["When", ts],
+        ], link, linkText: "View Project",
+      };
     case "quote_rejected":
-      return clean([
-        `🚨 *MGbit Team Alert* — Quote Rejected`, ``,
-        `📋 Project: ${projectTitle}`,
-        contractorName && `👷 Contractor: ${contractorName}`,
-        `💵 Quote: ${money(bid?.total_price) || "N/A"}`,
-        `📌 Status: Rejected`, ``,
-        `🔗 ${adminLink}`,
-        `🕒 ${nowUtc()}`,
-      ]);
+      return {
+        subject: `↩️ Team Alert — Quote rejected on "${projectTitle}"`, eventLabel,
+        rows: [
+          ["Event", eventLabel], ["Project", projectTitle], ["Contractor", contractorName],
+          ["Quote", money(bid?.total_price) || "N/A"], ["When", ts],
+        ], link, linkText: "View Project",
+      };
     case "status_update":
-      return clean([
-        `🚨 *MGbit Team Alert* — Project Status Update`, ``,
-        `📋 Project: ${projectTitle}`,
-        `🔄 New status: ${STATUS_LABEL[meta.status] ?? meta.status}`, ``,
-        `🔗 ${adminLink}`,
-        `🕒 ${nowUtc()}`,
-      ]);
+      return {
+        subject: `🔄 Team Alert — "${projectTitle}" → ${STATUS_LABEL[meta.status] ?? meta.status}`, eventLabel,
+        rows: [
+          ["Event", eventLabel], ["Project", projectTitle],
+          ["New status", STATUS_LABEL[meta.status] ?? meta.status ?? ""], ["Owner", ownerName], ["When", ts],
+        ], link, linkText: "View Project",
+      };
+    case "payment": {
+      const payLink = projectId ? `${APP_URL}/project/${projectId}/payments` : `${APP_URL}/admin`;
+      return {
+        subject: `💵 Team Alert — Payment received on "${projectTitle}"`, eventLabel,
+        rows: [
+          ["Event", eventLabel], ["Project", projectTitle],
+          ["Milestone", meta.title || ""], ["Amount", money(meta.amount) || ""],
+          ["Owner", ownerName], ["When", ts],
+        ], link: payLink, linkText: "View Payments",
+      };
+    }
     default:
       return null;
   }
+}
+
+// Build the "recent activity" digest (new projects + new users, last N days).
+// deno-lint-ignore no-explicit-any
+async function buildSummary(supabase: any, days: number): Promise<Built> {
+  const since = new Date(Date.now() - days * 86400000).toISOString();
+
+  const { data: projects } = await supabase.from("projects")
+    .select("title, created_at, status, owner_id").gte("created_at", since).order("created_at", { ascending: false });
+  const ownerIds = [...new Set((projects ?? []).map((p: { owner_id: string }) => p.owner_id).filter(Boolean))];
+  // deno-lint-ignore no-explicit-any
+  const ownerMap = new Map<string, any>();
+  if (ownerIds.length) {
+    const { data: owners } = await supabase.from("profiles").select("id, full_name, email").in("id", ownerIds);
+    for (const o of owners ?? []) ownerMap.set(o.id, o);
+  }
+
+  const { data: users } = await supabase.from("profiles")
+    .select("full_name, email, role, created_at").gte("created_at", since).order("created_at", { ascending: false });
+
+  const th = 'style="text-align:left;padding:8px 10px;background:#eef3fb;color:#1e3a5f;font-size:13px;border-bottom:1px solid #dde8f5;"';
+  const td = 'style="padding:8px 10px;font-size:13px;color:#222;border-bottom:1px solid #eee;"';
+  const roleLabel = (r: string) => r === "contractor" ? "Contractor" : r === "property_owner" ? "Client (owner)" : (r || "Other");
+
+  const projRows = (projects ?? []).map((p: { title: string; created_at: string; status: string; owner_id: string }) => {
+    const o = ownerMap.get(p.owner_id) ?? {};
+    return `<tr>
+      <td ${td}>${esc(p.title || "Untitled")}</td>
+      <td ${td}>${esc(when(p.created_at).slice(0, 10))}</td>
+      <td ${td}>${esc(o.full_name || "—")}</td>
+      <td ${td}>${esc(o.email || "—")}</td>
+      <td ${td}>${esc(STATUS_LABEL[p.status] ?? p.status ?? "—")}</td>
+    </tr>`;
+  }).join("");
+
+  const userRows = (users ?? []).map((u: { full_name: string; email: string; role: string; created_at: string }) =>
+    `<tr>
+      <td ${td}>${esc(u.full_name || "Unnamed")}</td>
+      <td ${td}>${esc(u.email || "—")}</td>
+      <td ${td}>${esc(roleLabel(u.role))}</td>
+      <td ${td}>${esc(when(u.created_at).slice(0, 10))}</td>
+    </tr>`).join("");
+
+  const customHtml = `
+    <p style="margin:0 0 18px;">Here is the M.G.BIT activity from the last ${days} days.</p>
+    <h2 style="color:#1e3a5f;font-size:16px;margin:0 0 8px;">🏗️ New projects (${(projects ?? []).length})</h2>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #dde8f5;border-radius:8px;overflow:hidden;margin-bottom:24px;">
+      <tr><th ${th}>Project</th><th ${th}>Date</th><th ${th}>Owner</th><th ${th}>Owner email</th><th ${th}>Status</th></tr>
+      ${projRows || `<tr><td ${td} colspan="5">No new projects.</td></tr>`}
+    </table>
+    <h2 style="color:#1e3a5f;font-size:16px;margin:0 0 8px;">👥 New users (${(users ?? []).length})</h2>
+    <table width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #dde8f5;border-radius:8px;overflow:hidden;">
+      <tr><th ${th}>Name</th><th ${th}>Email</th><th ${th}>Type</th><th ${th}>Joined</th></tr>
+      ${userRows || `<tr><td ${td} colspan="4">No new users.</td></tr>`}
+    </table>`;
+
+  const textLines = [
+    `M.G.BIT — activity (last ${days} days)`, ``,
+    `New projects (${(projects ?? []).length}):`,
+    ...(projects ?? []).map((p: { title: string; created_at: string; status: string; owner_id: string }) => {
+      const o = ownerMap.get(p.owner_id) ?? {};
+      return `- ${p.title} | ${when(p.created_at).slice(0, 10)} | ${o.full_name || "—"} <${o.email || "—"}> | ${p.status}`;
+    }),
+    ``, `New users (${(users ?? []).length}):`,
+    ...(users ?? []).map((u: { full_name: string; email: string; role: string; created_at: string }) =>
+      `- ${u.full_name} <${u.email}> | ${roleLabel(u.role)} | ${when(u.created_at).slice(0, 10)}`),
+  ];
+
+  return {
+    subject: `📊 M.G.BIT — Team activity summary (last ${days} days)`,
+    eventLabel: "Activity summary",
+    rows: [],
+    link: `${APP_URL}/admin`,
+    linkText: "Open Admin",
+    customHtml,
+    customText: textLines.join("\n"),
+  };
+}
+
+function renderHtml(b: Built): string {
+  let body: string;
+  if (b.customHtml) {
+    body = b.customHtml;
+  } else {
+    const rowsHtml = b.rows.filter(([, v]) => v && String(v).trim() !== "").map(([l, v]) =>
+      `<tr>
+        <td style="padding:7px 0;color:#666;font-size:14px;width:150px;vertical-align:top;">${esc(l)}</td>
+        <td style="padding:7px 0;color:#222;font-size:14px;font-weight:bold;">${esc(v)}</td>
+      </tr>`).join("");
+    body = `
+      <p style="margin:0 0 16px;">An internal system event just occurred on M.G.BIT:</p>
+      <table width="100%" cellpadding="0" cellspacing="0" style="background:#f8faff;border:1px solid #dde8f5;border-radius:10px;">
+        <tr><td style="padding:18px 22px;"><table width="100%" cellpadding="0" cellspacing="0">${rowsHtml}</table></td></tr>
+      </table>`;
+  }
+  return layout({
+    heading: `🔔 Team Alert — ${esc(b.eventLabel)}`,
+    bodyHtml: body,
+    ctaText: b.linkText,
+    ctaUrl: b.link,
+    preheader: b.subject,
+  });
+}
+
+function renderText(b: Built): string {
+  if (b.customText) return `${b.customText}\n\n${b.link}`;
+  const lines = b.rows.filter(([, v]) => v && String(v).trim() !== "").map(([l, v]) => `${l}: ${v}`);
+  return `Team Alert — ${b.eventLabel}\n\n${lines.join("\n")}\n\n${b.link}`;
 }
 
 Deno.serve(async (req: Request) => {
@@ -189,70 +353,73 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const body = await req.json().catch(() => ({}));
-    const alertId: string | undefined = body.team_alert_id ?? body.record?.id ?? body.id;
+    const reqBody = await req.json().catch(() => ({}));
+    const alertId: string | undefined = reqBody.team_alert_id ?? reqBody.record?.id ?? reqBody.id;
     if (!alertId) {
       return new Response(JSON.stringify({ error: "team_alert_id required" }), {
         status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { data: alert, error: aErr } = await supabase
-      .from("team_alerts").select("*").eq("id", alertId).single();
-    if (aErr || !alert) {
+    const { data: alert } = await supabase.from("team_alerts").select("*").eq("id", alertId).single();
+    if (!alert) {
       return new Response(JSON.stringify({ error: "team alert not found" }), {
         status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (alert.dispatched_at) {
+
+    // ── Atomic dedup: claim the alert (set dispatched_at only if still NULL). ──
+    // If another concurrent invocation already claimed it, we stop here so the
+    // same event is never emailed twice.
+    const { data: claimed } = await supabase.from("team_alerts")
+      .update({ dispatched_at: new Date().toISOString() })
+      .eq("id", alert.id).is("dispatched_at", null).select("id");
+    if (!claimed || claimed.length === 0) {
       return new Response(JSON.stringify({ ok: true, skipped: "already dispatched" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const message = await buildMessage(supabase, alert);
-    if (!message) {
-      await supabase.from("team_alerts").update({ dispatched_at: new Date().toISOString() }).eq("id", alert.id);
+    const built = await buildEmail(supabase, alert);
+    if (!built) {
       return new Response(JSON.stringify({ ok: true, skipped: "unknown event_type" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     const flag = FLAG_FOR[alert.event_type] ?? "receive_status_alerts";
-    const { data: members } = await supabase
-      .from("team_whatsapp_recipients")
-      .select("id, name, phone")
+    const { data: members } = await supabase.from("team_whatsapp_recipients")
+      .select(`id, name, email, always_all, ${flag}`)
       .eq("is_active", true)
-      .eq(flag, true);
+      .not("email", "is", null);
+    // deno-lint-ignore no-explicit-any
+    const targets = (members ?? []).filter((m: any) => m.always_all === true || m[flag] === true);
 
+    const html = renderHtml(built);
+    const text = renderText(built);
     const meta = alert.metadata ?? {};
-    const results: Array<{ name: string; ok: boolean; error?: string; skipped?: string }> = [];
+    const results: Array<{ email: string; ok: boolean; id?: string; error?: string }> = [];
 
-    for (const m of members ?? []) {
-      const r = await sendWhatsApp(m.phone, message);
-      results.push({ name: m.name, ok: r.ok, error: r.error, skipped: r.skipped });
-      if (!r.skipped) {
-        await supabase.from("whatsapp_logs").insert({
-          phone: r.to ?? m.phone,
-          message,
+    for (const m of targets) {
+      const r = await sendResend(m.email, built.subject, html, text);
+      results.push({ email: m.email, ok: r.ok, id: r.id, error: r.error });
+      // Best-effort logging — never let a log write break delivery.
+      try {
+        await supabase.from("email_logs").insert({
+          recipient_id: null,
+          email: m.email,
+          subject: built.subject,
           status: r.ok ? "sent" : "failed",
           error: r.error ?? null,
-          // Team members live in team_whatsapp_recipients, NOT profiles, but
-          // whatsapp_logs.recipient_id FKs profiles(id) — so writing the team id
-          // here silently failed the insert. Identity is kept in recipient_name.
-          recipient_id: null,
-          recipient_type: "team",
-          recipient_name: m.name,
-          event_type: `team:${alert.event_type}`,
+          provider_id: r.id ?? null,
+          type: `team:${alert.event_type}`,
           project_id: meta.project_id ?? null,
-          quote_id: meta.bid_id ?? null,
+          bid_id: meta.bid_id ?? null,
         });
-      }
+      } catch (_e) { /* ignore log failure */ }
     }
 
-    await supabase.from("team_alerts").update({ dispatched_at: new Date().toISOString() }).eq("id", alert.id);
-
-    return new Response(JSON.stringify({ ok: true, event: alert.event_type, sent: results.length, results }), {
+    return new Response(JSON.stringify({ ok: true, channel: "email", event: alert.event_type, sent: results.length, results }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
