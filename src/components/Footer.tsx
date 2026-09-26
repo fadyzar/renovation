@@ -118,10 +118,15 @@ export function Footer() {
             <div>
               <h4 className="text-[18px] font-semibold text-black mb-5">Legal</h4>
               <ul className="space-y-3">
-                {['Terms & Conditions', 'Privacy Policy', 'Refund Policy'].map((item) => (
-                  <li key={item}>
-                    <a href="#" className="text-[14px] text-black hover:opacity-60 transition-opacity">
-                      {item}
+                {/* Static pages in /public — plain <a> so they load outside the SPA/auth shell */}
+                {[
+                  { label: 'Terms & Conditions', href: '/terms' },
+                  { label: 'Privacy Policy', href: '/privacy' },
+                  { label: 'Refund Policy', href: '/refund' },
+                ].map((item) => (
+                  <li key={item.href}>
+                    <a href={item.href} className="text-[14px] text-black hover:opacity-60 transition-opacity">
+                      {item.label}
                     </a>
                   </li>
                 ))}

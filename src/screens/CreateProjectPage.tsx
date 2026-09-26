@@ -758,9 +758,9 @@ export function CreateProjectPage() {
                 />
                 <span className="text-sm text-brand-navy">
                   I agree to the{' '}
-                  <a href="#" className="text-brand-blue hover:underline">Terms of Service</a>
+                  <a href="/terms" target="_blank" rel="noopener noreferrer" className="text-brand-blue hover:underline">Terms of Service</a>
                   {' '}and{' '}
-                  <a href="#" className="text-brand-blue hover:underline">Privacy Policy</a>
+                  <a href="/privacy" target="_blank" rel="noopener noreferrer" className="text-brand-blue hover:underline">Privacy Policy</a>
                   <span className="block text-[#909090] text-xs mt-1">
                     We'll use your information to match you with contractors and send project updates.
                   </span>
