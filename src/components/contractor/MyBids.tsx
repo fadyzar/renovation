@@ -3,7 +3,6 @@ import { ChevronDown, Search, Layers, Clock, ArrowRight, CheckCircle, XCircle, E
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { DepositPaymentModal } from '../shared/DepositPaymentModal';
 
 interface Milestone {
   description: string;
@@ -42,7 +41,6 @@ export function MyBids() {
   const navigate = useNavigate();
   const [bids, setBids] = useState<Bid[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedBidForDeposit, setSelectedBidForDeposit] = useState<Bid | null>(null);
 
   const [filters, setFilters] = useState({
     renovationType: 'Select Project Type',
@@ -320,28 +318,25 @@ export function MyBids() {
                           </div>
 
                           {/* Action buttons based on status */}
+                          {/* The project starts when the OWNER's first payment is confirmed by
+                              Stripe. The old "Pay deposit" button here moved the project to
+                              in_progress without any payment; the database now refuses that. */}
                           {statusConfig.action === 'pay_deposit' && (
                             <div className="mt-4">
-                              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-3">
+                              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                                 <div className="flex items-start gap-2">
                                   <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
                                   <div>
                                     <p className="text-sm font-semibold text-amber-900 mb-1">
-                                      Deposit Required to Start Project
+                                      Your bid was accepted
                                     </p>
                                     <p className="text-sm text-amber-800">
-                                      Your bid was accepted! Pay the 10% security deposit (${(bid.total_price * 0.1).toLocaleString()}) to unlock messaging and start the project.
+                                      Waiting for the owner's first payment. The project and messaging unlock
+                                      automatically as soon as the payment is confirmed.
                                     </p>
                                   </div>
                                 </div>
                               </div>
-                              <button
-                                onClick={() => setSelectedBidForDeposit(bid)}
-                                className="w-full px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white font-bold rounded-lg transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-                              >
-                                <DollarSign className="w-5 h-5" />
-                                Pay ${(bid.total_price * 0.1).toLocaleString()} Deposit to Start
-                              </button>
                             </div>
                           )}
 
@@ -374,22 +369,6 @@ export function MyBids() {
               </div>
             </div>
 
-            {/* Deposit Payment Modal */}
-            {selectedBidForDeposit && profile && (
-              <DepositPaymentModal
-                projectId={selectedBidForDeposit.project.id}
-                bidId={selectedBidForDeposit.id}
-                ownerId={selectedBidForDeposit.project.owner_id}
-                contractorId={profile.id}
-                projectTitle={selectedBidForDeposit.project.title}
-                totalBidAmount={selectedBidForDeposit.total_price}
-                onClose={() => setSelectedBidForDeposit(null)}
-                onSuccess={() => {
-                  setSelectedBidForDeposit(null);
-                  loadBids();
-                }}
-              />
-            )}
           </>
         )}
       </div>

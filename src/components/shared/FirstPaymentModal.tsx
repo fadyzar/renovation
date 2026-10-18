@@ -54,7 +54,9 @@ export function FirstPaymentModal({
       if (!token) throw new Error('Not authenticated');
 
       const origin = window.location.origin;
-      const successUrl = `${origin}/payment-success?projectId=${projectId}`;
+      // Stripe fills in {CHECKOUT_SESSION_ID}; PaymentSuccess sends it to the
+      // server, which confirms the payment with Stripe before activating.
+      const successUrl = `${origin}/payment-success?projectId=${projectId}&session_id={CHECKOUT_SESSION_ID}`;
       const cancelUrl = `${origin}/accept-offer/${projectId}/${bidId}`;
 
       // Save full payload locally so the success page can activate the project

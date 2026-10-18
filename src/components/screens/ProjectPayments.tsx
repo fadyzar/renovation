@@ -223,7 +223,9 @@ export function ProjectPayments() {
       if (!token) throw new Error('Not authenticated');
 
       const origin = window.location.origin;
-      const successUrl = `${origin}/payment-success?projectId=${project.id}&milestoneId=${m.id}`;
+      // Stripe fills in {CHECKOUT_SESSION_ID}; PaymentSuccess sends it to the
+      // server, which confirms the payment with Stripe before marking the stage.
+      const successUrl = `${origin}/payment-success?projectId=${project.id}&milestoneId=${m.id}&session_id={CHECKOUT_SESSION_ID}`;
       const cancelUrl = `${origin}/project/${project.id}/payments`;
 
       localStorage.setItem(PENDING_KEY, JSON.stringify({
@@ -249,6 +251,7 @@ export function ProjectPayments() {
             contractorId: project.selected_contractor_id,
             projectTitle: project.title,
             productName: m.title,
+            milestoneId: m.id,
             successUrl,
             cancelUrl,
           }),

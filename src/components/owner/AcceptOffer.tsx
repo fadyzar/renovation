@@ -140,9 +140,9 @@ export function AcceptOffer() {
         .eq('project_id', projectId)
         .neq('id', bidId);
 
-      // 3. Move project to awaiting_deposit — contractor must pay 10% deposit
-      //    before the project becomes fully active (in_progress).
-      //    The DepositPaymentModal on the contractor side advances to in_progress.
+      // 3. Move project to awaiting_deposit. It becomes in_progress only when
+      //    the owner's first payment is confirmed by Stripe server-side
+      //    (verify-checkout-session); no client can make that transition.
       await supabase
         .from('projects')
         .update({

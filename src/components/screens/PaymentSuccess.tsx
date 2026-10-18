@@ -23,63 +23,54 @@ export function PaymentSuccess() {
   async function activate() {
     try {
       const raw = localStorage.getItem(PENDING_KEY);
-      if (!raw) throw new Error('Payment data not found. If you already paid, your project will be activated shortly.');
+      const parsed = raw ? JSON.parse(raw) : {};
 
-      const parsed = JSON.parse(raw);
-
-      // ── Later milestone payment (2nd, 3rd, …) ──────────────────────────────
-      // Same Stripe Checkout as the first payment; here we just mark the one
-      // milestone paid. (First payment uses the activation path below.)
-      if (parsed.kind === 'milestone') {
-        setKind('milestone');
-        setPaidProjectId(parsed.projectId);
-        const nowIso = new Date().toISOString();
-        const { error: mErr } = await supabase
-          .from('milestones')
-          .update({ status: 'paid', approved_at: nowIso, paid_at: nowIso })
-          .eq('id', parsed.milestoneId);
-        if (mErr) throw new Error(mErr.message);
-
-        localStorage.removeItem(PENDING_KEY);
-        setState('success');
-        // Contractor notification (in-app + WhatsApp + email) is sent server-side
-        // via the milestone-paid DB trigger + dispatch-notification service.
-        return;
+      // Stripe appends the real session id to the success URL. Nothing on this
+      // page decides that money moved: the server asks Stripe, checks the
+      // amount against the accepted quote (or the stage) and applies the
+      // payment exactly once. The database refuses the same writes from here.
+      const sessionId = searchParams.get('session_id');
+      if (!sessionId || sessionId.includes('CHECKOUT_SESSION_ID')) {
+        throw new Error('Payment reference not found. If you already paid, your project will be activated shortly.');
       }
 
-      const {
-        projectId, bidId, ownerId, contractorId,
-        contractorName, contractorPhone,
-        totalBidAmount, firstAmount, milestones,
-      } = parsed;
+      const milestoneId = searchParams.get('milestoneId') ?? (parsed.kind === 'milestone' ? parsed.milestoneId : undefined);
+      const isStage = !!milestoneId;
+      setKind(isStage ? 'milestone' : 'activation');
+      setPaidProjectId(searchParams.get('projectId') ?? parsed.projectId);
 
-      const sessionId = searchParams.get('session_id') ?? `stripe_${Date.now()}`;
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error('Please sign in again to finish activating your payment.');
 
-      const { data: rpcData, error: rpcError } = await supabase.rpc(
-        'activate_project_after_payment',
+      const res = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-checkout-session`,
         {
-          p_project_id:       projectId,
-          p_bid_id:           bidId,
-          p_owner_id:         ownerId,
-          p_contractor_id:    contractorId,
-          p_total_amount:     totalBidAmount,
-          p_first_amount:     firstAmount,
-          p_mock_tx_id:       sessionId,
-          p_contractor_name:  contractorName,
-          p_contractor_phone: contractorPhone,
-          p_milestones:       milestones,
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            sessionId,
+            milestoneId,
+            contractorName: parsed.contractorName ?? '',
+            contractorPhone: parsed.contractorPhone ?? '',
+          }),
         }
       );
+      const result = await res.json().catch(() => ({}));
 
-      if (rpcError) throw new Error(rpcError.message);
+      if (!res.ok || result.error) {
+        throw new Error(result.error ?? `Server error ${res.status}`);
+      }
+      if (!result.paid) {
+        throw new Error('This payment has not been completed. Nothing was charged.');
+      }
 
       localStorage.removeItem(PENDING_KEY);
-      setConversationId((rpcData as any)?.conversation_id);
+      setConversationId(result.conversationId);
       setState('success');
 
-      // Activation notifications (contractor + admins, in-app + WhatsApp + email)
-      // are sent server-side when the project flips to in_progress, via the
-      // notify_admins_payment DB trigger + dispatch-notification service.
+      // Contractor and admin notifications are raised server-side by the
+      // project / milestone triggers, exactly as before.
     } catch (err: any) {
       console.error('Activation error:', err);
       setErrMsg(err?.message ?? 'Something went wrong activating your project.');
